@@ -1,6 +1,6 @@
 # PROJ-1: Authentifizierung & Nutzerzugang
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-04-17
 **Last Updated:** 2026-04-17
 
@@ -172,4 +172,8 @@ src/app/auth/callback/route.ts       — Magic Link Handler (neu)
 Playwright-Spec-Dateien wurden fälschlicherweise von Vitest aufgegriffen — `tests/**` exclusion in `vitest.config.ts` hinzugefügt.
 
 ## Deployment
-_To be added by /deploy_
+
+**Deployed:** 2026-04-17
+**Platform:** Vercel (Hobby)
+**Production URL:** https://controlling-app-five.vercel.app
+**Git Commit:** 4985256 feat(PROJ-1): Implement authentication with Supabase Magic Link
