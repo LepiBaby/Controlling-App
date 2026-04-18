@@ -208,6 +208,12 @@ Alle 14 PROJ-1 E2E-Tests bestehen weiterhin. Kein Regressionsrisiko. ✅
 
 ## Deployment
 
-**Deployed:** 2026-04-18
+**Deployed:** 2026-04-18 (initial) / 2026-04-18 (DnD-Erweiterung)
 **Production URL:** https://controlling-app-five.vercel.app/dashboard/kpi-modell
 **Deploy Method:** Git push to main → Vercel auto-deploy
+
+**DnD-Updates (2026-04-18):**
+- Drag & Drop Sortierung innerhalb gleicher Ebene
+- Drag & Drop Reparenting (Kategorie in andere verschieben)
+- Root-Drop-Zone zum Hochstufen auf Hauptkategorie-Ebene
+- Bugfix: Reparenting zwischen Root-Kategorien (parent_id=null)
