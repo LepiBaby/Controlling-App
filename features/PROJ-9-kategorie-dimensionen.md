@@ -1,6 +1,6 @@
 # PROJ-9: Kategorie-Dimensionen Konfiguration
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-04-18
 **Last Updated:** 2026-04-18
 

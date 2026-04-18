@@ -1,8 +1,8 @@
 # PROJ-2: KPI-Modell Verwaltung
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-04-17
-**Last Updated:** 2026-04-17
+**Last Updated:** 2026-04-18
 
 ## Dependencies
 - Requires: PROJ-1 (Authentifizierung) — nur eingeloggte Nutzer können KPI-Modelle pflegen
