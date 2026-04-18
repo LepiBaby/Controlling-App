@@ -21,9 +21,14 @@ export function KpiAddCategoryForm({ placeholder = 'Neue Kategorie...', onAdd }:
     if (!trimmed) { setError('Name darf nicht leer sein.'); return }
     setError('')
     setLoading(true)
-    await onAdd(trimmed)
-    setName('')
-    setLoading(false)
+    try {
+      await onAdd(trimmed)
+      setName('')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Fehler beim Speichern.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

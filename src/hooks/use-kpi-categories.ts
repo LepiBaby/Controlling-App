@@ -121,6 +121,7 @@ export function useKpiCategories(type: CategoryType) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type, name, parent_id: parentId, level, sort_order: maxOrder + 1 }),
     })
+    if (!res.ok) throw new Error((await res.json()).error ?? 'Fehler beim Speichern.')
     const newCat: KpiCategory = await res.json()
     setCategories(prev => [...prev, newCat])
   }, [categories, type])
