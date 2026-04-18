@@ -15,6 +15,8 @@ const cat = (id: string, parentId: string | null, level: 1 | 2 | 3, sortOrder = 
   name: id,
   level,
   sort_order: sortOrder,
+  sales_plattform_enabled: false,
+  produkt_enabled: false,
 })
 
 // ─── buildTree ────────────────────────────────────────────────────────────────

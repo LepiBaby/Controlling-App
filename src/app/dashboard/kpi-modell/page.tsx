@@ -27,7 +27,7 @@ function CategoryTab({ type, maxLevel = 3 }: { type: CategoryType; maxLevel?: 1 
   const {
     tree, categories, loading, error,
     addCategory, renameCategory, deleteCategory, moveCategory,
-    reorderCategory, reparentCategory, getDescendantCount,
+    reorderCategory, reparentCategory, updateDimensions, getDescendantCount,
   } = useKpiCategories(type)
   const [pendingDelete, setPendingDelete] = useState<KpiCategory | null>(null)
 
@@ -55,6 +55,7 @@ function CategoryTab({ type, maxLevel = 3 }: { type: CategoryType; maxLevel?: 1 
         onMoveDown={(id) => moveCategory(id, 'down')}
         onReorder={reorderCategory}
         onReparent={reparentCategory}
+        onUpdateDimensions={maxLevel === 3 ? updateDimensions : undefined}
       />
 
       <AlertDialog open={!!pendingDelete} onOpenChange={open => { if (!open) setPendingDelete(null) }}>

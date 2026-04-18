@@ -11,6 +11,8 @@ export interface KpiCategory {
   name: string
   level: 1 | 2 | 3
   sort_order: number
+  sales_plattform_enabled: boolean
+  produkt_enabled: boolean
   children?: KpiCategory[]
 }
 
@@ -251,10 +253,27 @@ export function useKpiCategories(type: CategoryType) {
   const isDescendantOfId = useCallback((childId: string, ancestorId: string) =>
     isDescendantOf(categories, childId, ancestorId), [categories])
 
+  const updateDimensions = useCallback(async (
+    id: string,
+    patch: { sales_plattform_enabled?: boolean; produkt_enabled?: boolean }
+  ) => {
+    const prev = categories.find(c => c.id === id)
+    if (!prev) return
+    setCategories(cats => cats.map(c => c.id === id ? { ...c, ...patch } : c))
+    const res = await fetch(`/api/kpi-categories/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    })
+    if (!res.ok) {
+      setCategories(cats => cats.map(c => c.id === id ? { ...c, ...prev } : c))
+    }
+  }, [categories])
+
   return {
     tree, categories, loading, error,
     addCategory, renameCategory, deleteCategory, moveCategory,
-    reorderCategory, reparentCategory,
+    reorderCategory, reparentCategory, updateDimensions,
     getDescendantCount, getSubtreeDepthForId, isDescendantOfId,
   }
 }

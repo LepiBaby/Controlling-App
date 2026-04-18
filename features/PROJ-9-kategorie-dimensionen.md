@@ -1,6 +1,6 @@
 # PROJ-9: Kategorie-Dimensionen Konfiguration
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-04-18
 **Last Updated:** 2026-04-18
 
@@ -127,3 +127,10 @@ src/hooks/use-kpi-categories.ts         — updateDimensions()-Funktion + neue F
 src/app/api/kpi-categories/[id]/route.ts — PATCH-Schema um boolean-Felder erweitern
 src/app/api/kpi-categories/[id]/route.test.ts — Tests für neue PATCH-Felder
 ```
+
+## Implementation Notes (Frontend)
+- `KpiCategory` Interface: `sales_plattform_enabled` + `produkt_enabled` Boolean-Felder hinzugefügt
+- `useKpiCategories`: `updateDimensions(id, patch)` — optimistisches Update + rollback bei Fehler
+- `KpiCategoryRow`: neues Prop `onUpdateDimensions`; `showDimensionen = level === 1 && maxLevel === 3`; SlidersHorizontal-Icon wird primary-farbig wenn mind. 1 Dimension aktiv
+- `KpiCategoryTree` + `page.tsx`: `onUpdateDimensions` durchgereicht; nur für hierarchische Tabs (maxLevel=3)
+- `use-kpi-categories.test.ts`: `cat()`-Helper um neue Felder ergänzt (default false)
