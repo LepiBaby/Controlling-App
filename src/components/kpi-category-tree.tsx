@@ -82,20 +82,21 @@ export function KpiCategoryTree({
     const active = categories.find(c => c.id === activeId)
     if (!active) return
 
-    const sameSiblings = overData.parentId === active.parent_id
-
     // Compute pointer Y position relative to the drop target rect
     const initialY = (activatorEvent as PointerEvent).clientY
     const currentY = initialY + delta.y
     const overRect = over.rect
     const relY = overRect.height > 0 ? (currentY - overRect.top) / overRect.height : 0.5
 
-    if (sameSiblings) {
-      // Sort within same parent
-      const action = relY < 0.5 ? 'before' : 'after'
-      setDropIntent({ overId, action, valid: true })
+    const sameSiblings = overData.parentId === active.parent_id
+
+    // Top/bottom 30% → sort (only within same parent); middle 40% → reparent
+    if (sameSiblings && relY < 0.3) {
+      setDropIntent({ overId, action: 'before', valid: true })
+    } else if (sameSiblings && relY > 0.7) {
+      setDropIntent({ overId, action: 'after', valid: true })
     } else {
-      // Reparent: over item becomes the new parent
+      // Middle zone OR different parent → reparent into target
       const newLevel = (overData.level + 1) as 1 | 2 | 3
       const activeDepth = getSubtreeDepth(categories, activeId)
       const wouldExceedDepth = newLevel + activeDepth > 3
