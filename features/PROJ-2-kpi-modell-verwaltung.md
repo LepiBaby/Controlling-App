@@ -206,4 +206,7 @@ Keine neuen Packages — alle benötigten shadcn/ui-Komponenten bereits installi
 Alle 14 PROJ-1 E2E-Tests bestehen weiterhin. Kein Regressionsrisiko. ✅
 
 ## Deployment
-_To be added by /deploy_
+
+**Deployed:** 2026-04-18
+**Production URL:** https://controlling-app-five.vercel.app/dashboard/kpi-modell
+**Deploy Method:** Git push to main → Vercel auto-deploy
