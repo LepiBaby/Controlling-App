@@ -205,8 +205,8 @@ export function useKpiCategories(type: CategoryType) {
     ))
   }, [categories])
 
-  // Reparent: move activeId (with all descendants) under newParentId
-  const reparentCategory = useCallback(async (activeId: string, newParentId: string, newLevel: 1 | 2 | 3) => {
+  // Reparent: move activeId (with all descendants) under newParentId (null = root level)
+  const reparentCategory = useCallback(async (activeId: string, newParentId: string | null, newLevel: 1 | 2 | 3) => {
     const active = categories.find(c => c.id === activeId)
     if (!active) return
 

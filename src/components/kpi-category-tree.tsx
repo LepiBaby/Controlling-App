@@ -10,13 +10,17 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  useDroppable,
 } from '@dnd-kit/core'
 import { KpiCategoryRow, DragStateContext, type DropIntent } from '@/components/kpi-category-row'
 import { KpiAddCategoryForm } from '@/components/kpi-add-category-form'
 import { Skeleton } from '@/components/ui/skeleton'
-import { FolderTree, GripVertical } from 'lucide-react'
+import { FolderTree, GripVertical, ArrowUpToLine } from 'lucide-react'
 import type { KpiCategory } from '@/hooks/use-kpi-categories'
 import { getSubtreeDepth, isDescendantOf } from '@/hooks/use-kpi-categories'
+import { cn } from '@/lib/utils'
+
+const ROOT_DROP_ID = '__root__'
 
 interface KpiCategoryTreeProps {
   tree: KpiCategory[]
@@ -30,15 +34,39 @@ interface KpiCategoryTreeProps {
   onMoveUp: (id: string) => void
   onMoveDown: (id: string) => void
   onReorder: (activeId: string, overId: string, position: 'before' | 'after') => Promise<void>
-  onReparent: (activeId: string, newParentId: string, newLevel: 1 | 2 | 3) => Promise<void>
+  onReparent: (activeId: string, newParentId: string | null, newLevel: 1 | 2 | 3) => Promise<void>
 }
 
-// Minimal drag preview shown in DragOverlay
-function DragPreview({ name, level }: { name: string; level: number }) {
+function DragPreview({ name }: { name: string }) {
   return (
     <div className="flex items-center gap-2 rounded-md border bg-background px-2 py-1.5 shadow-lg opacity-90 text-sm w-56">
       <GripVertical className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
       <span className="truncate">{name}</span>
+    </div>
+  )
+}
+
+// Drop zone shown during drag to promote a subcategory to root level
+function RootDropZone({ isOver, isValid }: { isOver: boolean; isValid: boolean }) {
+  const { setNodeRef } = useDroppable({
+    id: ROOT_DROP_ID,
+    data: { level: 0, parentId: null },
+  })
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        'flex items-center justify-center gap-2 rounded-md border-2 border-dashed py-3 text-sm transition-colors',
+        isOver && isValid && 'border-primary bg-primary/5 text-primary',
+        isOver && !isValid && 'border-destructive/50 bg-destructive/5 text-destructive',
+        !isOver && 'border-muted-foreground/30 text-muted-foreground/60',
+      )}
+    >
+      <ArrowUpToLine className="h-4 w-4" />
+      {isOver && !isValid
+        ? 'Zu tief verschachtelt — nicht möglich'
+        : 'Hier ablegen → zur Hauptkategorie machen'}
     </div>
   )
 }
@@ -65,6 +93,10 @@ export function KpiCategoryTree({
   )
 
   const activeCategory = activeId ? categories.find(c => c.id === activeId) : null
+  // Show root drop zone when dragging a non-root category
+  const showRootDropZone = activeId !== null && activeCategory?.parent_id !== null
+
+  const rootDropIntent = dropIntent?.overId === ROOT_DROP_ID ? dropIntent : null
 
   function handleDragStart(e: DragStartEvent) {
     setActiveId(String(e.active.id))
@@ -82,7 +114,14 @@ export function KpiCategoryTree({
     const active = categories.find(c => c.id === activeId)
     if (!active) return
 
-    // Compute pointer Y position relative to the drop target rect
+    // Root drop zone
+    if (overId === ROOT_DROP_ID) {
+      const activeDepth = getSubtreeDepth(categories, activeId)
+      setDropIntent({ overId: ROOT_DROP_ID, action: 'reparent', valid: activeDepth <= 2 })
+      return
+    }
+
+    // Compute pointer Y relative to drop target
     const initialY = (activatorEvent as PointerEvent).clientY
     const currentY = initialY + delta.y
     const overRect = over.rect
@@ -90,7 +129,6 @@ export function KpiCategoryTree({
 
     const sameSiblings = overData.parentId === active.parent_id
 
-    // Top/bottom 30% → sort (only within same parent); middle 40% → reparent
     if (sameSiblings && relY < 0.3) {
       setDropIntent({ overId, action: 'before', valid: true })
     } else if (sameSiblings && relY > 0.7) {
@@ -117,9 +155,16 @@ export function KpiCategoryTree({
     const overId = String(over.id)
     if (overId === activeId) return
 
-    const overData = over.data.current as { parentId: string | null; level: number }
     const active = categories.find(c => c.id === activeId)
     if (!active) return
+
+    // Root drop zone → promote to level 1
+    if (overId === ROOT_DROP_ID && intent.valid) {
+      onReparent(activeId, null, 1)
+      return
+    }
+
+    const overData = over.data.current as { parentId: string | null; level: number }
 
     if (intent.action === 'reparent' && intent.valid) {
       const newLevel = (overData.level + 1) as 1 | 2 | 3
@@ -168,6 +213,13 @@ export function KpiCategoryTree({
             </div>
           )}
 
+          {showRootDropZone && (
+            <RootDropZone
+              isOver={rootDropIntent !== null}
+              isValid={rootDropIntent?.valid ?? false}
+            />
+          )}
+
           <KpiAddCategoryForm
             placeholder="Neue Hauptkategorie hinzufügen..."
             onAdd={onAddCategory}
@@ -176,9 +228,7 @@ export function KpiCategoryTree({
       </DragStateContext.Provider>
 
       <DragOverlay>
-        {activeCategory ? (
-          <DragPreview name={activeCategory.name} level={activeCategory.level} />
-        ) : null}
+        {activeCategory ? <DragPreview name={activeCategory.name} /> : null}
       </DragOverlay>
     </DndContext>
   )
