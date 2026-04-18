@@ -128,6 +128,12 @@ src/app/api/kpi-categories/[id]/route.ts — PATCH-Schema um boolean-Felder erwe
 src/app/api/kpi-categories/[id]/route.test.ts — Tests für neue PATCH-Felder
 ```
 
+## Implementation Notes (Backend)
+- DB-Migration: `sales_plattform_enabled BOOLEAN NOT NULL DEFAULT false` + `produkt_enabled BOOLEAN NOT NULL DEFAULT false` auf `kpi_categories`
+- `PATCH /api/kpi-categories/[id]`: patchSchema um beide Boolean-Felder erweitert (optional)
+- GET gibt die neuen Felder automatisch zurück (SELECT *)
+- 3 neue Unit-Tests: happy path für beide Flags + Validierungsfehler bei non-boolean
+
 ## Implementation Notes (Frontend)
 - `KpiCategory` Interface: `sales_plattform_enabled` + `produkt_enabled` Boolean-Felder hinzugefügt
 - `useKpiCategories`: `updateDimensions(id, patch)` — optimistisches Update + rollback bei Fehler

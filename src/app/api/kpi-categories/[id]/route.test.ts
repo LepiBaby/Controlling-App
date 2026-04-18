@@ -81,6 +81,42 @@ describe('PATCH /api/kpi-categories/[id]', () => {
   })
 })
 
+  it('returns 200 for sales_plattform_enabled update', async () => {
+    const res = await PATCH(
+      new Request('http://localhost/api/kpi-categories/cat-1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sales_plattform_enabled: true }),
+      }),
+      makeCtx('cat-1')
+    )
+    expect(res.status).toBe(200)
+  })
+
+  it('returns 200 for produkt_enabled update', async () => {
+    const res = await PATCH(
+      new Request('http://localhost/api/kpi-categories/cat-1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ produkt_enabled: false }),
+      }),
+      makeCtx('cat-1')
+    )
+    expect(res.status).toBe(200)
+  })
+
+  it('returns 400 for non-boolean sales_plattform_enabled', async () => {
+    const res = await PATCH(
+      new Request('http://localhost/api/kpi-categories/cat-1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sales_plattform_enabled: 'yes' }),
+      }),
+      makeCtx('cat-1')
+    )
+    expect(res.status).toBe(400)
+  })
+
 describe('DELETE /api/kpi-categories/[id]', () => {
   it('returns 204 on successful delete', async () => {
     const res = await DELETE(

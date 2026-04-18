@@ -7,6 +7,8 @@ const patchSchema = z.object({
   sort_order: z.number().int().min(0).optional(),
   parent_id: z.string().uuid().nullable().optional(),
   level: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
+  sales_plattform_enabled: z.boolean().optional(),
+  produkt_enabled: z.boolean().optional(),
 })
 
 interface RouteContext {
