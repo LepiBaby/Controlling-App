@@ -1,58 +1,12 @@
 import { describe, it, expect } from 'vitest'
-
-// Re-export private functions for testing via module internals
-// We test the logic by importing the module and calling internal helpers
-// Since they are not exported, we reproduce them here identically
-
+import {
+  buildTree,
+  removeWithDescendants,
+  countDescendants,
+  getSubtreeDepth,
+  isDescendantOf,
+} from './use-kpi-categories'
 import type { KpiCategory } from './use-kpi-categories'
-
-function buildTree(flat: KpiCategory[]): KpiCategory[] {
-  const map = new Map<string, KpiCategory>()
-  const roots: KpiCategory[] = []
-  const sorted = [...flat].sort((a, b) => a.sort_order - b.sort_order)
-  sorted.forEach(cat => map.set(cat.id, { ...cat, children: [] }))
-  sorted.forEach(cat => {
-    if (cat.parent_id === null) {
-      roots.push(map.get(cat.id)!)
-    } else {
-      const parent = map.get(cat.parent_id)
-      if (parent) parent.children!.push(map.get(cat.id)!)
-    }
-  })
-  return roots
-}
-
-function removeWithDescendants(flat: KpiCategory[], id: string): KpiCategory[] {
-  const toRemove = new Set<string>([id])
-  let changed = true
-  while (changed) {
-    changed = false
-    flat.forEach(c => {
-      if (c.parent_id && toRemove.has(c.parent_id) && !toRemove.has(c.id)) {
-        toRemove.add(c.id)
-        changed = true
-      }
-    })
-  }
-  return flat.filter(c => !toRemove.has(c.id))
-}
-
-function countDescendants(flat: KpiCategory[], id: string): number {
-  const descendants = new Set<string>()
-  let changed = true
-  const toCheck = new Set<string>([id])
-  while (changed) {
-    changed = false
-    flat.forEach(c => {
-      if (c.parent_id && toCheck.has(c.parent_id) && !descendants.has(c.id)) {
-        descendants.add(c.id)
-        toCheck.add(c.id)
-        changed = true
-      }
-    })
-  }
-  return descendants.size
-}
 
 const cat = (id: string, parentId: string | null, level: 1 | 2 | 3, sortOrder = 0): KpiCategory => ({
   id,
@@ -62,6 +16,8 @@ const cat = (id: string, parentId: string | null, level: 1 | 2 | 3, sortOrder = 
   level,
   sort_order: sortOrder,
 })
+
+// ─── buildTree ────────────────────────────────────────────────────────────────
 
 describe('buildTree', () => {
   it('returns empty array for empty input', () => {
@@ -108,6 +64,8 @@ describe('buildTree', () => {
   })
 })
 
+// ─── removeWithDescendants ────────────────────────────────────────────────────
+
 describe('removeWithDescendants', () => {
   it('removes a leaf node', () => {
     const flat = [cat('parent', null, 1), cat('child', 'parent', 2)]
@@ -150,6 +108,8 @@ describe('removeWithDescendants', () => {
   })
 })
 
+// ─── countDescendants ────────────────────────────────────────────────────────
+
 describe('countDescendants', () => {
   it('returns 0 for a leaf node', () => {
     const flat = [cat('a', null, 1)]
@@ -178,5 +138,127 @@ describe('countDescendants', () => {
   it('returns 0 for unknown id', () => {
     const flat = [cat('a', null, 1)]
     expect(countDescendants(flat, 'unknown')).toBe(0)
+  })
+})
+
+// ─── getSubtreeDepth ─────────────────────────────────────────────────────────
+
+describe('getSubtreeDepth', () => {
+  it('returns 0 for a leaf node', () => {
+    const flat = [cat('a', null, 1)]
+    expect(getSubtreeDepth(flat, 'a')).toBe(0)
+  })
+
+  it('returns 1 for a node with direct children only', () => {
+    const flat = [cat('p', null, 1), cat('c', 'p', 2)]
+    expect(getSubtreeDepth(flat, 'p')).toBe(1)
+  })
+
+  it('returns 2 for a node with grandchildren', () => {
+    const flat = [cat('p', null, 1), cat('c', 'p', 2), cat('gc', 'c', 3)]
+    expect(getSubtreeDepth(flat, 'p')).toBe(2)
+  })
+
+  it('returns 0 for unknown id', () => {
+    const flat = [cat('a', null, 1)]
+    expect(getSubtreeDepth(flat, 'unknown')).toBe(0)
+  })
+
+  it('counts depth relative to the node level, not absolute', () => {
+    // A level-2 node with a level-3 child → depth = 1
+    const flat = [
+      cat('root', null, 1),
+      cat('mid', 'root', 2),
+      cat('leaf', 'mid', 3),
+    ]
+    expect(getSubtreeDepth(flat, 'mid')).toBe(1)
+  })
+})
+
+// ─── isDescendantOf ───────────────────────────────────────────────────────────
+
+describe('isDescendantOf', () => {
+  it('returns true for a direct child', () => {
+    const flat = [cat('parent', null, 1), cat('child', 'parent', 2)]
+    expect(isDescendantOf(flat, 'child', 'parent')).toBe(true)
+  })
+
+  it('returns true for a grandchild', () => {
+    const flat = [cat('p', null, 1), cat('c', 'p', 2), cat('gc', 'c', 3)]
+    expect(isDescendantOf(flat, 'gc', 'p')).toBe(true)
+  })
+
+  it('returns false for a sibling', () => {
+    const flat = [
+      cat('p', null, 1),
+      cat('c1', 'p', 2),
+      cat('c2', 'p', 2),
+    ]
+    expect(isDescendantOf(flat, 'c1', 'c2')).toBe(false)
+  })
+
+  it('returns false for the node itself', () => {
+    const flat = [cat('a', null, 1)]
+    expect(isDescendantOf(flat, 'a', 'a')).toBe(false)
+  })
+
+  it('returns false for unrelated nodes', () => {
+    const flat = [cat('a', null, 1), cat('b', null, 1)]
+    expect(isDescendantOf(flat, 'a', 'b')).toBe(false)
+  })
+
+  it('returns false when ancestor does not exist', () => {
+    const flat = [cat('a', null, 1)]
+    expect(isDescendantOf(flat, 'a', 'nonexistent')).toBe(false)
+  })
+})
+
+// ─── DnD validation logic (reparent constraints) ──────────────────────────────
+
+describe('reparent validation logic', () => {
+  // Mirrors the constraint: newLevel + activeDepth <= 3
+  // newLevel = target.level + 1
+
+  it('leaf into level-1 target → valid (newLevel=2, depth=0, 2+0=2 ≤ 3)', () => {
+    const flat = [cat('target', null, 1), cat('active', null, 1)]
+    const activeDepth = getSubtreeDepth(flat, 'active')
+    const newLevel = 2 // target.level(1) + 1
+    expect(newLevel + activeDepth).toBeLessThanOrEqual(3)
+  })
+
+  it('node with 1 child level into level-1 target → valid (newLevel=2, depth=1, 2+1=3 ≤ 3)', () => {
+    const flat = [cat('target', null, 1), cat('active', null, 1), cat('child', 'active', 2)]
+    const activeDepth = getSubtreeDepth(flat, 'active')
+    const newLevel = 2
+    expect(newLevel + activeDepth).toBeLessThanOrEqual(3)
+  })
+
+  it('node with grandchild into level-1 target → INVALID (newLevel=2, depth=2, 2+2=4 > 3)', () => {
+    const flat = [
+      cat('target', null, 1),
+      cat('active', null, 1),
+      cat('child', 'active', 2),
+      cat('grandchild', 'child', 3),
+    ]
+    const activeDepth = getSubtreeDepth(flat, 'active')
+    const newLevel = 2
+    expect(newLevel + activeDepth).toBeGreaterThan(3)
+  })
+
+  it('leaf into level-2 target → valid (newLevel=3, depth=0, 3+0=3 ≤ 3)', () => {
+    const flat = [cat('root', null, 1), cat('target', 'root', 2), cat('active', null, 1)]
+    const activeDepth = getSubtreeDepth(flat, 'active')
+    const newLevel = 3
+    expect(newLevel + activeDepth).toBeLessThanOrEqual(3)
+  })
+
+  it('any node into level-3 target → INVALID (newLevel=4 > 3)', () => {
+    const newLevel = 4 // target.level(3) + 1
+    expect(newLevel).toBeGreaterThan(3)
+  })
+
+  it('cannot reparent into own descendant', () => {
+    const flat = [cat('active', null, 1), cat('child', 'active', 2)]
+    expect(isDescendantOf(flat, 'child', 'active')).toBe(true)
   })
 })

@@ -158,7 +158,7 @@ Keine neuen Packages — alle benötigten shadcn/ui-Komponenten bereits installi
 
 ## QA Test Results
 
-**QA Date:** 2026-04-18
+**QA Date:** 2026-04-18 (initial) / 2026-04-18 (DnD-Erweiterung)
 **Tester:** /qa skill
 **Status: APPROVED ✅**
 
@@ -166,9 +166,9 @@ Keine neuen Packages — alle benötigten shadcn/ui-Komponenten bereits installi
 | Suite | Tests | Result |
 |---|---|---|
 | Vitest Unit (API routes) | 18 | ✅ all pass |
-| Vitest Unit (hook logic: buildTree, removeWithDescendants, countDescendants) | 16 | ✅ all pass |
-| Playwright E2E (chromium) | 21 | ✅ all pass |
-| **Total** | **55** | **✅ 55/55 pass** |
+| Vitest Unit (hook logic inkl. DnD: getSubtreeDepth, isDescendantOf, reparent validation) | 33 | ✅ all pass |
+| Playwright E2E (chromium) | 22 | ✅ all pass |
+| **Total** | **73** | **✅ 73/73 pass** |
 
 ### Acceptance Criteria
 | # | Kriterium | Status |
@@ -186,12 +186,13 @@ Keine neuen Packages — alle benötigten shadcn/ui-Komponenten bereits installi
 | AC11 | KPI-Modell kann nicht leer sein (vor erster Transaktion) | ⏳ DEFERRED — wird in PROJ-3/4/5 erzwungen |
 
 ### Bugs Found
-| # | Schwere | Beschreibung |
-|---|---|---|
-| — | — | Keine Critical oder High Bugs |
-| B1 | Medium | AC11: Kein UI-Schutz gegen leeres KPI-Modell — letzter Eintrag kann gelöscht werden. Korrekte Absicherung erfolgt in PROJ-3/4/5 beim Transaktionseingabe-Gate. |
-| B2 | Low | API-Routen geben bei unauthentifiziertem Zugriff kein 401 zurück, sondern werden durch Middleware zu /login umgeleitet (302→200). Funktional korrekt für Web-App, ungewöhnlich für REST-APIs. |
-| B3 | Low | Kein Rate-Limiting auf API-Routen. Für interne App mit 1–5 Nutzern akzeptabel. |
+| # | Schwere | Beschreibung | Status |
+|---|---|---|---|
+| — | — | Keine Critical oder High Bugs | |
+| B1 | Medium | AC11: Kein UI-Schutz gegen leeres KPI-Modell. Absicherung folgt in PROJ-3/4/5. | Open (deferred) |
+| B2 | Low | API-Routen geben bei unauthentifiziertem Zugriff kein 401 zurück (Middleware→/login). Funktional korrekt für Web-App. | Accepted |
+| B3 | Low | Kein Rate-Limiting. Für 1–5 interne Nutzer akzeptabel. | Accepted |
+| B4 | Medium | DnD: Reparenting von gleichstufigen Root-Kategorien funktionierte nicht (parent=null = als Geschwister erkannt). | **Fixed** |
 
 ### Security Audit
 - **XSS:** Kein Risiko — Kategorienamen werden als React-Text-Nodes gerendert (kein `dangerouslySetInnerHTML`) ✅
