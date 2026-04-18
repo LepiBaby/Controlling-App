@@ -22,8 +22,11 @@ const TABS: { value: CategoryType; label: string }[] = [
 ]
 
 function CategoryTab({ type }: { type: CategoryType }) {
-  const { tree, loading, error, addCategory, renameCategory, deleteCategory, moveCategory, getDescendantCount } =
-    useKpiCategories(type)
+  const {
+    tree, categories, loading, error,
+    addCategory, renameCategory, deleteCategory, moveCategory,
+    reorderCategory, reparentCategory, getDescendantCount,
+  } = useKpiCategories(type)
   const [pendingDelete, setPendingDelete] = useState<KpiCategory | null>(null)
 
   const descendantCount = pendingDelete ? getDescendantCount(pendingDelete.id) : 0
@@ -38,6 +41,7 @@ function CategoryTab({ type }: { type: CategoryType }) {
     <>
       <KpiCategoryTree
         tree={tree}
+        categories={categories}
         loading={loading}
         error={error}
         onRename={renameCategory}
@@ -46,6 +50,8 @@ function CategoryTab({ type }: { type: CategoryType }) {
         onAddChild={(name, parentId, level) => addCategory(name, parentId, level)}
         onMoveUp={(id) => moveCategory(id, 'up')}
         onMoveDown={(id) => moveCategory(id, 'down')}
+        onReorder={reorderCategory}
+        onReparent={reparentCategory}
       />
 
       <AlertDialog open={!!pendingDelete} onOpenChange={open => { if (!open) setPendingDelete(null) }}>
