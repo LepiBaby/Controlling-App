@@ -15,13 +15,15 @@ import {
 import { KpiCategoryTree } from '@/components/kpi-category-tree'
 import { useKpiCategories, type CategoryType, type KpiCategory } from '@/hooks/use-kpi-categories'
 
-const TABS: { value: CategoryType; label: string }[] = [
+const TABS: { value: CategoryType; label: string; maxLevel?: 1 | 3 }[] = [
   { value: 'umsatz', label: 'Umsatz' },
   { value: 'einnahmen', label: 'Einnahmen' },
   { value: 'ausgaben_kosten', label: 'Ausgaben & Kosten' },
+  { value: 'sales_plattformen', label: 'Sales Plattformen', maxLevel: 1 },
+  { value: 'produkte', label: 'Produkte', maxLevel: 1 },
 ]
 
-function CategoryTab({ type }: { type: CategoryType }) {
+function CategoryTab({ type, maxLevel = 3 }: { type: CategoryType; maxLevel?: 1 | 3 }) {
   const {
     tree, categories, loading, error,
     addCategory, renameCategory, deleteCategory, moveCategory,
@@ -44,6 +46,7 @@ function CategoryTab({ type }: { type: CategoryType }) {
         categories={categories}
         loading={loading}
         error={error}
+        maxLevel={maxLevel}
         onRename={renameCategory}
         onDelete={setPendingDelete}
         onAddCategory={(name) => addCategory(name, null, 1)}
@@ -104,14 +107,14 @@ export default function KpiModellPage() {
       <main className="flex-1 p-6">
         <div className="mx-auto max-w-2xl">
           <Tabs defaultValue="umsatz">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-5">
               {TABS.map(t => (
-                <TabsTrigger key={t.value} value={t.value}>{t.label}</TabsTrigger>
+                <TabsTrigger key={t.value} value={t.value} className="text-xs">{t.label}</TabsTrigger>
               ))}
             </TabsList>
             {TABS.map(t => (
               <TabsContent key={t.value} value={t.value} className="mt-4">
-                <CategoryTab type={t.value} />
+                <CategoryTab type={t.value} maxLevel={t.maxLevel} />
               </TabsContent>
             ))}
           </Tabs>

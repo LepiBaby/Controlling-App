@@ -27,6 +27,7 @@ interface KpiCategoryTreeProps {
   categories: KpiCategory[]
   loading: boolean
   error: string | null
+  maxLevel?: 1 | 3
   onRename: (id: string, name: string) => Promise<void>
   onDelete: (category: KpiCategory) => void
   onAddCategory: (name: string) => Promise<void>
@@ -76,6 +77,7 @@ export function KpiCategoryTree({
   categories,
   loading,
   error,
+  maxLevel = 3,
   onRename,
   onDelete,
   onAddCategory,
@@ -93,8 +95,8 @@ export function KpiCategoryTree({
   )
 
   const activeCategory = activeId ? categories.find(c => c.id === activeId) : null
-  // Show root drop zone when dragging a non-root category
-  const showRootDropZone = activeId !== null && activeCategory?.parent_id !== null
+  // Show root drop zone only in hierarchical tabs when dragging a non-root category
+  const showRootDropZone = maxLevel > 1 && activeId !== null && activeCategory?.parent_id !== null
 
   const rootDropIntent = dropIntent?.overId === ROOT_DROP_ID ? dropIntent : null
 
@@ -132,6 +134,9 @@ export function KpiCategoryTree({
     if (sameSiblings && relY < 0.3) {
       setDropIntent({ overId, action: 'before', valid: true })
     } else if (sameSiblings && relY > 0.7) {
+      setDropIntent({ overId, action: 'after', valid: true })
+    } else if (maxLevel === 1) {
+      // Flat tabs: no reparenting allowed — treat middle zone as sort-after
       setDropIntent({ overId, action: 'after', valid: true })
     } else {
       // Middle zone OR different parent → reparent into target
@@ -203,6 +208,7 @@ export function KpiCategoryTree({
                   category={cat}
                   isFirst={i === 0}
                   isLast={i === tree.length - 1}
+                  maxLevel={maxLevel}
                   onRename={onRename}
                   onDelete={onDelete}
                   onAddChild={onAddChild}

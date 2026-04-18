@@ -40,6 +40,7 @@ interface KpiCategoryRowProps {
   category: KpiCategory
   isFirst: boolean
   isLast: boolean
+  maxLevel?: 1 | 3
   onRename: (id: string, name: string) => Promise<void>
   onDelete: (category: KpiCategory) => void
   onAddChild: (name: string, parentId: string, level: 1 | 2 | 3) => Promise<void>
@@ -53,6 +54,7 @@ export function KpiCategoryRow({
   category,
   isFirst,
   isLast,
+  maxLevel = 3,
   onRename,
   onDelete,
   onAddChild,
@@ -100,7 +102,7 @@ export function KpiCategoryRow({
   }
 
   const hasChildren = (category.children?.length ?? 0) > 0
-  const canAddChild = category.level < 3
+  const canAddChild = category.level < 3 && maxLevel > 1
 
   // Drop indicator for this row
   const myIntent = dropIntent?.overId === category.id ? dropIntent : null
@@ -232,6 +234,7 @@ export function KpiCategoryRow({
               category={child}
               isFirst={i === 0}
               isLast={i === category.children!.length - 1}
+              maxLevel={maxLevel}
               onRename={onRename}
               onDelete={onDelete}
               onAddChild={onAddChild}

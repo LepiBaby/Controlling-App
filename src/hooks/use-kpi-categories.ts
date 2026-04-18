@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 
-export type CategoryType = 'umsatz' | 'einnahmen' | 'ausgaben_kosten'
+export type CategoryType = 'umsatz' | 'einnahmen' | 'ausgaben_kosten' | 'sales_plattformen' | 'produkte'
 
 export interface KpiCategory {
   id: string

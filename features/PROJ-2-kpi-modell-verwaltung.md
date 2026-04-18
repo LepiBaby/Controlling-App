@@ -1,6 +1,6 @@
 # PROJ-2: KPI-Modell Verwaltung
 
-## Status: In Progress
+## Status: In Progress (Erweiterung: Sales Plattformen & Produkte)
 **Created:** 2026-04-17
 **Last Updated:** 2026-04-17
 
@@ -17,9 +17,11 @@ Verwaltung der Kategoriehierarchien für alle drei Eingabetabellen. Jede Tabelle
 - Als Nutzer möchte ich Kategorien löschen können, wobei ich gewarnt werde wenn noch Transaktionen damit verknüpft sind.
 - Als Nutzer möchte ich die Reihenfolge der Kategorien anpassen können, damit die wichtigsten oben erscheinen.
 - Als Nutzer möchte ich das vollständige Kategorie-Baum-Modell auf einen Blick sehen können.
+- Als Nutzer möchte ich für Sales Plattformen (z.B. Amazon, Shopify) eine flache Liste von Hauptkategorien pflegen können, ohne Unterkategorien.
+- Als Nutzer möchte ich für Produkte eine flache Liste von Hauptkategorien pflegen können, ohne Unterkategorien.
 
 ## Acceptance Criteria
-- [ ] Separate Verwaltungsseite für KPI-Modelle mit drei Tabs: "Umsatz", "Einnahmen", "Ausgaben & Kosten"
+- [ ] Separate Verwaltungsseite für KPI-Modelle mit fünf Tabs: "Umsatz", "Einnahmen", "Ausgaben & Kosten", "Sales Plattformen", "Produkte"
 - [ ] Jeder Tab zeigt den Kategorie-Baum als übersichtliche, einrückungsbasierte Liste
 - [ ] Neue Kategorie (Ebene 1) hinzufügen: Name eingeben → speichern
 - [ ] Neue Unterkategorie (Ebene 2) unter einer bestehenden Kategorie hinzufügen
@@ -30,6 +32,10 @@ Verwaltung der Kategoriehierarchien für alle drei Eingabetabellen. Jede Tabelle
 - [ ] Reihenfolge der Kategorien per Drag-and-Drop oder Pfeil-Buttons anpassbar
 - [ ] Änderungen am KPI-Modell sind sofort in den Eingabeformularen der Transaktionen sichtbar
 - [ ] KPI-Modell kann nicht leer gespeichert werden — mindestens eine Kategorie pro Tabellentyp muss existieren (Pflicht vor erster Transaktion)
+- [ ] Tab "Sales Plattformen": Nur Ebene-1-Kategorien (Hauptkategorien) — kein "+" für Unterkategorien, API blockiert level > 1 für diesen Typ
+- [ ] Tab "Produkte": Nur Ebene-1-Kategorien (Hauptkategorien) — kein "+" für Unterkategorien, API blockiert level > 1 für diesen Typ
+- [ ] Drag-and-Drop in flachen Tabs: nur Reihenfolge-Sortierung (kein Reparenting, da keine Hierarchie)
+- [ ] Root-Drop-Zone wird in flachen Tabs nicht angezeigt (nicht relevant)
 
 ## Beispiel Kategorie-Baum (Ausgaben & Kosten)
 ```
@@ -52,10 +58,13 @@ Personal
 - Kategorie-Name existiert bereits auf gleicher Ebene im gleichen Modell → Warnung "Name bereits vorhanden"
 - Löschen einer Kategorie mit verknüpften Transaktionen → Blocker-Dialog: "X Transaktionen verwenden diese Kategorie. Bitte zuerst Transaktionen umkategorisieren oder löschen."
 - Kategorie-Baum ist sehr tief verschachtelt (Ebene 4+) → UI verhindert das Hinzufügen einer 4. Ebene
+- Sales Plattformen / Produkte: Nutzer versucht Unterkategorie hinzuzufügen → "+" Button gar nicht erst anzeigen, API gibt 400 zurück wenn level > 1
+- Sales Plattformen / Produkte: DnD-Reparenting versucht → ignoriert (kein gültiges Drop-Target für Reparenting vorhanden)
 - Nutzer versucht Transaktionseingabe ohne jegliche Kategorie im KPI-Modell → Weiterleitung zur KPI-Modell-Verwaltung mit Hinweis
 
 ## Technical Requirements
-- Datenmodell: `kpi_categories`-Tabelle mit `type` (umsatz/einnahmen/ausgaben_kosten), `parent_id` (self-referencing), `name`, `level` (1/2/3), `sort_order`
+- Datenmodell: `kpi_categories`-Tabelle mit `type` (umsatz/einnahmen/ausgaben_kosten/sales_plattformen/produkte), `parent_id` (self-referencing), `name`, `level` (1/2/3), `sort_order`
+- Für `type = sales_plattformen` und `type = produkte`: API erzwingt `level = 1` und `parent_id = null` (400 wenn verletzt)
 - Alle Änderungen sofort persistiert (kein Entwurfsmodus)
 - Performance: Baum mit bis zu 200 Kategorien muss flüssig laden
 
@@ -68,7 +77,7 @@ Personal
 ```
 /dashboard/kpi-modell  (src/app/dashboard/kpi-modell/page.tsx)
 +-- PageHeader ("KPI-Modell Verwaltung")
-+-- Tabs (shadcn: Tabs) — "Umsatz" | "Einnahmen" | "Ausgaben & Kosten"
++-- Tabs (shadcn: Tabs) — "Umsatz" | "Einnahmen" | "Ausgaben & Kosten" | "Sales Plattformen" | "Produkte"
 |
 +-- CategoryTree (pro Tab)
 |   +-- CategoryRow (Ebene 1)
@@ -96,7 +105,7 @@ Tabelle: kpi_categories (Supabase, geteilt zwischen allen Nutzern)
 
 Felder:
 - id            UUID, Primärschlüssel
-- type          Text: "umsatz" / "einnahmen" / "ausgaben_kosten"
+- type          Text: "umsatz" / "einnahmen" / "ausgaben_kosten" / "sales_plattformen" / "produkte"
 - parent_id     UUID | null → self-referencing (null = Ebene 1)
 - name          Text (max. 100 Zeichen)
 - level         Integer: 1, 2 oder 3
@@ -127,6 +136,12 @@ src/app/api/kpi-categories/route.ts         — GET + POST
 src/app/api/kpi-categories/[id]/route.ts    — PATCH + DELETE
 ```
 
+### Flache Tabs (Sales Plattformen & Produkte)
+- `KpiCategoryTree` erhält neues optionales Prop `maxLevel: 1 | 3` (default: 3)
+- Bei `maxLevel=1`: kein "+" für Unterkategorien in `KpiCategoryRow`, Root-Drop-Zone ausgeblendet, Reparenting-Logik in `handleDragMove` deaktiviert
+- API: `POST /api/kpi-categories` prüft `type` und gibt 400 wenn `level > 1` für `sales_plattformen` oder `produkte`
+- `CategoryType` Enum erweitert: `'umsatz' | 'einnahmen' | 'ausgaben_kosten' | 'sales_plattformen' | 'produkte'`
+
 ### Tech-Entscheidungen
 | Entscheidung | Gewählt | Warum |
 |---|---|---|
@@ -135,18 +150,18 @@ src/app/api/kpi-categories/[id]/route.ts    — PATCH + DELETE
 | Delete-Warning | shadcn AlertDialog | Bereits installiert, verhindert Datenverlust |
 | State | Custom Hook useKpiCategories | Kapselt API-Calls + Tree-State |
 | Tree-Rendering | Rekursive Komponente | Natürlich für max. 3-stufige Hierarchie |
+| Flache Tabs | `maxLevel=1` Prop | Minimale Änderung, bestehende Komponenten wiederverwendet |
 
 ### Dependencies
 Keine neuen Packages — alle benötigten shadcn/ui-Komponenten bereits installiert.
 
 ## Implementation Notes
-- `src/hooks/use-kpi-categories.ts` — Hook mit buildTree, optimistischen Updates, API-Calls
-- `src/components/kpi-category-row.tsx` — Zeile mit Inline-Edit, ↑↓ Buttons, "+"-Child-Form, Löschen
-- `src/components/kpi-category-tree.tsx` — Rekursiver Baum + leerer Zustand + AddCategoryForm
+- `src/hooks/use-kpi-categories.ts` — Hook mit buildTree, optimistischen Updates, API-Calls; `CategoryType` um `sales_plattformen` + `produkte` erweitert
+- `src/components/kpi-category-row.tsx` — Zeile mit Inline-Edit, ↑↓ Buttons, "+"-Child-Form, Löschen; `maxLevel` Prop: kein "+" wenn `maxLevel=1`
+- `src/components/kpi-category-tree.tsx` — Rekursiver Baum + leerer Zustand + AddCategoryForm; `maxLevel` Prop: kein Reparenting + keine Root-Drop-Zone wenn `maxLevel=1`
 - `src/components/kpi-add-category-form.tsx` — Einfaches Formular für neue Kategorien
-- `src/app/dashboard/kpi-modell/page.tsx` — Client Component: 3 Tabs + DeleteConfirmDialog (AlertDialog)
+- `src/app/dashboard/kpi-modell/page.tsx` — Client Component: 5 Tabs (3 hierarchisch + 2 flach); `maxLevel=1` für Sales Plattformen + Produkte
 - Dashboard (`/dashboard`) verlinkt zur KPI-Modell-Seite
-- API-Calls sind vorbereitet — werden aktiv sobald Backend implementiert ist
 **Backend:**
 - `kpi_categories`-Tabelle in Supabase (eu-central-1) mit RLS auf allen 4 Operationen
 - `src/lib/supabase-server.ts` — `createSupabaseServerClient` + `requireAuth` Helper
