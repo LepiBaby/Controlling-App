@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/supabase-server'
 
-const VALID_TYPES = ['umsatz', 'einnahmen', 'ausgaben_kosten'] as const
+const VALID_TYPES = ['umsatz', 'einnahmen', 'ausgaben_kosten', 'sales_plattformen', 'produkte'] as const
+const FLAT_TYPES: Array<typeof VALID_TYPES[number]> = ['sales_plattformen', 'produkte']
 
 const createSchema = z.object({
   type: z.enum(VALID_TYPES),
@@ -44,6 +45,11 @@ export async function POST(request: Request) {
   }
 
   const { type, name, parent_id, level, sort_order } = parsed.data
+
+  // Flat types only allow level 1 with no parent
+  if (FLAT_TYPES.includes(type) && (level !== 1 || parent_id !== null)) {
+    return NextResponse.json({ error: 'Dieser Typ unterstützt nur Hauptkategorien (Ebene 1).' }, { status: 400 })
+  }
 
   // Check duplicate name at same level within same parent
   const { data: existing } = await supabase

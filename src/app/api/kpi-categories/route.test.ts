@@ -43,6 +43,16 @@ describe('GET /api/kpi-categories', () => {
     const body = await res.json()
     expect(Array.isArray(body)).toBe(true)
   })
+
+  it('returns 200 for sales_plattformen type', async () => {
+    const res = await GET(makeRequest('http://localhost/api/kpi-categories?type=sales_plattformen'))
+    expect(res.status).toBe(200)
+  })
+
+  it('returns 200 for produkte type', async () => {
+    const res = await GET(makeRequest('http://localhost/api/kpi-categories?type=produkte'))
+    expect(res.status).toBe(200)
+  })
 })
 
 describe('POST /api/kpi-categories', () => {
@@ -104,6 +114,37 @@ describe('POST /api/kpi-categories', () => {
       body: JSON.stringify({ type: 'umsatz', name: 'Test', parent_id: null, level: 4 }),
     }))
     expect(res.status).toBe(400)
+  })
+
+  it('returns 400 for sales_plattformen with level 2 (flat type rejects subcategories)', async () => {
+    const res = await POST(makeRequest('http://localhost/api/kpi-categories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'sales_plattformen', name: 'Sub', parent_id: '00000000-0000-0000-0000-000000000001', level: 2 }),
+    }))
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body.error).toBeTruthy()
+  })
+
+  it('returns 400 for produkte with level 2 (flat type rejects subcategories)', async () => {
+    const res = await POST(makeRequest('http://localhost/api/kpi-categories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'produkte', name: 'Sub', parent_id: '00000000-0000-0000-0000-000000000001', level: 2 }),
+    }))
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body.error).toBeTruthy()
+  })
+
+  it('returns 201 for sales_plattformen with level 1', async () => {
+    const res = await POST(makeRequest('http://localhost/api/kpi-categories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'sales_plattformen', name: 'Amazon', parent_id: null, level: 1 }),
+    }))
+    expect(res.status).toBe(201)
   })
 
   it('returns 401 when unauthenticated', async () => {

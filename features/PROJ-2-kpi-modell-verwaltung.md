@@ -167,7 +167,8 @@ Keine neuen Packages — alle benötigten shadcn/ui-Komponenten bereits installi
 - `src/lib/supabase-server.ts` — `createSupabaseServerClient` + `requireAuth` Helper
 - `src/app/api/kpi-categories/route.ts` — GET (mit type-Filter) + POST (mit Duplikat-Prüfung)
 - `src/app/api/kpi-categories/[id]/route.ts` — PATCH (name/sort_order) + DELETE (mit CASCADE)
-- 18 Unit-Tests gesamt (3 Dateien) — alle grün
+- 21 Unit-Tests (route.ts) + 35 Unit-Tests (hook + DnD) gesamt — alle grün
+- `FLAT_TYPES = ['sales_plattformen', 'produkte']`: POST gibt 400 wenn `level > 1` oder `parent_id != null`
 - Duplikat-Check: gleicher Name auf gleicher Ebene → 409 Conflict
 - Transaktions-Check: Placeholder für PROJ-3/4/5 (derzeit immer 0)
 
