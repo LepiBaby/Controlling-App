@@ -1,6 +1,6 @@
 # PROJ-9: Kategorie-Dimensionen Konfiguration
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-04-18
 **Last Updated:** 2026-04-18
 
@@ -46,7 +46,84 @@ Operative Ausgaben  [Umbenennen] [+] [↑] [↓] [⚙ Dimensionen]
 - Neue Hauptkategorie erstellt → Standardmäßig beide Dimensionen deaktiviert
 
 ## Technical Requirements
-- Zwei neue Booleam-Spalten auf `kpi_categories`: `sales_plattform_enabled` (default false), `produkt_enabled` (default false)
+- Zwei neue Boolean-Spalten auf `kpi_categories`: `sales_plattform_enabled` (default false), `produkt_enabled` (default false)
 - PATCH `/api/kpi-categories/[id]` wird um diese Felder erweitert
 - Nur relevant für `type IN ('umsatz', 'einnahmen', 'ausgaben_kosten')` und `level = 1`
 - Die Konfiguration wird von PROJ-3/4/5 ausgelesen, um Pflichtfelder bei der Transaktionseingabe zu steuern
+
+---
+<!-- Sections below are added by subsequent skills -->
+
+## Tech Design (Solution Architect)
+
+### Component Structure
+
+```
+KpiCategoryRow (Ebene 1, nur in Umsatz/Einnahmen/Ausgaben & Kosten)
++-- [bestehende Icons: Umbenennen, +, ↑, ↓, Löschen]
++-- DimensionenButton (neu) — Sliders-Icon, aktiv-Badge wenn mind. 1 Dimension an
+    +-- Popover (shadcn: Popover) — öffnet sich bei Klick
+        +-- PopoverContent
+            +-- Titel "Dimensionen"
+            +-- Checkbox "Sales Plattform" (shadcn: Checkbox + Label)
+            +-- Checkbox "Produkt" (shadcn: Checkbox + Label)
+```
+
+**Sichtbarkeitsregel:** `DimensionenButton` erscheint nur wenn:
+- `category.level === 1` UND
+- `maxLevel === 3` (also nicht in den flachen Sales Plattformen / Produkte Tabs)
+
+### Datenmodell
+
+```
+Bestehende Tabelle: kpi_categories
+
+Neue Felder (Migration):
+- sales_plattform_enabled   Boolean, Standard: false
+- produkt_enabled           Boolean, Standard: false
+
+Nur semantisch relevant für type = umsatz / einnahmen / ausgaben_kosten, level = 1.
+Technisch in allen Zeilen vorhanden (einfacheres Schema), aber UI zeigt es nur dort.
+```
+
+### API-Änderungen
+
+```
+PATCH /api/kpi-categories/[id]
+  Bestehende Felder: name, sort_order, parent_id, level
+  Neue Felder (optional): sales_plattform_enabled (boolean), produkt_enabled (boolean)
+
+GET /api/kpi-categories?type=...
+  Gibt bereits alle Spalten zurück — neue Felder kommen automatisch mit.
+```
+
+### Datenfluss
+
+```
+1. KpiCategoryRow rendert DimensionenButton (wenn level=1 + hierarchischer Tab)
+2. Nutzer öffnet Popover → sieht aktuelle Checkbox-Zustände aus category.sales_plattform_enabled / .produkt_enabled
+3. Nutzer klickt Checkbox → optimistisches Update im lokalen State
+4. Sofortiger PATCH-Call an API mit dem geänderten Boolean
+5. Bei Fehler: State wird zurückgesetzt (rollback)
+```
+
+### Tech-Entscheidungen
+
+| Entscheidung | Gewählt | Warum |
+|---|---|---|
+| UI-Pattern | Popover (shadcn) | Bereits installiert; öffnet sich on-click, schließt beim Klick außerhalb |
+| Speichern | Sofort bei Checkbox-Klick | Kein "Speichern"-Button nötig → konsistent mit Inline-Edit im Rest der UI |
+| Datenhaltung | Zwei Boolean-Spalten direkt auf kpi_categories | Einfachstes Schema; keine Extra-Tabelle nötig für 2 Flags |
+| Rollback | Optimistic update + revert bei Fehler | UI bleibt schnell, Fehlerfall korrekt behandelt |
+| Aktiv-Indikator | Farbiger Icon (text-primary) wenn mind. 1 aktiv | Sofortige visuelle Rückmeldung ohne extra Badge-Komponente |
+
+### Keine neuen Packages
+Popover und Checkbox sind bereits in `src/components/ui/` installiert.
+
+### Geänderte Dateien
+```
+src/components/kpi-category-row.tsx     — DimensionenButton + Popover hinzufügen
+src/hooks/use-kpi-categories.ts         — updateDimensions()-Funktion + neue Felder im KpiCategory-Typ
+src/app/api/kpi-categories/[id]/route.ts — PATCH-Schema um boolean-Felder erweitern
+src/app/api/kpi-categories/[id]/route.test.ts — Tests für neue PATCH-Felder
+```

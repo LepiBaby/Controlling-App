@@ -22,7 +22,7 @@
 | PROJ-6 | Rentabilitäts-Auswertung | Planned | [PROJ-6-rentabilitaets-auswertung.md](PROJ-6-rentabilitaets-auswertung.md) | 2026-04-17 |
 | PROJ-7 | Liquiditäts-Auswertung | Planned | [PROJ-7-liquiditaets-auswertung.md](PROJ-7-liquiditaets-auswertung.md) | 2026-04-17 |
 | PROJ-8 | Ausgaben/Kosten Trennungslogik | Planned | [PROJ-8-ausgaben-kosten-trennung.md](PROJ-8-ausgaben-kosten-trennung.md) | 2026-04-17 |
-| PROJ-9 | Kategorie-Dimensionen Konfiguration | Planned | [PROJ-9-kategorie-dimensionen.md](PROJ-9-kategorie-dimensionen.md) | 2026-04-18 |
+| PROJ-9 | Kategorie-Dimensionen Konfiguration | Architected | [PROJ-9-kategorie-dimensionen.md](PROJ-9-kategorie-dimensionen.md) | 2026-04-18 |
 
 <!-- Add features above this line -->
 
