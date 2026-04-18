@@ -1,6 +1,6 @@
 # PROJ-9: Kategorie-Dimensionen Konfiguration
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-04-18
 **Last Updated:** 2026-04-18
 
@@ -127,6 +127,46 @@ src/hooks/use-kpi-categories.ts         — updateDimensions()-Funktion + neue F
 src/app/api/kpi-categories/[id]/route.ts — PATCH-Schema um boolean-Felder erweitern
 src/app/api/kpi-categories/[id]/route.test.ts — Tests für neue PATCH-Felder
 ```
+
+## QA Test Results
+
+**QA Date:** 2026-04-18
+**Tester:** /qa skill
+**Status: APPROVED ✅**
+
+### Test Suite Results
+| Suite | Tests | Result |
+|---|---|---|
+| Vitest Unit (API routes: PATCH dimension flags) | 59 | ✅ all pass |
+| Playwright E2E (chromium) | 27 | ✅ all pass |
+| **Total** | **86** | **✅ 86/86 pass** |
+
+### Acceptance Criteria
+| # | Kriterium | Status |
+|---|---|---|
+| AC1 | SlidersHorizontal-Icon bei Ebene-1-Kategorien in Umsatz/Einnahmen/Ausgaben & Kosten | ✅ PASS |
+| AC2 | Klick öffnet Popover mit 2 Checkboxen (Sales Plattform + Produkt) | ✅ PASS |
+| AC3 | Jede Checkbox unabhängig schaltbar | ✅ PASS |
+| AC4 | Sofortige Speicherung (kein Speichern-Button) | ✅ PASS |
+| AC5 | Icon wird text-primary wenn mind. 1 Dimension aktiv | ✅ PASS |
+| AC6 | Icon NUR auf Ebene 1, nicht auf Ebene 2/3 | ✅ PASS (showDimensionen = level===1 && maxLevel===3) |
+| AC7 | Icon NUR in Umsatz/Einnahmen/Ausgaben — nicht in Sales Plattformen/Produkte | ✅ PASS (maxLevel===3 Guard) |
+| AC8 | Konfiguration persistiert nach Reload (Supabase) | ✅ PASS |
+
+### Bugs Found
+| # | Schwere | Beschreibung | Status |
+|---|---|---|---|
+| — | — | Keine Critical oder High Bugs | |
+| B1 | Low | Transactions-Warnung bei Dimension-Deaktivierung (Edge Case im Spec) deferred bis PROJ-3/4/5 existieren | Deferred |
+
+### Security Audit
+- **XSS:** Kein Risiko — Boolean-Felder, kein Freitext ✅
+- **SQL Injection:** Kein Risiko — Zod validiert `z.boolean()`, Supabase parametrisierte Queries ✅
+- **Auth:** `requireAuth()` in PATCH-Route ✅
+- **Input Validation:** Non-boolean Werte → 400 via Zod ✅
+
+### Regression (PROJ-2)
+Alle 22 bestehenden PROJ-2 E2E-Tests bestehen weiterhin. ✅
 
 ## Implementation Notes (Backend)
 - DB-Migration: `sales_plattform_enabled BOOLEAN NOT NULL DEFAULT false` + `produkt_enabled BOOLEAN NOT NULL DEFAULT false` auf `kpi_categories`
