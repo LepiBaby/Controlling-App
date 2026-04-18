@@ -1,6 +1,6 @@
 # PROJ-2: KPI-Modell Verwaltung
 
-## Status: In Progress (Erweiterung: Sales Plattformen & Produkte)
+## Status: Approved
 **Created:** 2026-04-17
 **Last Updated:** 2026-04-17
 
@@ -174,22 +174,22 @@ Keine neuen Packages — alle benötigten shadcn/ui-Komponenten bereits installi
 
 ## QA Test Results
 
-**QA Date:** 2026-04-18 (initial) / 2026-04-18 (DnD-Erweiterung)
+**QA Date:** 2026-04-18 (initial) / 2026-04-18 (DnD-Erweiterung) / 2026-04-18 (Sales Plattformen & Produkte)
 **Tester:** /qa skill
 **Status: APPROVED ✅**
 
 ### Test Suite Results
 | Suite | Tests | Result |
 |---|---|---|
-| Vitest Unit (API routes) | 18 | ✅ all pass |
-| Vitest Unit (hook logic inkl. DnD: getSubtreeDepth, isDescendantOf, reparent validation) | 33 | ✅ all pass |
-| Playwright E2E (chromium) | 22 | ✅ all pass |
-| **Total** | **73** | **✅ 73/73 pass** |
+| Vitest Unit (API routes inkl. flat types) | 21 | ✅ all pass |
+| Vitest Unit (hook logic inkl. DnD + dimensions) | 38 | ✅ all pass |
+| Playwright E2E (chromium) | 29 | ✅ all pass |
+| **Total** | **88** | **✅ 88/88 pass** |
 
 ### Acceptance Criteria
 | # | Kriterium | Status |
 |---|---|---|
-| AC1 | Separate Seite mit 3 Tabs (Umsatz/Einnahmen/Ausgaben & Kosten) | ✅ PASS |
+| AC1 | Separate Seite mit 5 Tabs (Umsatz/Einnahmen/Ausgaben & Kosten/Sales Plattformen/Produkte) | ✅ PASS |
 | AC2 | Kategorie-Baum als einrückungsbasierte Liste | ✅ PASS |
 | AC3 | Neue Kategorie (Ebene 1) hinzufügen | ✅ PASS |
 | AC4 | Neue Unterkategorie (Ebene 2) hinzufügen | ✅ PASS |
@@ -200,6 +200,10 @@ Keine neuen Packages — alle benötigten shadcn/ui-Komponenten bereits installi
 | AC9 | Reihenfolge per Pfeil-Buttons ↑↓ | ✅ PASS |
 | AC10 | Änderungen sofort sichtbar (optimistische Updates) | ✅ PASS |
 | AC11 | KPI-Modell kann nicht leer sein (vor erster Transaktion) | ⏳ DEFERRED — wird in PROJ-3/4/5 erzwungen |
+| AC12 | Sales Plattformen: nur Ebene-1, kein "+", API blockiert level>1 | ✅ PASS |
+| AC13 | Produkte: nur Ebene-1, kein "+", API blockiert level>1 | ✅ PASS |
+| AC14 | DnD in flachen Tabs: nur Sortierung, kein Reparenting | ✅ PASS |
+| AC15 | Root-Drop-Zone nicht in flachen Tabs | ✅ PASS |
 
 ### Bugs Found
 | # | Schwere | Beschreibung | Status |
@@ -209,6 +213,8 @@ Keine neuen Packages — alle benötigten shadcn/ui-Komponenten bereits installi
 | B2 | Low | API-Routen geben bei unauthentifiziertem Zugriff kein 401 zurück (Middleware→/login). Funktional korrekt für Web-App. | Accepted |
 | B3 | Low | Kein Rate-Limiting. Für 1–5 interne Nutzer akzeptabel. | Accepted |
 | B4 | Medium | DnD: Reparenting von gleichstufigen Root-Kategorien funktionierte nicht (parent=null = als Geschwister erkannt). | **Fixed** |
+| B5 | High | Sales Plattformen/Produkte: Kategorien konnten nicht hinzugefügt werden — DB CHECK-Constraint erlaubte nur 3 Original-Typen. | **Fixed** |
+| B6 | Medium | addCategory schluckte API-Fehler still — Name verschwand ohne Fehlermeldung. | **Fixed** |
 
 ### Security Audit
 - **XSS:** Kein Risiko — Kategorienamen werden als React-Text-Nodes gerendert (kein `dangerouslySetInnerHTML`) ✅

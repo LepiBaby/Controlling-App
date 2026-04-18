@@ -68,3 +68,26 @@ test('PATCH /api/kpi-categories/[id] with parent_id+level redirects to login whe
 // - any node into level-3 → INVALID (newLevel=4)
 // - reparent into own descendant → INVALID (isDescendantOf check)
 // - promote to root (parent_id=null, level=1) → covered by reparentCategory
+
+// ─── Sales Plattformen & Produkte tabs (AC12–AC15) ────────────────────────────
+
+test('GET /api/kpi-categories with type=sales_plattformen redirects unauthenticated to login', async ({ page }) => {
+  await page.goto('/api/kpi-categories?type=sales_plattformen')
+  await expect(page).toHaveURL(/\/login/)
+})
+
+test('GET /api/kpi-categories with type=produkte redirects unauthenticated to login', async ({ page }) => {
+  await page.goto('/api/kpi-categories?type=produkte')
+  await expect(page).toHaveURL(/\/login/)
+})
+
+// ─── Flat type API validation (covered by Vitest, referenced here) ────────────
+// - POST sales_plattformen with level=2 → 400 (route.test.ts)
+// - POST produkte with level=2 → 400 (route.test.ts)
+// - POST sales_plattformen with level=1, parent_id=null → 201 (route.test.ts)
+// - GET type=sales_plattformen → 200 (route.test.ts)
+// - GET type=produkte → 200 (route.test.ts)
+
+// ─── addCategory error handling (covered by unit tests) ──────────────────────
+// - addCategory throws on non-ok response → form shows error, name preserved
+//   (KpiAddCategoryForm: catch block sets error state instead of clearing name)
