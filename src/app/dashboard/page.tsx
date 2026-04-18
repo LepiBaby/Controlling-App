@@ -41,9 +41,19 @@ export default async function DashboardPage() {
         </div>
       </header>
 
-      <main className="flex flex-1 flex-col items-center justify-center gap-2 text-center text-muted-foreground">
-        <p className="text-lg font-medium text-foreground">Willkommen!</p>
-        <p className="text-sm">Das Dashboard wird in den nächsten Features aufgebaut.</p>
+      <main className="flex-1 p-6">
+        <div className="mx-auto max-w-2xl space-y-4">
+          <p className="text-sm text-muted-foreground">Navigation</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <a
+              href="/dashboard/kpi-modell"
+              className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+            >
+              <p className="font-medium">KPI-Modell Verwaltung</p>
+              <p className="text-sm text-muted-foreground mt-1">Kategorie-Hierarchien pflegen</p>
+            </a>
+          </div>
+        </div>
       </main>
     </div>
   )
