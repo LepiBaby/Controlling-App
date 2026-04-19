@@ -29,7 +29,7 @@
 | PROJ-12 | Abschreibungen-Auswertung | Deployed | [PROJ-12-abschreibungen-auswertung.md](PROJ-12-abschreibungen-auswertung.md) | 2026-04-19 |
 | PROJ-13 | Alternative Kategorienamen in Kategorie-Filtern | Deployed | [PROJ-13-alternative-kategorienamen-filter.md](PROJ-13-alternative-kategorienamen-filter.md) | 2026-04-19 |
 
-| PROJ-14 | Relevanz-Pflichtfeld für Ausgaben & Kosten-Transaktionen | Approved | [PROJ-14-relevanz-pflichtfeld-ausgaben.md](PROJ-14-relevanz-pflichtfeld-ausgaben.md) | 2026-04-19 |
+| PROJ-14 | Relevanz-Pflichtfeld für Ausgaben & Kosten-Transaktionen | Deployed | [PROJ-14-relevanz-pflichtfeld-ausgaben.md](PROJ-14-relevanz-pflichtfeld-ausgaben.md) | 2026-04-19 |
 
 <!-- Add features above this line -->
 

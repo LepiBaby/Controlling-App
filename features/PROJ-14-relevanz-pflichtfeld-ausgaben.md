@@ -1,6 +1,6 @@
 # PROJ-14: Relevanz-Pflichtfeld für Ausgaben & Kosten-Transaktionen
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-04-19
 **Last Updated:** 2026-04-19
 
@@ -355,3 +355,19 @@ Alle benötigten Komponenten (shadcn Select, Form-Validierung via Zod) sind bere
 - `src/hooks/use-ausgaben-kosten-transaktionen.ts` — `relevant_fuer_rentabilitaet: string | null` → `relevanz: 'rentabilitaet' | 'liquiditaet' | 'beides'` (required, in beiden Interfaces)
 - `src/components/ausgaben-form-dialog.tsx` — State `rentabilitaet` → `relevanz`; Dropdown "Relevant für Rentabilität" (Ja/Nein, optional) → "Relevanz *" (Rentabilität/Liquidität/Beides, Pflichtfeld); `isValid` prüft nun auch `!!relevanz`; `onSave` sendet `relevanz` statt `relevant_fuer_rentabilitaet`
 - `src/components/ausgaben-table.tsx` — `RELEVANZ_LABEL`-Map hinzugefügt; Spaltenheader "Rentabilität" → "Relevanz"; Zellinhalt nutzt `RELEVANZ_LABEL[t.relevanz]`
+
+## Deployment
+
+**Deployed:** 2026-04-19
+**Git tag:** v1.14.0-PROJ-14
+**Platform:** Vercel (auto-deploy on push to main)
+**Commit:** e223e1a
+
+### Deployment checklist
+- [x] `npm run build` passed locally
+- [x] QA approved (0 bugs, alle AC erfüllt)
+- [x] 183/183 unit tests passing
+- [x] 16/16 E2E tests passing
+- [x] Code committed and pushed to main
+- [x] Git tag v1.14.0-PROJ-14 created and pushed
+- [x] Supabase migration applied (proj14_relevanz_pflichtfeld)
