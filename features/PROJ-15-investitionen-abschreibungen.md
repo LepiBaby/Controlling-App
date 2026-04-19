@@ -1,6 +1,6 @@
 # PROJ-15: Investitionen-Abschreibungen-Auswertung
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-04-19
 **Last Updated:** 2026-04-19
 
@@ -385,4 +385,8 @@ Alle 19 Acceptance Criteria sind erfüllt, alle 12 Edge-Cases verhalten sich wie
 **Empfehlung: Feature freigeben für `/deploy` (Status → Approved).**
 
 ## Deployment
-_To be added by /deploy_
+
+**Deployed:** 2026-04-19
+**Production URL:** https://controlling-app-five.vercel.app/dashboard/investitionen
+**Git Tag:** v1.15.0-PROJ-15
+**Commit:** 1cd31c4

@@ -30,8 +30,8 @@
 | PROJ-13 | Alternative Kategorienamen in Kategorie-Filtern | Deployed | [PROJ-13-alternative-kategorienamen-filter.md](PROJ-13-alternative-kategorienamen-filter.md) | 2026-04-19 |
 
 | PROJ-14 | Relevanz-Pflichtfeld für Ausgaben & Kosten-Transaktionen | Deployed | [PROJ-14-relevanz-pflichtfeld-ausgaben.md](PROJ-14-relevanz-pflichtfeld-ausgaben.md) | 2026-04-19 |
-| PROJ-15 | Investitionen-Abschreibungen-Auswertung | Approved | [PROJ-15-investitionen-abschreibungen.md](PROJ-15-investitionen-abschreibungen.md) | 2026-04-19 |
-| PROJ-16 | Produktkosten-Verwaltung | Planned | [PROJ-16-produktkosten-verwaltung.md](PROJ-16-produktkosten-verwaltung.md) | 2026-04-19 |
+| PROJ-15 | Investitionen-Abschreibungen-Auswertung | Deployed | [PROJ-15-investitionen-abschreibungen.md](PROJ-15-investitionen-abschreibungen.md) | 2026-04-19 |
+| PROJ-16 | Produktkosten-Verwaltung | In Progress | [PROJ-16-produktkosten-verwaltung.md](PROJ-16-produktkosten-verwaltung.md) | 2026-04-19 |
 
 <!-- Add features above this line -->
 
