@@ -1,6 +1,6 @@
 # PROJ-4: Einnahmen-Transaktionen Eingabe
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-04-17
 **Last Updated:** 2026-04-18
 
@@ -380,4 +380,8 @@ Select, Dialog, AlertDialog, Table, Input, Textarea, Button, Pagination, Popover
 ✅ **READY** — Alle Acceptance Criteria erfüllt. Kein Critical/High Bug. 1 Low-Bug (ungenutzter Import) kann vor oder nach Deployment behoben werden.
 
 ## Deployment
-_To be added by /deploy_
+
+**Deployed:** 2026-04-19
+**Commit:** 7bddf6d
+**Branch:** main → Vercel auto-deploy
+**Tag:** v1.4.0-PROJ-4
