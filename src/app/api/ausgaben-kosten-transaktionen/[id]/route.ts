@@ -18,7 +18,7 @@ const patchSchema = z.object({
   sales_plattform_id:          z.string().uuid().nullable().optional(),
   produkt_id:                  z.string().uuid().nullable().optional(),
   beschreibung:                z.string().max(1000).nullable().optional(),
-  relevant_fuer_rentabilitaet: z.enum(['ja', 'nein']).nullable().optional(),
+  relevanz:                    z.enum(['rentabilitaet', 'liquiditaet', 'beides']).optional(),
   abschreibung:                z.enum(['3_jahre', '5_jahre', '7_jahre', '10_jahre']).nullable().optional(),
 })
 

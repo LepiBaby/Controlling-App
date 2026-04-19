@@ -23,6 +23,7 @@ const VALID_TRANSAKTION = {
   ust_satz:       '19',
   ust_betrag:     190.00,
   kategorie_id:   KAT_ID,
+  relevanz:       'beides',
 }
 
 const MOCK_ROW = {
@@ -39,7 +40,7 @@ const MOCK_ROW = {
   sales_plattform_id:          null,
   produkt_id:                  null,
   beschreibung:                null,
-  relevant_fuer_rentabilitaet: null,
+  relevanz:                    'beides',
   abschreibung:                null,
   created_at:                  '2024-01-15T10:00:00Z',
 }
@@ -158,7 +159,7 @@ describe('POST /api/ausgaben-kosten-transaktionen', () => {
         ust_betrag: 50,
         zahlungsdatum: '2024-01-20',
         beschreibung: 'Test',
-        relevant_fuer_rentabilitaet: 'ja',
+        relevanz: 'rentabilitaet',
         abschreibung: '5_jahre',
       }),
     }))
@@ -230,11 +231,21 @@ describe('POST /api/ausgaben-kosten-transaktionen', () => {
     expect(res.status).toBe(400)
   })
 
-  it('returns 400 for invalid relevant_fuer_rentabilitaet', async () => {
+  it('returns 400 for invalid relevanz value', async () => {
     const res = await POST(req('http://localhost/api/ausgaben-kosten-transaktionen', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...VALID_TRANSAKTION, relevant_fuer_rentabilitaet: 'yes' }),
+      body: JSON.stringify({ ...VALID_TRANSAKTION, relevanz: 'ja' }),
+    }))
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 400 when relevanz is missing', async () => {
+    const { relevanz: _, ...withoutRelevanz } = VALID_TRANSAKTION
+    const res = await POST(req('http://localhost/api/ausgaben-kosten-transaktionen', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(withoutRelevanz),
     }))
     expect(res.status).toBe(400)
   })

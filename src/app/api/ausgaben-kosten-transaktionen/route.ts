@@ -18,7 +18,7 @@ const createSchema = z.object({
   sales_plattform_id:          z.string().uuid().nullable().optional(),
   produkt_id:                  z.string().uuid().nullable().optional(),
   beschreibung:                z.string().max(1000).nullable().optional(),
-  relevant_fuer_rentabilitaet: z.enum(['ja', 'nein']).nullable().optional(),
+  relevanz:                    z.enum(['rentabilitaet', 'liquiditaet', 'beides'], { message: 'Ungültige Relevanz' }),
   abschreibung:                z.enum(['3_jahre', '5_jahre', '7_jahre', '10_jahre']).nullable().optional(),
 })
 
@@ -132,7 +132,7 @@ export async function POST(request: Request) {
       sales_plattform_id:          d.sales_plattform_id ?? null,
       produkt_id:                  d.produkt_id ?? null,
       beschreibung:                d.beschreibung ?? null,
-      relevant_fuer_rentabilitaet: d.relevant_fuer_rentabilitaet ?? null,
+      relevanz:                    d.relevanz,
       abschreibung:                d.abschreibung ?? null,
     })
     .select()

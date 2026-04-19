@@ -16,7 +16,7 @@ export interface AusgabenKostenTransaktion {
   sales_plattform_id: string | null
   produkt_id: string | null
   beschreibung: string | null
-  relevant_fuer_rentabilitaet: string | null
+  relevanz: 'rentabilitaet' | 'liquiditaet' | 'beides'
   abschreibung: string | null
   created_at: string
 }
@@ -33,7 +33,7 @@ export interface AusgabenKostenTransaktionInput {
   sales_plattform_id?: string | null
   produkt_id?: string | null
   beschreibung?: string | null
-  relevant_fuer_rentabilitaet?: string | null
+  relevanz: 'rentabilitaet' | 'liquiditaet' | 'beides'
   abschreibung?: string | null
 }
 

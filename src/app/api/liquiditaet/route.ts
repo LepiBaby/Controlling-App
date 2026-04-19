@@ -80,6 +80,7 @@ export async function GET(request: Request) {
       .from('ausgaben_kosten_transaktionen')
       .select('id, zahlungsdatum, betrag_brutto, kategorie_id, gruppe_id, untergruppe_id, sales_plattform_id, produkt_id, beschreibung')
       .not('zahlungsdatum', 'is', null)
+      .in('relevanz', ['liquiditaet', 'beides'])
 
     if (von)                      ausgabenQuery = ausgabenQuery.gte('zahlungsdatum', von)
     if (bis)                      ausgabenQuery = ausgabenQuery.lte('zahlungsdatum', bis)

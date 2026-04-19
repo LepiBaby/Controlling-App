@@ -32,7 +32,7 @@ const MOCK_ROW = {
   sales_plattform_id:          null,
   produkt_id:                  null,
   beschreibung:                null,
-  relevant_fuer_rentabilitaet: null,
+  relevanz:                    'beides',
   abschreibung:                null,
   created_at:                  '2024-01-15T10:00:00Z',
 }
@@ -143,6 +143,40 @@ describe('PATCH /api/ausgaben-kosten-transaktionen/[id]', () => {
       makeParams(TXN_ID)
     )
     expect(res.status).toBe(400)
+  })
+
+  it('returns 400 for invalid relevanz value', async () => {
+    const res = await PATCH(
+      req(`http://localhost/api/ausgaben-kosten-transaktionen/${TXN_ID}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ relevanz: 'ja' }),
+      }),
+      makeParams(TXN_ID)
+    )
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 200 when updating relevanz to valid value', async () => {
+    mockFrom.mockReturnValue({
+      update: () => ({
+        eq: () => ({
+          select: () => ({
+            single: () => ({ data: { ...MOCK_ROW, relevanz: 'rentabilitaet' }, error: null }),
+          }),
+        }),
+      }),
+    })
+
+    const res = await PATCH(
+      req(`http://localhost/api/ausgaben-kosten-transaktionen/${TXN_ID}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ relevanz: 'rentabilitaet' }),
+      }),
+      makeParams(TXN_ID)
+    )
+    expect(res.status).toBe(200)
   })
 
   it('returns 400 for invalid abschreibung', async () => {

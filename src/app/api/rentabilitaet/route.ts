@@ -92,15 +92,13 @@ export async function GET(request: Request) {
     // Always apply:
     //   leistungsdatum IS NOT NULL
     //   abschreibung IS NULL
-    //   relevant_fuer_rentabilitaet IS NULL OR = 'ja' (i.e. != 'nein', including NULLs)
-    // Note: a plain .neq('relevant_fuer_rentabilitaet', 'nein') excludes NULL rows in
-    // PostgREST because (col != 'nein') is NULL for NULL — we use .or() instead.
+    //   relevanz IN ('rentabilitaet', 'beides')
     let kostenQuery = supabase
       .from('ausgaben_kosten_transaktionen')
-      .select('id, leistungsdatum, betrag_netto, kategorie_id, gruppe_id, untergruppe_id, sales_plattform_id, produkt_id, beschreibung, relevant_fuer_rentabilitaet, abschreibung')
+      .select('id, leistungsdatum, betrag_netto, kategorie_id, gruppe_id, untergruppe_id, sales_plattform_id, produkt_id, beschreibung, abschreibung')
       .not('leistungsdatum', 'is', null)
       .is('abschreibung', null)
-      .or('relevant_fuer_rentabilitaet.is.null,relevant_fuer_rentabilitaet.eq.ja')
+      .in('relevanz', ['rentabilitaet', 'beides'])
 
     if (von)                      kostenQuery = kostenQuery.gte('leistungsdatum', von)
     if (bis)                      kostenQuery = kostenQuery.lte('leistungsdatum', bis)

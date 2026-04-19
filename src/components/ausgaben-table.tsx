@@ -28,6 +28,12 @@ const ABSCHREIBUNG_LABEL: Record<string, string> = {
   '10_jahre': '10 Jahre',
 }
 
+const RELEVANZ_LABEL: Record<string, string> = {
+  rentabilitaet: 'Rentabilität',
+  liquiditaet: 'Liquidität',
+  beides: 'Beides',
+}
+
 function formatBetrag(betrag: number): string {
   return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(betrag)
 }
@@ -153,7 +159,7 @@ export function AusgabenTable({
               </TableHead>
               <TableHead className="text-right">Netto</TableHead>
               <TableHead className="text-right">USt</TableHead>
-              <TableHead>Rentabilität</TableHead>
+              <TableHead>Relevanz</TableHead>
               <TableHead>Abschreibung</TableHead>
               <TableHead className="w-20" />
             </TableRow>
@@ -190,7 +196,7 @@ export function AusgabenTable({
                   {formatBetrag(Number(t.ust_betrag))}
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
-                  {t.relevant_fuer_rentabilitaet === 'ja' ? 'Ja' : t.relevant_fuer_rentabilitaet === 'nein' ? 'Nein' : ''}
+                  {RELEVANZ_LABEL[t.relevanz] ?? t.relevanz}
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
                   {t.abschreibung ? ABSCHREIBUNG_LABEL[t.abschreibung] ?? t.abschreibung : ''}

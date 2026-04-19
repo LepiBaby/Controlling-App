@@ -92,7 +92,7 @@ const KOSTEN_ROW_1 = {
   sales_plattform_id: null,
   produkt_id: null,
   beschreibung: 'Kostenposten',
-  relevant_fuer_rentabilitaet: null,
+  relevanz: 'beides',
   abschreibung: null,
 }
 

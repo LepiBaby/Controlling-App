@@ -50,7 +50,7 @@ export function AusgabenFormDialog({
   const [salesPlattformId, setSalesPlattformId] = useState<string | null>(null)
   const [produktId, setProduktId] = useState<string | null>(null)
   const [beschreibung, setBeschreibung] = useState('')
-  const [rentabilitaet, setRentabilitaet] = useState('')
+  const [relevanz, setRelevanz] = useState<'rentabilitaet' | 'liquiditaet' | 'beides' | ''>('')
   const [abschreibung, setAbschreibung] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -71,7 +71,7 @@ export function AusgabenFormDialog({
       setSalesPlattformId(transaktionToEdit.sales_plattform_id)
       setProduktId(transaktionToEdit.produkt_id)
       setBeschreibung(transaktionToEdit.beschreibung ?? '')
-      setRentabilitaet(transaktionToEdit.relevant_fuer_rentabilitaet ?? '')
+      setRelevanz(transaktionToEdit.relevanz)
       setAbschreibung(transaktionToEdit.abschreibung ?? '')
     } else {
       setLeistungsdatum(TODAY)
@@ -85,7 +85,7 @@ export function AusgabenFormDialog({
       setSalesPlattformId(null)
       setProduktId(null)
       setBeschreibung('')
-      setRentabilitaet('')
+      setRelevanz('')
       setAbschreibung('')
     }
     setSaveError(null)
@@ -116,6 +116,7 @@ export function AusgabenFormDialog({
     brutto > 0 &&
     !!ustSatz &&
     !!kategorieId &&
+    !!relevanz &&
     (ustSatz !== 'individuell' || (Number(ustBetragIndividuell) > 0 && Number(ustBetragIndividuell) < brutto)) &&
     (!showGruppe || !!gruppeId) &&
     (!showUntergruppe || !!untergruppeId) &&
@@ -152,7 +153,7 @@ export function AusgabenFormDialog({
         sales_plattform_id: salesPlattformId,
         produkt_id: produktId,
         beschreibung: beschreibung || null,
-        relevant_fuer_rentabilitaet: rentabilitaet || null,
+        relevanz: relevanz as 'rentabilitaet' | 'liquiditaet' | 'beides',
         abschreibung: abschreibung || null,
       })
       onOpenChange(false)
@@ -376,16 +377,17 @@ export function AusgabenFormDialog({
             </div>
           )}
 
-          {/* Relevant für Rentabilität */}
+          {/* Relevanz */}
           <div className="space-y-1.5">
-            <Label>Relevant für Rentabilität</Label>
-            <Select value={rentabilitaet} onValueChange={setRentabilitaet}>
+            <Label>Relevanz *</Label>
+            <Select value={relevanz} onValueChange={v => setRelevanz(v as 'rentabilitaet' | 'liquiditaet' | 'beides')}>
               <SelectTrigger>
-                <SelectValue placeholder="Keine Angabe" />
+                <SelectValue placeholder="Relevanz wählen…" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="ja">Ja</SelectItem>
-                <SelectItem value="nein">Nein</SelectItem>
+                <SelectItem value="rentabilitaet">Rentabilität</SelectItem>
+                <SelectItem value="liquiditaet">Liquidität</SelectItem>
+                <SelectItem value="beides">Beides</SelectItem>
               </SelectContent>
             </Select>
           </div>
