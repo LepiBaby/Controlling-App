@@ -79,7 +79,6 @@ describe('PATCH /api/kpi-categories/[id]', () => {
     )
     expect(res.status).toBe(200)
   })
-})
 
   it('returns 200 for sales_plattform_enabled update', async () => {
     const res = await PATCH(
@@ -116,6 +115,156 @@ describe('PATCH /api/kpi-categories/[id]', () => {
     )
     expect(res.status).toBe(400)
   })
+
+  it('returns 200 for kosten_label update', async () => {
+    const res = await PATCH(
+      new Request('http://localhost/api/kpi-categories/cat-1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kosten_label: 'Produktkosten' }),
+      }),
+      makeCtx('cat-1')
+    )
+    expect(res.status).toBe(200)
+  })
+
+  it('returns 200 for ausgaben_label update', async () => {
+    const res = await PATCH(
+      new Request('http://localhost/api/kpi-categories/cat-1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ausgaben_label: 'Produktausgaben' }),
+      }),
+      makeCtx('cat-1')
+    )
+    expect(res.status).toBe(200)
+  })
+
+  it('returns 200 for kosten_label set to null (clear label)', async () => {
+    const res = await PATCH(
+      new Request('http://localhost/api/kpi-categories/cat-1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kosten_label: null }),
+      }),
+      makeCtx('cat-1')
+    )
+    expect(res.status).toBe(200)
+  })
+
+  it('returns 400 for kosten_label exceeding 100 characters', async () => {
+    const res = await PATCH(
+      new Request('http://localhost/api/kpi-categories/cat-1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kosten_label: 'x'.repeat(101) }),
+      }),
+      makeCtx('cat-1')
+    )
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 200 for ist_abzugsposten true', async () => {
+    const res = await PATCH(
+      new Request('http://localhost/api/kpi-categories/cat-1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ist_abzugsposten: true }),
+      }),
+      makeCtx('cat-1')
+    )
+    expect(res.status).toBe(200)
+  })
+
+  it('returns 200 for ist_abzugsposten false', async () => {
+    const res = await PATCH(
+      new Request('http://localhost/api/kpi-categories/cat-1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ist_abzugsposten: false }),
+      }),
+      makeCtx('cat-1')
+    )
+    expect(res.status).toBe(200)
+  })
+
+  it('returns 400 for non-boolean ist_abzugsposten', async () => {
+    const res = await PATCH(
+      new Request('http://localhost/api/kpi-categories/cat-1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ist_abzugsposten: 'true' }),
+      }),
+      makeCtx('cat-1')
+    )
+    expect(res.status).toBe(400)
+  })
+
+  // PROJ-10: weitere Edge Cases für Label-Validierung
+  it('PROJ-10: accepts empty string as kosten_label', async () => {
+    const res = await PATCH(
+      new Request('http://localhost/api/kpi-categories/cat-1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kosten_label: '' }),
+      }),
+      makeCtx('cat-1')
+    )
+    expect(res.status).toBe(200)
+  })
+
+  it('PROJ-10: accepts exactly 100-char kosten_label (boundary)', async () => {
+    const res = await PATCH(
+      new Request('http://localhost/api/kpi-categories/cat-1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kosten_label: 'x'.repeat(100) }),
+      }),
+      makeCtx('cat-1')
+    )
+    expect(res.status).toBe(200)
+  })
+
+  it('PROJ-10: returns 400 for ausgaben_label exceeding 100 characters', async () => {
+    const res = await PATCH(
+      new Request('http://localhost/api/kpi-categories/cat-1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ausgaben_label: 'y'.repeat(101) }),
+      }),
+      makeCtx('cat-1')
+    )
+    expect(res.status).toBe(400)
+  })
+
+  it('PROJ-10: returns 400 for non-string kosten_label', async () => {
+    const res = await PATCH(
+      new Request('http://localhost/api/kpi-categories/cat-1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kosten_label: 42 }),
+      }),
+      makeCtx('cat-1')
+    )
+    expect(res.status).toBe(400)
+  })
+
+  it('PROJ-10 + PROJ-11: accepts combined patch with labels + Abzugsposten', async () => {
+    const res = await PATCH(
+      new Request('http://localhost/api/kpi-categories/cat-1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kosten_label: 'Produktkosten',
+          ausgaben_label: 'Produktausgaben',
+          ist_abzugsposten: true,
+        }),
+      }),
+      makeCtx('cat-1')
+    )
+    expect(res.status).toBe(200)
+  })
+})
 
 describe('DELETE /api/kpi-categories/[id]', () => {
   it('returns 204 on successful delete', async () => {

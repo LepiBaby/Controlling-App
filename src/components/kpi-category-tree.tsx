@@ -37,6 +37,8 @@ interface KpiCategoryTreeProps {
   onReorder: (activeId: string, overId: string, position: 'before' | 'after') => Promise<void>
   onReparent: (activeId: string, newParentId: string | null, newLevel: 1 | 2 | 3) => Promise<void>
   onUpdateDimensions?: (id: string, patch: { sales_plattform_enabled?: boolean; produkt_enabled?: boolean }) => Promise<void>
+  onUpdateLabels?: (id: string, patch: { kosten_label?: string | null; ausgaben_label?: string | null }) => Promise<void>
+  onUpdateAbzugsposten?: (id: string, ist_abzugsposten: boolean) => Promise<void>
 }
 
 function DragPreview({ name }: { name: string }) {
@@ -88,6 +90,8 @@ export function KpiCategoryTree({
   onReorder,
   onReparent,
   onUpdateDimensions,
+  onUpdateLabels,
+  onUpdateAbzugsposten,
 }: KpiCategoryTreeProps) {
   const [activeId, setActiveId] = useState<string | null>(null)
   const [dropIntent, setDropIntent] = useState<DropIntent | null>(null)
@@ -217,6 +221,8 @@ export function KpiCategoryTree({
                   onMoveUp={onMoveUp}
                   onMoveDown={onMoveDown}
                   onUpdateDimensions={onUpdateDimensions}
+                  onUpdateLabels={onUpdateLabels}
+                  onUpdateAbzugsposten={onUpdateAbzugsposten}
                 />
               ))}
             </div>

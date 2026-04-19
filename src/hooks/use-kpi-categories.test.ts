@@ -17,6 +17,9 @@ const cat = (id: string, parentId: string | null, level: 1 | 2 | 3, sortOrder = 
   sort_order: sortOrder,
   sales_plattform_enabled: false,
   produkt_enabled: false,
+  kosten_label: null,
+  ausgaben_label: null,
+  ist_abzugsposten: false,
 })
 
 // ─── buildTree ────────────────────────────────────────────────────────────────

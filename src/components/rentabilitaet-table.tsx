@@ -37,6 +37,14 @@ function getCategoryName(categories: KpiCategory[], id: string | null): string {
   return categories.find(c => c.id === id)?.name ?? '[Kategorie gelöscht]'
 }
 
+function getCategoryDisplayName(categories: KpiCategory[], id: string | null, labelType: 'kosten' | null): string {
+  if (!id) return ''
+  const cat = categories.find(c => c.id === id)
+  if (!cat) return '[Kategorie gelöscht]'
+  if (labelType === 'kosten' && cat.kosten_label) return cat.kosten_label
+  return cat.name
+}
+
 interface SortHeaderProps {
   label: string
   column: RentabilitaetSortColumn
@@ -146,6 +154,8 @@ export function RentabilitaetTable({
           <TableBody>
             {zeilen.map(z => {
               const isUmsatz = z.quelle === 'umsatz'
+              const labelType = isUmsatz ? null : 'kosten'
+              const effectiveBetrag = Number(z.betrag)
               return (
                 <TableRow key={`${z.quelle}-${z.id}`} className="hover:bg-muted/50">
                   <TableCell className="whitespace-nowrap">{formatDate(z.leistungsdatum)}</TableCell>
@@ -161,7 +171,7 @@ export function RentabilitaetTable({
                       <Badge variant="destructive">Kosten</Badge>
                     )}
                   </TableCell>
-                  <TableCell>{getCategoryName(kpiCategories, z.kategorie_id)}</TableCell>
+                  <TableCell>{getCategoryDisplayName(kpiCategories, z.kategorie_id, labelType)}</TableCell>
                   {showGruppe && (
                     <TableCell>{getCategoryName(kpiCategories, z.gruppe_id)}</TableCell>
                   )}
@@ -179,10 +189,10 @@ export function RentabilitaetTable({
                   </TableCell>
                   <TableCell
                     className={`text-right font-medium whitespace-nowrap ${
-                      Number(z.betrag) >= 0 ? 'text-green-600' : 'text-red-600'
+                      effectiveBetrag >= 0 ? 'text-green-600' : 'text-red-600'
                     }`}
                   >
-                    {formatBetrag(Number(z.betrag))}
+                    {formatBetrag(effectiveBetrag)}
                   </TableCell>
                 </TableRow>
               )

@@ -10,7 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { KpiAddCategoryForm } from '@/components/kpi-add-category-form'
 import {
   ChevronRight, ChevronDown, Plus, Pencil, Trash2,
-  ArrowUp, ArrowDown, Check, X, GripVertical, SlidersHorizontal,
+  ArrowUp, ArrowDown, Check, X, GripVertical, SlidersHorizontal, Tag, TrendingDown,
 } from 'lucide-react'
 import type { KpiCategory } from '@/hooks/use-kpi-categories'
 import { cn } from '@/lib/utils'
@@ -50,6 +50,8 @@ interface KpiCategoryRowProps {
   onMoveUp: (id: string) => void
   onMoveDown: (id: string) => void
   onUpdateDimensions?: (id: string, patch: { sales_plattform_enabled?: boolean; produkt_enabled?: boolean }) => Promise<void>
+  onUpdateLabels?: (id: string, patch: { kosten_label?: string | null; ausgaben_label?: string | null }) => Promise<void>
+  onUpdateAbzugsposten?: (id: string, ist_abzugsposten: boolean) => Promise<void>
 }
 
 const INDENT: Record<number, string> = { 1: 'pl-0', 2: 'pl-6', 3: 'pl-12' }
@@ -65,12 +67,22 @@ export function KpiCategoryRow({
   onMoveUp,
   onMoveDown,
   onUpdateDimensions,
+  onUpdateLabels,
+  onUpdateAbzugsposten,
 }: KpiCategoryRowProps) {
   const [expanded, setExpanded] = useState(true)
   const [editing, setEditing] = useState(false)
   const [editName, setEditName] = useState(category.name)
   const [showAddChild, setShowAddChild] = useState(false)
+  const [kostLabel, setKostLabel] = useState(category.kosten_label ?? '')
+  const [ausgLabel, setAusgLabel] = useState(category.ausgaben_label ?? '')
+  const [labelsOpen, setLabelsOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    setKostLabel(category.kosten_label ?? '')
+    setAusgLabel(category.ausgaben_label ?? '')
+  }, [category.kosten_label, category.ausgaben_label])
 
   const { activeId, dropIntent } = useDragState()
   const isDraggingThis = activeId === category.id
@@ -110,6 +122,9 @@ export function KpiCategoryRow({
   const canAddChild = category.level < 3 && maxLevel > 1
   const showDimensionen = category.level === 1 && maxLevel === 3 && !!onUpdateDimensions
   const hasActiveDimension = category.sales_plattform_enabled || category.produkt_enabled
+  const showLabels = category.level === 1 && !!onUpdateLabels
+  const hasActiveLabels = !!(category.kosten_label || category.ausgaben_label)
+  const showAbzugsposten = category.level === 1 && !!onUpdateAbzugsposten
 
   // Drop indicator for this row
   const myIntent = dropIntent?.overId === category.id ? dropIntent : null
@@ -243,6 +258,85 @@ export function KpiCategoryRow({
                 </PopoverContent>
               </Popover>
             )}
+            {showLabels && (
+              <Popover
+                open={labelsOpen}
+                onOpenChange={(open) => {
+                  if (!open && onUpdateLabels) {
+                    const kl = kostLabel.trim() || null
+                    const al = ausgLabel.trim() || null
+                    const patch: { kosten_label?: string | null; ausgaben_label?: string | null } = {}
+                    if (kl !== category.kosten_label) patch.kosten_label = kl
+                    if (al !== category.ausgaben_label) patch.ausgaben_label = al
+                    if (Object.keys(patch).length > 0) onUpdateLabels(category.id, patch)
+                  }
+                  setLabelsOpen(open)
+                }}
+              >
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="ghost" size="icon"
+                    className={cn('h-6 w-6', hasActiveLabels && 'text-primary')}
+                    title="Anzeigebezeichnungen konfigurieren"
+                  >
+                    <Tag className="h-3 w-3" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-64 p-3" align="end">
+                  <p className="text-xs font-medium text-muted-foreground mb-3">Anzeigebezeichnungen</p>
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <Label htmlFor={`kl-${category.id}`} className="text-xs">Kosten-Bezeichnung (Rentabilität)</Label>
+                      <Input
+                        id={`kl-${category.id}`}
+                        value={kostLabel}
+                        placeholder={category.name}
+                        className="h-7 text-sm"
+                        onChange={e => setKostLabel(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor={`al-${category.id}`} className="text-xs">Ausgaben-Bezeichnung (Liquidität)</Label>
+                      <Input
+                        id={`al-${category.id}`}
+                        value={ausgLabel}
+                        placeholder={category.name}
+                        className="h-7 text-sm"
+                        onChange={e => setAusgLabel(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
+            {showAbzugsposten && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="ghost" size="icon"
+                    className={cn('h-6 w-6', category.ist_abzugsposten && 'text-destructive')}
+                    title="Abzugsposten konfigurieren"
+                  >
+                    <TrendingDown className="h-3 w-3" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-64 p-3" align="end">
+                  <p className="text-xs font-medium text-muted-foreground mb-3">Abzugsposten</p>
+                  <div className="flex items-start gap-2">
+                    <Checkbox
+                      id={`ap-${category.id}`}
+                      checked={category.ist_abzugsposten}
+                      onCheckedChange={(checked) =>
+                        onUpdateAbzugsposten!(category.id, checked === true)
+                      }
+                    />
+                    <Label htmlFor={`ap-${category.id}`} className="text-sm font-normal cursor-pointer leading-tight">
+                      Abzugsposten (wird in Rentabilitätsauswertung negativ dargestellt)
+                    </Label>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
             <Button
               variant="ghost" size="icon"
               className="h-6 w-6 text-destructive hover:text-destructive"
@@ -290,6 +384,8 @@ export function KpiCategoryRow({
               onMoveUp={onMoveUp}
               onMoveDown={onMoveDown}
               onUpdateDimensions={onUpdateDimensions}
+              onUpdateLabels={onUpdateLabels}
+              onUpdateAbzugsposten={onUpdateAbzugsposten}
             />
           ))}
         </div>

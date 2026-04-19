@@ -40,6 +40,7 @@ function makeChain(result: { data: unknown; error: unknown }) {
 function setupMockData(opts: {
   umsatz?: Array<Record<string, unknown>>
   kosten?: Array<Record<string, unknown>>
+  abzugspostenCats?: Array<{ id: string }>
   umsatzError?: unknown
   kostenError?: unknown
 }) {
@@ -49,6 +50,9 @@ function setupMockData(opts: {
     }
     if (table === 'ausgaben_kosten_transaktionen') {
       return makeChain({ data: opts.kosten ?? [], error: opts.kostenError ?? null })
+    }
+    if (table === 'kpi_categories') {
+      return makeChain({ data: opts.abzugspostenCats ?? [], error: null })
     }
     return makeChain({ data: [], error: null })
   })
@@ -243,5 +247,62 @@ describe('GET /api/rentabilitaet', () => {
     expect(body.total).toBe(0)
     expect(body.totalNetto).toBe(0)
     expect(body.data).toEqual([])
+  })
+
+  // ─── PROJ-11: Abzugsposten-Logik ──────────────────────────────────────────
+  it('PROJ-11: flips sign of umsatz rows from Abzugsposten categories', async () => {
+    setupMockData({
+      umsatz: [UMSATZ_ROW_1], // betrag = 1000, kategorie = KAT_UMSATZ
+      kosten: [],
+      abzugspostenCats: [{ id: KAT_UMSATZ }], // Kategorie ist Abzugsposten
+    })
+
+    const res = await GET(req('http://localhost/api/rentabilitaet'))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+
+    const row = body.data.find((r: { id: string }) => r.id === 'u1')
+    expect(row.quelle).toBe('umsatz')
+    expect(row.betrag).toBe(-1000) // Vorzeichen-Flip
+  })
+
+  it('PROJ-11: keeps sign positive for non-Abzugsposten umsatz rows', async () => {
+    setupMockData({
+      umsatz: [UMSATZ_ROW_1],
+      kosten: [],
+      abzugspostenCats: [], // Keine Abzugsposten konfiguriert
+    })
+
+    const res = await GET(req('http://localhost/api/rentabilitaet'))
+    const body = await res.json()
+    const row = body.data.find((r: { id: string }) => r.id === 'u1')
+    expect(row.betrag).toBe(1000)
+  })
+
+  it('PROJ-11: Abzugsposten reduces totalNetto', async () => {
+    setupMockData({
+      umsatz: [UMSATZ_ROW_1, UMSATZ_ROW_2], // 1000 + 500
+      kosten: [],
+      abzugspostenCats: [{ id: KAT_UMSATZ }], // beide Reihen sind Abzugsposten
+    })
+
+    const res = await GET(req('http://localhost/api/rentabilitaet'))
+    const body = await res.json()
+    // -1000 + -500 = -1500
+    expect(body.totalNetto).toBe(-1500)
+  })
+
+  it('PROJ-11: does not apply Abzugsposten logic to kosten rows', async () => {
+    setupMockData({
+      umsatz: [],
+      kosten: [KOSTEN_ROW_1], // betrag_netto 300 → -300 (normale Kostenlogik)
+      abzugspostenCats: [{ id: KAT_KOSTEN }], // auch wenn als Abzugsposten markiert
+    })
+
+    const res = await GET(req('http://localhost/api/rentabilitaet'))
+    const body = await res.json()
+    const row = body.data.find((r: { id: string }) => r.id === 'k1')
+    // Kosten bleiben negativ (kein doppelter Flip)
+    expect(row.betrag).toBe(-300)
   })
 })

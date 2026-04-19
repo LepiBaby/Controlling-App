@@ -37,6 +37,14 @@ function getCategoryName(categories: KpiCategory[], id: string | null): string {
   return categories.find(c => c.id === id)?.name ?? '[Kategorie gelöscht]'
 }
 
+function getCategoryDisplayName(categories: KpiCategory[], id: string | null, labelType: 'ausgaben' | null): string {
+  if (!id) return ''
+  const cat = categories.find(c => c.id === id)
+  if (!cat) return '[Kategorie gelöscht]'
+  if (labelType === 'ausgaben' && cat.ausgaben_label) return cat.ausgaben_label
+  return cat.name
+}
+
 interface SortHeaderProps {
   label: string
   column: LiquiditaetSortColumn
@@ -146,6 +154,7 @@ export function LiquiditaetTable({
           <TableBody>
             {zeilen.map(z => {
               const isEinnahmen = z.quelle === 'einnahmen'
+              const labelType = isEinnahmen ? null : 'ausgaben'
               return (
                 <TableRow key={`${z.quelle}-${z.id}`} className="hover:bg-muted/50">
                   <TableCell className="whitespace-nowrap">{formatDate(z.zahlungsdatum)}</TableCell>
@@ -161,7 +170,7 @@ export function LiquiditaetTable({
                       <Badge variant="destructive">Ausgaben</Badge>
                     )}
                   </TableCell>
-                  <TableCell>{getCategoryName(kpiCategories, z.kategorie_id)}</TableCell>
+                  <TableCell>{getCategoryDisplayName(kpiCategories, z.kategorie_id, labelType)}</TableCell>
                   {showGruppe && (
                     <TableCell>{getCategoryName(kpiCategories, z.gruppe_id)}</TableCell>
                   )}

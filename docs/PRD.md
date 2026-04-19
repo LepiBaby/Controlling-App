@@ -22,6 +22,8 @@ Eine interne Controlling-Plattform für das Finanzreporting eines E-Commerce Unt
 | P1 | PROJ-6: Rentabilitäts-Auswertung | Planned |
 | P1 | PROJ-7: Liquiditäts-Auswertung | Planned |
 | P2 | PROJ-8: Ausgaben/Kosten Trennungslogik | Planned |
+| P1 | PROJ-10: Kategorie-Anzeigebezeichnungen (Ausgaben & Kosten) | Planned |
+| P1 | PROJ-11: Umsatz-Kategorien als Abzugsposten markieren | Planned |
 
 ## Success Metrics
 - Alle Finanzdaten werden in einer zentralen Plattform erfasst (kein Excel-Chaos)

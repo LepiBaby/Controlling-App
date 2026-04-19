@@ -1,8 +1,8 @@
 # PROJ-8: Ausgaben/Kosten Trennungslogik
 
-## Status: Planned
+## Status: Won't Do
 **Created:** 2026-04-17
-**Last Updated:** 2026-04-17
+**Last Updated:** 2026-04-19
 
 ## Dependencies
 - Requires: PROJ-2 (KPI-Modell Verwaltung) — Kategorien müssen als "Ausgabe" oder "Kosten" klassifiziert werden können

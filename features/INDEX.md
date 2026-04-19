@@ -21,9 +21,11 @@
 | PROJ-5 | Ausgaben & Kosten-Transaktionen Eingabe | Deployed | [PROJ-5-ausgaben-kosten-transaktionen.md](PROJ-5-ausgaben-kosten-transaktionen.md) | 2026-04-17 |
 | PROJ-6 | Rentabilitäts-Auswertung | Deployed | [PROJ-6-rentabilitaets-auswertung.md](PROJ-6-rentabilitaets-auswertung.md) | 2026-04-17 |
 | PROJ-7 | Liquiditäts-Auswertung | Deployed | [PROJ-7-liquiditaets-auswertung.md](PROJ-7-liquiditaets-auswertung.md) | 2026-04-17 |
-| PROJ-8 | Ausgaben/Kosten Trennungslogik | Planned | [PROJ-8-ausgaben-kosten-trennung.md](PROJ-8-ausgaben-kosten-trennung.md) | 2026-04-17 |
+| PROJ-8 | Ausgaben/Kosten Trennungslogik | Won't Do | [PROJ-8-ausgaben-kosten-trennung.md](PROJ-8-ausgaben-kosten-trennung.md) | 2026-04-17 |
 | PROJ-9 | Kategorie-Dimensionen Konfiguration | Deployed | [PROJ-9-kategorie-dimensionen.md](PROJ-9-kategorie-dimensionen.md) | 2026-04-18 |
+| PROJ-10 | Kategorie-Anzeigebezeichnungen (Ausgaben & Kosten) | Approved | [PROJ-10-kategorie-anzeigebezeichnungen.md](PROJ-10-kategorie-anzeigebezeichnungen.md) | 2026-04-19 |
+| PROJ-11 | Umsatz-Kategorien als Abzugsposten markieren | Approved | [PROJ-11-umsatz-abzugsposten.md](PROJ-11-umsatz-abzugsposten.md) | 2026-04-19 |
 
 <!-- Add features above this line -->
 
-## Next Available ID: PROJ-10
+## Next Available ID: PROJ-12

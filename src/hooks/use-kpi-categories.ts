@@ -13,6 +13,9 @@ export interface KpiCategory {
   sort_order: number
   sales_plattform_enabled: boolean
   produkt_enabled: boolean
+  kosten_label: string | null
+  ausgaben_label: string | null
+  ist_abzugsposten: boolean
   children?: KpiCategory[]
 }
 
@@ -270,10 +273,41 @@ export function useKpiCategories(type: CategoryType) {
     }
   }, [categories])
 
+  const updateLabels = useCallback(async (
+    id: string,
+    patch: { kosten_label?: string | null; ausgaben_label?: string | null }
+  ) => {
+    const prev = categories.find(c => c.id === id)
+    if (!prev) return
+    setCategories(cats => cats.map(c => c.id === id ? { ...c, ...patch } : c))
+    const res = await fetch(`/api/kpi-categories/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    })
+    if (!res.ok) {
+      setCategories(cats => cats.map(c => c.id === id ? { ...c, ...prev } : c))
+    }
+  }, [categories])
+
+  const updateAbzugsposten = useCallback(async (id: string, ist_abzugsposten: boolean) => {
+    const prev = categories.find(c => c.id === id)
+    if (!prev) return
+    setCategories(cats => cats.map(c => c.id === id ? { ...c, ist_abzugsposten } : c))
+    const res = await fetch(`/api/kpi-categories/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ist_abzugsposten }),
+    })
+    if (!res.ok) {
+      setCategories(cats => cats.map(c => c.id === id ? { ...c, ...prev } : c))
+    }
+  }, [categories])
+
   return {
     tree, categories, loading, error,
     addCategory, renameCategory, deleteCategory, moveCategory,
-    reorderCategory, reparentCategory, updateDimensions,
+    reorderCategory, reparentCategory, updateDimensions, updateLabels, updateAbzugsposten,
     getDescendantCount, getSubtreeDepthForId, isDescendantOfId,
   }
 }

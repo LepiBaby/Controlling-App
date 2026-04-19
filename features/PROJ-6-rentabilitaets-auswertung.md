@@ -2,12 +2,14 @@
 
 ## Status: Deployed
 **Created:** 2026-04-17
-**Last Updated:** 2026-04-19 (Backend API complete)
+**Last Updated:** 2026-04-19 (PROJ-10/PROJ-11 Erweiterungen implementiert)
 
 ## Dependencies
 - Requires: PROJ-1 (Authentifizierung) — nur eingeloggte Nutzer
 - Requires: PROJ-3 (Umsatz-Transaktionen) — Datenquelle für Erlöse (`umsatz_transaktionen`)
 - Requires: PROJ-5 (Ausgaben & Kosten-Transaktionen) — Datenquelle für Kosten (`ausgaben_kosten_transaktionen`)
+- Requires: PROJ-10 (Kategorie-Anzeigebezeichnungen) — `kosten_label` für Kategorie-Spalte
+- Requires: PROJ-11 (Umsatz-Abzugsposten) — `ist_abzugsposten` für Vorzeichenlogik
 
 ## Übersicht
 Tabellarische Liste aller rentabilitätsrelevanten Transaktionen auf einer eigenen Seite im Dashboard. Die Ansicht kombiniert alle Umsatz-Transaktionen (positive Beträge) mit einem gefilterten Teil der Ausgaben & Kosten-Transaktionen (negative Beträge). Ziel: Vollständige chronologische Übersicht aller erlös- und aufwandsrelevanten Vorgänge auf Einzeltransaktionsebene.
@@ -51,11 +53,17 @@ Betrag = `betrag_netto` (negativ, d.h. als negativer Wert dargestellt).
 - [ ] **Produkte**-Spalte wird angezeigt, wenn mindestens eine Hauptkategorie aus Umsatz oder Ausgaben&Kosten `produkt_enabled = true` hat
 - [ ] Spalten, die nicht zutreffen, werden vollständig ausgeblendet (nicht nur leer gelassen)
 
+### Kategorie-Anzeigebezeichnungen (PROJ-10)
+- [ ] In der Kategorie-Spalte wird für Kosten-Zeilen der `kosten_label` der Hauptkategorie angezeigt — falls kein Label gepflegt, wird der interne Kategoriename als Fallback verwendet
+- [ ] Für Umsatz-Zeilen wird immer der interne Kategoriename angezeigt (kein Kosten-Label für Umsatz)
+
 ### Betrag-Darstellung
 - [ ] Umsatz-Transaktionen: Betrag positiv (z.B. `8.250,00 €`)
 - [ ] Ausgaben & Kosten-Transaktionen: Betrag negativ mit Minuszeichen (z.B. `-1.200,00 €`)
 - [ ] Betrag kommt für Umsatz aus Spalte `betrag`, für Ausgaben&Kosten aus Spalte `betrag_netto`
 - [ ] Positive Beträge in grüner Schrift, negative Beträge in roter Schrift
+- [ ] Umsatz-Transaktionen aus Kategorien mit `ist_abzugsposten = true` (PROJ-11): Betrag wird negativ dargestellt (rot, mit Minuszeichen) — auch wenn in der DB positiv gespeichert
+- [ ] Das Netto-Ergebnis (Footer) berücksichtigt Abzugsposten korrekt: Abzugsposten-Umsatz wird von der Summe subtrahiert
 
 ### Quelle-Spalte
 - [ ] Jede Zeile zeigt ihre Herkunft: `Umsatz` oder `Kosten`

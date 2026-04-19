@@ -41,6 +41,18 @@ export async function GET(request: Request) {
 
   const merged: RentabilitaetZeile[] = []
 
+  // ─── Abzugsposten-Kategorien laden (für Umsatz-Vorzeichen-Logik) ─────────
+  const abzugspostenIds = new Set<string>()
+  if (includeUmsatz) {
+    const { data: abzugsCats } = await supabase
+      .from('kpi_categories')
+      .select('id')
+      .eq('type', 'umsatz')
+      .eq('ist_abzugsposten', true)
+      .eq('level', 1)
+    for (const c of abzugsCats ?? []) abzugspostenIds.add(c.id)
+  }
+
   // ─── Umsatz-Transaktionen ────────────────────────────────────────────────
   if (includeUmsatz) {
     let umsatzQuery = supabase
@@ -59,11 +71,12 @@ export async function GET(request: Request) {
     if (umsatzError) return NextResponse.json({ error: umsatzError.message }, { status: 500 })
 
     for (const row of umsatzData ?? []) {
+      const isAbzug = row.kategorie_id ? abzugspostenIds.has(row.kategorie_id) : false
       merged.push({
         id:                 row.id,
         quelle:             'umsatz',
         leistungsdatum:     row.leistungsdatum,
-        betrag:             Number(row.betrag),
+        betrag:             isAbzug ? -Number(row.betrag) : Number(row.betrag),
         kategorie_id:       row.kategorie_id ?? null,
         gruppe_id:          row.gruppe_id ?? null,
         untergruppe_id:     row.untergruppe_id ?? null,

@@ -2,12 +2,13 @@
 
 ## Status: Deployed
 **Created:** 2026-04-17
-**Last Updated:** 2026-04-19 (Backend API complete)
+**Last Updated:** 2026-04-19 (PROJ-10 Erweiterung implementiert)
 
 ## Dependencies
 - Requires: PROJ-1 (Authentifizierung) — nur eingeloggte Nutzer
 - Requires: PROJ-4 (Einnahmen-Transaktionen) — Datenquelle für Geldzuflüsse (`einnahmen_transaktionen`)
 - Requires: PROJ-5 (Ausgaben & Kosten-Transaktionen) — Datenquelle für Geldabflüsse (`ausgaben_kosten_transaktionen`)
+- Requires: PROJ-10 (Kategorie-Anzeigebezeichnungen) — `ausgaben_label` für Kategorie-Spalte
 
 ## Übersicht
 Tabellarische Liste aller liquiditätsrelevanten Transaktionen auf einer eigenen Seite im Dashboard. Die Ansicht kombiniert alle Einnahmen-Transaktionen (positive Beträge) mit einem gefilterten Teil der Ausgaben & Kosten-Transaktionen (negative Beträge). Ziel: Vollständige chronologische Übersicht aller tatsächlichen Geldbewegungen (Cash In / Cash Out) auf Einzeltransaktionsebene.
@@ -48,6 +49,10 @@ Betrag = `betrag_brutto` (negativ, d.h. als negativer Wert dargestellt).
 - [ ] **Sales Plattform**-Spalte wird angezeigt, wenn mindestens eine Hauptkategorie aus Einnahmen oder Ausgaben&Kosten `sales_plattform_enabled = true` hat
 - [ ] **Produkte**-Spalte wird angezeigt, wenn mindestens eine Hauptkategorie aus Einnahmen oder Ausgaben&Kosten `produkt_enabled = true` hat
 - [ ] Spalten, die nicht zutreffen, werden vollständig ausgeblendet (nicht nur leer gelassen)
+
+### Kategorie-Anzeigebezeichnungen (PROJ-10)
+- [ ] In der Kategorie-Spalte wird für Ausgaben-Zeilen der `ausgaben_label` der Hauptkategorie angezeigt — falls kein Label gepflegt, wird der interne Kategoriename als Fallback verwendet
+- [ ] Für Einnahmen-Zeilen wird immer der interne Kategoriename angezeigt (kein Ausgaben-Label für Einnahmen)
 
 ### Betrag-Darstellung
 - [ ] Einnahmen-Transaktionen: Betrag positiv (z.B. `5.000,00 €`)

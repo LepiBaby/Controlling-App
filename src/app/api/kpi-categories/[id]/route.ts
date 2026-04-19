@@ -9,6 +9,9 @@ const patchSchema = z.object({
   level: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
   sales_plattform_enabled: z.boolean().optional(),
   produkt_enabled: z.boolean().optional(),
+  kosten_label: z.string().max(100).nullable().optional(),
+  ausgaben_label: z.string().max(100).nullable().optional(),
+  ist_abzugsposten: z.boolean().optional(),
 })
 
 interface RouteContext {
