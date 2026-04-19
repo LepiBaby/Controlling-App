@@ -1,6 +1,6 @@
 # PROJ-11: Umsatz-Kategorien als Abzugsposten markieren
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-04-19
 **Last Updated:** 2026-04-19
 

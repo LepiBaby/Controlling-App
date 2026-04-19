@@ -1,6 +1,6 @@
 # PROJ-10: Kategorie-Anzeigebezeichnungen für Ausgaben & Kosten
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-04-19
 **Last Updated:** 2026-04-19
 
