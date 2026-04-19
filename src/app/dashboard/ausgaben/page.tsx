@@ -16,49 +16,52 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { useKpiCategories } from '@/hooks/use-kpi-categories'
-import { useUmsatzTransaktionen, ColumnVisibility, UmsatzTransaktion } from '@/hooks/use-umsatz-transaktionen'
-import { UmsatzTable } from '@/components/umsatz-table'
-import { UmsatzFormDialog } from '@/components/umsatz-form-dialog'
+import {
+  useAusgabenKostenTransaktionen,
+  ColumnVisibility,
+  AusgabenKostenTransaktion,
+} from '@/hooks/use-ausgaben-kosten-transaktionen'
+import { AusgabenTable } from '@/components/ausgaben-table'
+import { AusgabenFormDialog } from '@/components/ausgaben-form-dialog'
 
-export default function UmsatzPage() {
-  const { categories: umsatzKategorien, loading: kpiLoading } = useKpiCategories('umsatz')
+export default function AusgabenPage() {
+  const { categories: ausgabenKategorien, loading: kpiLoading } = useKpiCategories('ausgaben_kosten')
   const { categories: salesPlattformen } = useKpiCategories('sales_plattformen')
   const { categories: produkte } = useKpiCategories('produkte')
 
   const {
     transaktionen, loading, error,
-    total, totalBetrag, page, filter, sortColumn, sortDirection,
+    total, totalBrutto, totalNetto, page, filter, sortColumn, sortDirection,
     setPage, setFilter, setSort,
     addTransaktion, updateTransaktion, deleteTransaktion,
-  } = useUmsatzTransaktionen()
+  } = useAusgabenKostenTransaktionen()
 
   const [formOpen, setFormOpen] = useState(false)
-  const [editingTransaktion, setEditingTransaktion] = useState<UmsatzTransaktion | null>(null)
+  const [editingTransaktion, setEditingTransaktion] = useState<AusgabenKostenTransaktion | null>(null)
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
 
-  // Compute dynamic column visibility from KPI model
   const columnVisibility = useMemo<ColumnVisibility>(() => ({
-    showGruppe: umsatzKategorien.some(c => c.level === 2),
-    showUntergruppe: umsatzKategorien.some(c => c.level === 3),
-    showSalesPlattform: umsatzKategorien.some(c => c.level === 1 && c.sales_plattform_enabled),
-    showProdukte: umsatzKategorien.some(c => c.level === 1 && c.produkt_enabled),
-  }), [umsatzKategorien])
+    showGruppe: ausgabenKategorien.some(c => c.level === 2),
+    showUntergruppe: ausgabenKategorien.some(c => c.level === 3),
+    showSalesPlattform: ausgabenKategorien.some(c => c.level === 1 && c.sales_plattform_enabled),
+    showProdukte: ausgabenKategorien.some(c => c.level === 1 && c.produkt_enabled),
+  }), [ausgabenKategorien])
 
-  const level1Kategorien = umsatzKategorien.filter(c => c.level === 1)
+  const level1Kategorien = ausgabenKategorien.filter(c => c.level === 1)
 
   const selectedKategorieId = filter.kategorie_ids?.length === 1 ? filter.kategorie_ids[0] : null
   const selectedGruppeId    = filter.gruppe_ids?.length === 1 ? filter.gruppe_ids[0] : null
 
   const gruppeOptions = useMemo(() => {
     if (!selectedKategorieId) return []
-    return umsatzKategorien.filter(c => c.level === 2 && c.parent_id === selectedKategorieId)
-  }, [umsatzKategorien, selectedKategorieId])
+    return ausgabenKategorien.filter(c => c.level === 2 && c.parent_id === selectedKategorieId)
+  }, [ausgabenKategorien, selectedKategorieId])
 
   const untergruppeOptions = useMemo(() => {
     if (!selectedGruppeId) return []
-    return umsatzKategorien.filter(c => c.level === 3 && c.parent_id === selectedGruppeId)
-  }, [umsatzKategorien, selectedGruppeId])
+    return ausgabenKategorien.filter(c => c.level === 3 && c.parent_id === selectedGruppeId)
+  }, [ausgabenKategorien, selectedGruppeId])
 
   const showGruppeFilter      = (filter.kategorie_ids?.length ?? 0) === 1
   const showUntergruppeFilter = showGruppeFilter && (filter.gruppe_ids?.length ?? 0) === 1
@@ -74,7 +77,7 @@ export default function UmsatzPage() {
     setFormOpen(true)
   }
 
-  const handleEditClick = (t: UmsatzTransaktion) => {
+  const handleEditClick = (t: AusgabenKostenTransaktion) => {
     setEditingTransaktion(t)
     setFormOpen(true)
   }
@@ -106,7 +109,7 @@ export default function UmsatzPage() {
     }
   }
 
-  const noKpiModel = !kpiLoading && umsatzKategorien.length === 0
+  const noKpiModel = !kpiLoading && ausgabenKategorien.length === 0
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -116,7 +119,7 @@ export default function UmsatzPage() {
             <a href="/dashboard" className="text-sm text-muted-foreground hover:underline">
               ← Dashboard
             </a>
-            <h1 className="text-lg font-semibold">Umsatz</h1>
+            <h1 className="text-lg font-semibold">Ausgaben & Kosten</h1>
           </div>
           {!noKpiModel && (
             <Button onClick={handleNewClick} size="sm">
@@ -129,12 +132,11 @@ export default function UmsatzPage() {
       <main className="flex-1 p-6">
         <div className="w-full space-y-6">
 
-          {/* No KPI model state */}
           {noKpiModel && (
             <div className="rounded-lg border bg-muted/30 p-8 text-center space-y-3">
-              <p className="font-medium">Kein Umsatz-KPI-Modell definiert</p>
+              <p className="font-medium">Kein Ausgaben-KPI-Modell definiert</p>
               <p className="text-sm text-muted-foreground">
-                Bitte zuerst das KPI-Modell unter Einstellungen pflegen, bevor Umsatz-Transaktionen erfasst werden können.
+                Bitte zuerst das KPI-Modell unter Einstellungen pflegen, bevor Ausgaben erfasst werden können.
               </p>
               <a href="/dashboard/kpi-modell">
                 <Button variant="outline" size="sm" className="mt-2">
@@ -144,14 +146,12 @@ export default function UmsatzPage() {
             </div>
           )}
 
-          {/* Error state */}
           {error && (
             <div className="rounded-lg border border-destructive bg-destructive/10 p-4 text-sm text-destructive">
               {error}
             </div>
           )}
 
-          {/* Filter bar */}
           {!noKpiModel && (
             <div className="flex flex-wrap items-end gap-4">
               <div className="space-y-1.5">
@@ -248,17 +248,17 @@ export default function UmsatzPage() {
             </div>
           )}
 
-          {/* Table */}
           {!noKpiModel && (
-            <UmsatzTable
+            <AusgabenTable
               transaktionen={transaktionen}
               loading={loading}
               columnVisibility={columnVisibility}
-              umsatzKategorien={umsatzKategorien}
+              ausgabenKategorien={ausgabenKategorien}
               salesPlattformen={salesPlattformen}
               produkte={produkte}
               total={total}
-              totalBetrag={totalBetrag}
+              totalBrutto={totalBrutto}
+              totalNetto={totalNetto}
               page={page}
               onPageChange={setPage}
               sortColumn={sortColumn}
@@ -271,18 +271,16 @@ export default function UmsatzPage() {
         </div>
       </main>
 
-      {/* Form dialog */}
-      <UmsatzFormDialog
+      <AusgabenFormDialog
         open={formOpen}
         onOpenChange={setFormOpen}
         transaktionToEdit={editingTransaktion}
-        umsatzKategorien={umsatzKategorien}
+        ausgabenKategorien={ausgabenKategorien}
         salesPlattformen={salesPlattformen}
         produkte={produkte}
         onSave={handleSave}
       />
 
-      {/* Delete confirmation */}
       <AlertDialog open={deleteTargetId !== null} onOpenChange={open => { if (!open) setDeleteTargetId(null) }}>
         <AlertDialogContent>
           <AlertDialogHeader>

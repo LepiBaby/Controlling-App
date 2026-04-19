@@ -129,7 +129,7 @@ export default function EinnahmenPage() {
       </header>
 
       <main className="flex-1 p-6">
-        <div className="mx-auto max-w-7xl space-y-6">
+        <div className="w-full space-y-6">
 
           {/* No KPI model state */}
           {noKpiModel && (

@@ -42,8 +42,9 @@ export default async function DashboardPage() {
       </header>
 
       <main className="flex-1 p-6">
-        <div className="mx-auto max-w-2xl space-y-4">
-          <p className="text-sm text-muted-foreground">Navigation</p>
+        <div className="mx-auto max-w-2xl space-y-6">
+          <div className="space-y-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Datenpflege</h2>
           <div className="grid gap-3 sm:grid-cols-2">
             <a
               href="/dashboard/kpi-modell"
@@ -66,6 +67,14 @@ export default async function DashboardPage() {
               <p className="font-medium">Umsatz</p>
               <p className="text-sm text-muted-foreground mt-1">Erlöse / Leistungen erfassen</p>
             </a>
+            <a
+              href="/dashboard/ausgaben"
+              className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+            >
+              <p className="font-medium">Ausgaben & Kosten</p>
+              <p className="text-sm text-muted-foreground mt-1">Ausgaben und Kosten erfassen</p>
+            </a>
+          </div>
           </div>
         </div>
       </main>
