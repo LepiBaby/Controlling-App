@@ -28,6 +28,7 @@ Eine interne Controlling-Plattform für das Finanzreporting eines E-Commerce Unt
 | P1 | PROJ-13: Alternative Kategorienamen in Kategorie-Filtern | Planned |
 | P1 | PROJ-14: Relevanz-Pflichtfeld für Ausgaben & Kosten-Transaktionen | Planned |
 | P1 | PROJ-15: Investitionen-Abschreibungen-Auswertung | Planned |
+| P1 | PROJ-16: Produktkosten-Verwaltung | Planned |
 
 ## Success Metrics
 - Alle Finanzdaten werden in einer zentralen Plattform erfasst (kein Excel-Chaos)
