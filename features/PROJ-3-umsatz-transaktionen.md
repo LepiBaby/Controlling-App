@@ -1,6 +1,6 @@
 # PROJ-3: Umsatz-Transaktionen Eingabe
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-04-17
 **Last Updated:** 2026-04-19
 
@@ -308,7 +308,85 @@ PROJ-3 ist strukturell identisch mit PROJ-4 (Einnahmen-Transaktionen). Die folge
 - Vitest Unit-Tests: 22 neue Tests (GET/POST/PATCH/DELETE) — alle 103 Tests grün
 
 ## QA Test Results
-_To be added by /qa_
+
+**Date:** 2026-04-19
+**Tester:** /qa skill
+**Build:** All 103 unit tests ✅ | All 49 E2E tests ✅
+
+### Acceptance Criteria Results
+
+| # | Criterion | Status |
+|---|-----------|--------|
+| 1 | Tabelle zeigt immer: Leistungsdatum, Betrag, Beschreibung | ✅ Pass |
+| 2 | Gruppe-Spalte erscheint wenn mind. 1 Ebene-2-Kategorie | ✅ Pass (verified by code: `showGruppe = umsatzKategorien.some(c => c.level === 2)`) |
+| 3 | Untergruppe-Spalte erscheint wenn mind. 1 Ebene-3-Kategorie | ✅ Pass |
+| 4 | Sales Plattform-Spalte erscheint wenn mind. 1 Kategorie `sales_plattform_enabled=true` | ✅ Pass |
+| 5 | Produkte-Spalte erscheint wenn mind. 1 Kategorie `produkt_enabled=true` | ✅ Pass |
+| 6 | Nicht zutreffende Spalten vollständig ausgeblendet | ✅ Pass (conditional rendering in umsatz-table.tsx) |
+| 7 | "Neue Transaktion"-Button öffnet Modal | ✅ Pass |
+| 8 | Leistungsdatum: Pflichtfeld | ✅ Pass |
+| 9 | Betrag: positiv, Pflichtfeld | ✅ Pass |
+| 10 | Kategorie: Dropdown Ebene-1, Pflichtfeld | ✅ Pass |
+| 11 | Gruppe: erscheint nur wenn Kategorie Kinder hat; Pflichtfeld wenn angezeigt | ✅ Pass |
+| 12 | Untergruppe: erscheint nur wenn Gruppe Kinder hat; Pflichtfeld wenn angezeigt | ✅ Pass |
+| 13 | Sales Plattform: erscheint wenn `sales_plattform_enabled=true`; Pflichtfeld wenn angezeigt | ✅ Pass |
+| 14 | Produkte: erscheint wenn `produkt_enabled=true`; Pflichtfeld wenn angezeigt | ✅ Pass |
+| 15 | Beschreibung: optional | ✅ Pass |
+| 16 | Speichern nur möglich wenn alle Pflichtfelder ausgefüllt | ✅ Pass (isValid guard in form) |
+| 17 | Transaktion bearbeiten: vorausgefülltes Formular mit Leistungsdatum | ✅ Pass (manually verified) |
+| 18 | Transaktion löschen: Bestätigungs-Dialog | ✅ Pass (manually verified) |
+| 19 | Standard-Sortierung: neueste zuerst (leistungsdatum DESC) | ✅ Pass |
+| 20 | Tabelle sortierbar nach Leistungsdatum, Betrag | ✅ Pass |
+| 21 | Tabelle filterbar nach Zeitraum und Kategorie-Filtern | ✅ Pass |
+| 22 | Footer zeigt Summe aller gefilterten Transaktionen | ✅ Pass (server-side sum query) |
+| 23 | Kategorie-Filter: Multi-Select, alle Ebene-1-Kategorien | ✅ Pass |
+| 24 | Gruppe-Filter: erscheint nur bei genau 1 Kategorie-Auswahl | ✅ Pass |
+| 25 | Untergruppe-Filter: erscheint nur bei genau 1 Kategorie + 1 Gruppe | ✅ Pass |
+| 26 | >1 Auswahl auf Elternebene → Kindfilter ausgeblendet und zurückgesetzt | ✅ Pass |
+| 27 | Kategorie zurückgesetzt → Gruppe- und Untergruppe-Filter verschwinden | ✅ Pass |
+| 28 | Sales Plattform-Filter: Multi-Select, erscheint wenn `showSalesPlattform=true` | ✅ Pass |
+| 29 | Produkt-Filter: Multi-Select, erscheint wenn `showProdukte=true` | ✅ Pass |
+| 30 | Sales Plattform- und Produkt-Filter unabhängig von Kategorie-Hierarchie | ✅ Pass |
+
+**All 30 acceptance criteria: PASSED**
+
+### Edge Cases
+
+| Edge Case | Status |
+|-----------|--------|
+| Kein KPI-Modell → Hinweis mit Link | ✅ Pass |
+| Betrag = 0 → Save blockiert | ✅ Pass |
+| Datum in der Zukunft → Warnung, nicht blockiert | ✅ Pass |
+| Kategorie ohne Unterkategorien → Gruppe nicht angezeigt, Speichern möglich | ✅ Pass |
+| Gruppe ohne Unterkategorien → Untergruppe nicht angezeigt | ✅ Pass |
+| Kategoriewechsel → Gruppe/Untergruppe/SalesPlattform/Produkt zurückgesetzt | ✅ Pass |
+
+### Security Audit
+
+| Check | Status |
+|-------|--------|
+| `/dashboard/umsatz` → Redirect zu /login wenn nicht eingeloggt | ✅ Pass (E2E test) |
+| GET /api/umsatz-transaktionen → 401 wenn unauthenticated | ✅ Pass (unit test + E2E) |
+| POST /api/umsatz-transaktionen → 401 wenn unauthenticated | ✅ Pass (unit test + E2E) |
+| PATCH /api/umsatz-transaktionen/[id] → 401 wenn unauthenticated | ✅ Pass (unit test + E2E) |
+| DELETE /api/umsatz-transaktionen/[id] → 401 wenn unauthenticated | ✅ Pass (unit test + E2E) |
+| Zod-Validierung auf alle POST/PATCH Inputs | ✅ Pass |
+| RLS: Supabase-seitige Absicherung (zweite Schutzebene) | ✅ Pass (Migration verifiziert) |
+| Keine Secrets im Client-Code | ✅ Pass |
+
+### Bugs Found
+
+Keine Bugs gefunden.
+
+### Automated Tests
+
+- **Vitest unit tests:** 103 passed (22 new for PROJ-3 GET/POST/PATCH/DELETE)
+- **E2E tests new:** 10 passed (`tests/PROJ-3-umsatz-transaktionen.spec.ts`)
+- **E2E tests total:** 49 passed (0 regressions)
+
+### Production-Ready Decision
+
+✅ **READY** — Alle 30 Acceptance Criteria erfüllt. Kein Bug gefunden. Keine Regression.
 
 ## Deployment
 _To be added by /deploy_
