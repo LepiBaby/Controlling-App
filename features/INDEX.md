@@ -19,8 +19,8 @@
 | PROJ-3 | Umsatz-Transaktionen Eingabe | Deployed | [PROJ-3-umsatz-transaktionen.md](PROJ-3-umsatz-transaktionen.md) | 2026-04-17 |
 | PROJ-4 | Einnahmen-Transaktionen Eingabe | Deployed | [PROJ-4-einnahmen-transaktionen.md](PROJ-4-einnahmen-transaktionen.md) | 2026-04-17 |
 | PROJ-5 | Ausgaben & Kosten-Transaktionen Eingabe | Deployed | [PROJ-5-ausgaben-kosten-transaktionen.md](PROJ-5-ausgaben-kosten-transaktionen.md) | 2026-04-17 |
-| PROJ-6 | Rentabilitäts-Auswertung | Approved | [PROJ-6-rentabilitaets-auswertung.md](PROJ-6-rentabilitaets-auswertung.md) | 2026-04-17 |
-| PROJ-7 | Liquiditäts-Auswertung | Approved | [PROJ-7-liquiditaets-auswertung.md](PROJ-7-liquiditaets-auswertung.md) | 2026-04-17 |
+| PROJ-6 | Rentabilitäts-Auswertung | Deployed | [PROJ-6-rentabilitaets-auswertung.md](PROJ-6-rentabilitaets-auswertung.md) | 2026-04-17 |
+| PROJ-7 | Liquiditäts-Auswertung | Deployed | [PROJ-7-liquiditaets-auswertung.md](PROJ-7-liquiditaets-auswertung.md) | 2026-04-17 |
 | PROJ-8 | Ausgaben/Kosten Trennungslogik | Planned | [PROJ-8-ausgaben-kosten-trennung.md](PROJ-8-ausgaben-kosten-trennung.md) | 2026-04-17 |
 | PROJ-9 | Kategorie-Dimensionen Konfiguration | Deployed | [PROJ-9-kategorie-dimensionen.md](PROJ-9-kategorie-dimensionen.md) | 2026-04-18 |
 

@@ -1,6 +1,6 @@
 # PROJ-6: Rentabilitäts-Auswertung
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-04-17
 **Last Updated:** 2026-04-19 (Backend API complete)
 
@@ -370,4 +370,17 @@ None — all acceptance criteria passed. No Critical, High, Medium, or Low bugs.
 **READY** — No bugs found. All acceptance criteria passed.
 
 ## Deployment
-_To be added by /deploy_
+
+**Deployed:** 2026-04-19
+**Git tag:** v1.6.0-PROJ-6
+**Commit:** 02a3526
+**Branch:** main → Vercel auto-deploy
+
+### Deployment checklist
+- [x] `npm run build` passed locally
+- [x] ESLint passed (no errors)
+- [x] QA approved (0 bugs, all AC passed)
+- [x] 145/145 unit tests passing
+- [x] 18/18 E2E tests passing
+- [x] Code committed and pushed to main
+- [x] Git tag v1.6.0-PROJ-6 created and pushed
