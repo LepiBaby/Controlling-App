@@ -218,7 +218,138 @@ Tabellen-Fußzeile:
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Komponenten-Struktur
+
+```
+/dashboard/ausgaben (Page)
++-- Filter-Leiste
+|   +-- Von/Bis Datumsfelder (Leistungsdatum)
+|   +-- Kategorie MultiSelect (immer sichtbar)
+|   +-- Gruppe MultiSelect (nur wenn genau 1 Kategorie gewählt)
+|   +-- Untergruppe MultiSelect (nur wenn genau 1 Kategorie UND 1 Gruppe gewählt)
+|   +-- Sales Plattform MultiSelect (wenn showSalesPlattform=true)
+|   +-- Produkt MultiSelect (wenn showProdukte=true)
+|   +-- Filter zurücksetzen Button
++-- "Neue Transaktion" Button → öffnet AusgabenFormDialog
++-- AusgabenTable
+|   +-- Tabellenkopf (Spalten dynamisch nach KPI-Modell)
+|   +-- Zeilen (50 pro Seite)
+|   +-- Fußzeile: Σ Bruttobetrag + Σ Nettobetrag (gefilterte Gesamtsummen)
+|   +-- Pagination (Prev / Next)
+|   +-- Edit-Icon → AusgabenFormDialog (vorausgefüllt)
+|   +-- Delete-Icon → AlertDialog Bestätigung
++-- Leerer Zustand: "Noch keine Ausgaben/Kosten-Transaktionen erfasst."
++-- Kein KPI-Modell: Hinweis mit Link zur KPI-Verwaltung
+
+AusgabenFormDialog (Modal)
++-- Leistungsdatum (Date-Picker, Pflicht) + Zukunftswarnung
++-- Zahlungsdatum (Date-Picker, optional)
++-- Kategorie Dropdown (Pflicht)
++-- Gruppe Dropdown (nur wenn Kategorie Unterkategorien hat, Pflicht)
++-- Untergruppe Dropdown (nur wenn Gruppe Unterkategorien hat, Pflicht)
++-- Sales Plattform Dropdown (nur wenn sales_plattform_enabled, Pflicht)
++-- Produkt Dropdown (nur wenn produkt_enabled, Pflicht)
++-- Beschreibung Textfeld (optional)
++-- Bruttobetrag Eingabefeld in € (Pflicht, > 0)
++-- Umsatzsteuer Dropdown: 19% / 7% / 0% / Individuell (Pflicht)
+|   +-- USt-Betrag: automatische Vorschau ODER manuelles Eingabefeld (wenn Individuell)
++-- Nettobetrag: automatische Vorschau (nicht editierbar)
++-- Relevant für Rentabilität Dropdown: Ja / Nein (optional)
++-- Abschreibung Dropdown: 3 / 5 / 7 / 10 Jahre (optional)
++-- Speichern Button (deaktiviert bis alle Pflichtfelder ausgefüllt)
+```
+
+### Datenmodell
+
+Tabelle `ausgaben_kosten_transaktionen` in Supabase:
+
+```
+Jede Transaktion hat:
+- Eindeutige ID
+- Leistungsdatum (Pflicht) — wann die Leistung erbracht wurde
+- Zahlungsdatum (optional) — wann tatsächlich gezahlt wurde
+- Bruttobetrag in € (Pflicht, immer > 0)
+- Nettobetrag in € (gespeicherter Berechnungswert: Brutto − USt)
+- USt-Satz als Text: '19', '7', '0' oder 'individuell'
+- USt-Betrag in € (berechnet oder manuell bei "Individuell")
+- Kategorie-ID (Pflicht, Ebene 1 aus Ausgaben-KPI-Modell)
+- Gruppe-ID (optional, Ebene 2)
+- Untergruppe-ID (optional, Ebene 3)
+- Sales Plattform-ID (optional)
+- Produkt-ID (optional)
+- Beschreibung (optional, Freitext)
+- Relevant für Rentabilität (optional: 'ja' / 'nein')
+- Abschreibung (optional: '3_jahre' / '5_jahre' / '7_jahre' / '10_jahre')
+- transaction_type (reserviert für PROJ-8, nullable)
+- Erstellungszeitpunkt (automatisch)
+
+Gespeichert in: Supabase-Datenbank (PostgreSQL)
+```
+
+### API-Endpunkte
+
+```
+GET  /api/ausgaben-kosten-transaktionen
+     → Gibt gefilterte Transaktionen (50/Seite) + totalBrutto + totalNetto zurück
+
+POST /api/ausgaben-kosten-transaktionen
+     → Erstellt neue Transaktion; berechnet und speichert betrag_netto serverseitig
+
+PATCH  /api/ausgaben-kosten-transaktionen/[id]
+       → Aktualisiert einzelne Felder; recalculates betrag_netto wenn betrag_brutto/ust ändert
+
+DELETE /api/ausgaben-kosten-transaktionen/[id]
+       → Löscht Transaktion
+```
+
+### Was wiederverwendet wird (aus PROJ-3/4)
+
+| Bestehend | Wiederverwendung in PROJ-5 |
+|-----------|--------------------------|
+| `MultiSelect` Komponente | Identisch — keine Änderung nötig |
+| `useKpiCategories('ausgaben')` Hook | Identisch — KPI-Typ `'ausgaben'` übergeben |
+| Filter-Hierarchie-Logik (Kategorie → Gruppe → Untergruppe) | Identisch kopiert |
+| AlertDialog für Löschen | Identisch |
+| Paginierung (50/Seite, Prev/Next) | Identisch |
+| Authentifizierungs-Middleware | Identisch |
+| RLS-Policy-Muster | Identisch |
+
+### Was neu gebaut wird
+
+| Neu | Beschreibung |
+|-----|-------------|
+| `ausgaben-form-dialog.tsx` | Adaptiertes Formular mit USt-Dropdown, Netto-Vorschau, Zahlungsdatum, Rentabilität, Abschreibung |
+| `ausgaben-table.tsx` | Tabelle mit 13 Spalten inkl. Brutto/Netto/USt, Zahlungsdatum, Rentabilität, Abschreibung |
+| `use-ausgaben-kosten-transaktionen.ts` | Hook adaptiert von `use-umsatz-transaktionen.ts`, zwei Betragssummen |
+| `/api/ausgaben-kosten-transaktionen/` | Neue API-Route mit USt-Berechnung und Netto-Persistierung |
+| Supabase-Tabelle | `ausgaben_kosten_transaktionen` mit RLS, Indexes, allen Spalten |
+| Dashboard-Karte | Neue Navigationskarte "Ausgaben/Kosten" auf `/dashboard` |
+
+### USt-Berechnung (Serverlogik)
+
+Der Nettobetrag wird **serverseitig berechnet und gespeichert** — nicht im Client und nicht als DB-View. Das stellt sicher, dass gefilterte Summen (`SUM(betrag_netto)`) direkt aus der Datenbank korrekt aggregiert werden können.
+
+```
+Formel (wird auf Server ausgeführt):
+  19 %: betrag_netto = betrag_brutto − ROUND(betrag_brutto × 19/119, 2)
+   7 %: betrag_netto = betrag_brutto − ROUND(betrag_brutto × 7/107, 2)
+   0 %: betrag_netto = betrag_brutto
+Individuell: betrag_netto = betrag_brutto − ust_betrag_manuell
+```
+
+Im Formular zeigt der Client eine **Vorschau** des berechneten Nettowerts, der endgültige gespeicherte Wert kommt aber vom Server.
+
+### Tech-Entscheidungen
+
+- **Nettobetrag gespeichert (kein DB-View):** Damit `SUM(betrag_netto)` in der Fußzeile server-seitig und korrekt über gefilterte Seiten summiert werden kann — ohne Client-seitige Aggregation über alle Seiten.
+- **USt-Satz als Text gespeichert:** Erlaubt die Option `'individuell'` sauber abzubilden, ohne NULL-Werte oder extra Felder.
+- **`transaction_type`-Spalte (nullable):** Reserviert für PROJ-8 (Ausgaben/Kosten-Trennung). Vorerst immer NULL, kein UI-Element.
+- **Sortierung nur nach Leistungsdatum + Bruttobetrag:** Zahlungsdatum ist optional und daher kein sinnvoller Default-Sortierschlüssel.
+
+### Neue Pakete / Abhängigkeiten
+
+Keine neuen Pakete notwendig — alle shadcn/ui-Komponenten (Select, Dialog, AlertDialog, Table, Input, Popover, Checkbox) sind bereits installiert.
 
 ## QA Test Results
 _To be added by /qa_
