@@ -234,8 +234,8 @@ src/app/dashboard/page.tsx                 — Dashboard-Kachel "Investitionen" 
 - Extra Empty-State wenn „Produktinvestitionen" nicht im KPI-Modell existiert (mit Link zum KPI-Modell)
 - `columnVisibility.showUntergruppe` prüft ob irgendeine Ebene-3-Kategorie Kind einer Produktinvestitions-Gruppe ist
 
-### Offene Punkte
-- Keine
+### Offene Punkte (nach Produkt-Ergänzung)
+- Backend-API muss `produkt_id` in Raten-Datenmodell und `produkt_ids`-Filter ergänzen
 
 ## Implementation Notes (Backend — 2026-04-19)
 

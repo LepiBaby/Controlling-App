@@ -7,6 +7,7 @@ export interface InvestitionsRate {
   ursprung_datum: string // YYYY-MM-DD, Leistungsdatum der Ursprungstransaktion
   gruppe_id: string | null
   untergruppe_id: string | null
+  produkt_id: string | null
   beschreibung: string | null
   betrag: number
 }
@@ -16,6 +17,7 @@ export interface InvestitionenFilter {
   bis?: string
   gruppe_ids?: string[]
   untergruppe_ids?: string[]
+  produkt_ids?: string[]
 }
 
 export type InvestitionenSortColumn = 'datum' | 'betrag'
@@ -55,6 +57,7 @@ export function useInvestitionen() {
       if (filter.bis) params.set('bis', filter.bis)
       if (filter.gruppe_ids?.length) params.set('gruppe_ids', filter.gruppe_ids.join(','))
       if (filter.untergruppe_ids?.length) params.set('untergruppe_ids', filter.untergruppe_ids.join(','))
+      if (filter.produkt_ids?.length) params.set('produkt_ids', filter.produkt_ids.join(','))
 
       const res = await fetch(`/api/investitionen-abschreibungen?${params}`)
       if (!res.ok) throw new Error((await res.json()).error ?? 'Fehler beim Laden')

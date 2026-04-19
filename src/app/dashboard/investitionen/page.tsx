@@ -12,6 +12,7 @@ import { NavSheet } from '@/components/nav-sheet'
 
 export default function InvestitionenPage() {
   const { categories: ausgabenKategorien, loading: kpiLoading } = useKpiCategories('ausgaben_kosten')
+  const { categories: produkte } = useKpiCategories('produkte')
 
   const {
     raten, loading, error,
@@ -50,12 +51,14 @@ export default function InvestitionenPage() {
     showUntergruppe: ausgabenKategorien.some(
       c => c.level === 3 && gruppeOptions.some(g => g.id === c.parent_id)
     ),
-  }), [gruppeOptions, ausgabenKategorien])
+    showProdukt: produkte.length > 0,
+  }), [gruppeOptions, ausgabenKategorien, produkte])
 
   const hasAnyFilter = !!(
     filter.von || filter.bis ||
     filter.gruppe_ids?.length ||
-    filter.untergruppe_ids?.length
+    filter.untergruppe_ids?.length ||
+    filter.produkt_ids?.length
   )
 
   const handleSort = (column: typeof sortColumn) => {
@@ -172,6 +175,22 @@ export default function InvestitionenPage() {
                   />
                 </div>
               )}
+              {produkte.length > 0 && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Produkt</Label>
+                  <MultiSelect
+                    options={produkte}
+                    selected={filter.produkt_ids ?? []}
+                    placeholder="Alle Produkte"
+                    onChange={ids => {
+                      setFilter({
+                        ...filter,
+                        produkt_ids: ids.length ? ids : undefined,
+                      })
+                    }}
+                  />
+                </div>
+              )}
               {hasAnyFilter && (
                 <Button
                   variant="ghost"
@@ -191,6 +210,7 @@ export default function InvestitionenPage() {
               raten={raten}
               loading={loading}
               ausgabenKategorien={ausgabenKategorien}
+              produkte={produkte}
               columnVisibility={columnVisibility}
               total={total}
               totalBetrag={totalBetrag}

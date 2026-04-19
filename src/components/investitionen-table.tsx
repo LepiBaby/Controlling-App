@@ -66,12 +66,14 @@ function SortHeader({ label, column, currentSort, direction, onSort, align = 'le
 export interface InvestitionenColumnVisibility {
   showGruppe: boolean
   showUntergruppe: boolean
+  showProdukt: boolean
 }
 
 interface InvestitionenTableProps {
   raten: InvestitionsRate[]
   loading: boolean
   ausgabenKategorien: KpiCategory[]
+  produkte: KpiCategory[]
   columnVisibility: InvestitionenColumnVisibility
   total: number
   totalBetrag: number
@@ -86,6 +88,7 @@ export function InvestitionenTable({
   raten,
   loading,
   ausgabenKategorien,
+  produkte,
   columnVisibility,
   total,
   totalBetrag,
@@ -95,12 +98,12 @@ export function InvestitionenTable({
   sortDirection,
   onSort,
 }: InvestitionenTableProps) {
-  const { showGruppe, showUntergruppe } = columnVisibility
+  const { showGruppe, showUntergruppe, showProdukt } = columnVisibility
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   // Feste Spalten: Datum | Ursprung | Beschreibung | Betrag = 4
-  // Dynamische Spalten: Gruppe + Untergruppe
-  const optionalCount = [showGruppe, showUntergruppe].filter(Boolean).length
+  // Dynamische Spalten: Gruppe + Untergruppe + Produkt
+  const optionalCount = [showGruppe, showUntergruppe, showProdukt].filter(Boolean).length
   const totalColumns = 4 + optionalCount
 
   if (loading && raten.length === 0) {
@@ -140,6 +143,7 @@ export function InvestitionenTable({
               <TableHead>Ursprung</TableHead>
               {showGruppe && <TableHead>Gruppe</TableHead>}
               {showUntergruppe && <TableHead>Untergruppe</TableHead>}
+              {showProdukt && <TableHead>Produkt</TableHead>}
               <TableHead>Beschreibung</TableHead>
               <TableHead className="text-right">
                 <SortHeader
@@ -169,6 +173,9 @@ export function InvestitionenTable({
                 )}
                 {showUntergruppe && (
                   <TableCell>{getCategoryName(ausgabenKategorien, r.untergruppe_id)}</TableCell>
+                )}
+                {showProdukt && (
+                  <TableCell>{getCategoryName(produkte, r.produkt_id)}</TableCell>
                 )}
                 <TableCell className="max-w-xs truncate text-muted-foreground text-sm">
                   {r.beschreibung ?? ''}
