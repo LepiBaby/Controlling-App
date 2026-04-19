@@ -1,6 +1,6 @@
 # PROJ-5: Ausgaben & Kosten-Transaktionen Eingabe
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-04-17
 **Last Updated:** 2026-04-19
 
@@ -460,4 +460,8 @@ None.
 **READY FOR DEPLOYMENT** — No Critical or High bugs. All 34 acceptance criteria pass. 127 unit tests + 118 E2E tests green.
 
 ## Deployment
-_To be added by /deploy_
+
+**Deployed:** 2026-04-19
+**Git tag:** v1.5.0-PROJ-5
+**Platform:** Vercel (auto-deploy on push to main)
+**Commit:** da399a1
