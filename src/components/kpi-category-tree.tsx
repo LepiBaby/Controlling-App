@@ -27,11 +27,12 @@ interface KpiCategoryTreeProps {
   categories: KpiCategory[]
   loading: boolean
   error: string | null
-  maxLevel?: 1 | 3
+  maxLevel?: 1 | 2 | 3
   onRename: (id: string, name: string) => Promise<void>
+  onUpdateSku?: (id: string, name: string, skuCode: string) => Promise<void>
   onDelete: (category: KpiCategory) => void
   onAddCategory: (name: string) => Promise<void>
-  onAddChild: (name: string, parentId: string, level: 1 | 2 | 3) => Promise<void>
+  onAddChild: (name: string, parentId: string, level: 1 | 2 | 3, skuCode?: string) => Promise<void>
   onMoveUp: (id: string) => void
   onMoveDown: (id: string) => void
   onReorder: (activeId: string, overId: string, position: 'before' | 'after') => Promise<void>
@@ -82,6 +83,7 @@ export function KpiCategoryTree({
   error,
   maxLevel = 3,
   onRename,
+  onUpdateSku,
   onDelete,
   onAddCategory,
   onAddChild,
@@ -101,8 +103,8 @@ export function KpiCategoryTree({
   )
 
   const activeCategory = activeId ? categories.find(c => c.id === activeId) : null
-  // Show root drop zone only in hierarchical tabs when dragging a non-root category
-  const showRootDropZone = maxLevel > 1 && activeId !== null && activeCategory?.parent_id !== null
+  // Show root drop zone only in full 3-level tabs when dragging a non-root category
+  const showRootDropZone = maxLevel === 3 && activeId !== null && activeCategory?.parent_id !== null
 
   const rootDropIntent = dropIntent?.overId === ROOT_DROP_ID ? dropIntent : null
 
@@ -148,9 +150,9 @@ export function KpiCategoryTree({
       // Middle zone OR different parent → reparent into target
       const newLevel = (overData.level + 1) as 1 | 2 | 3
       const activeDepth = getSubtreeDepth(categories, activeId)
-      const wouldExceedDepth = newLevel + activeDepth > 3
+      const wouldExceedDepth = newLevel + activeDepth > maxLevel
       const isOwnDescendant = isDescendantOf(categories, overId, activeId)
-      const valid = !wouldExceedDepth && !isOwnDescendant && newLevel <= 3
+      const valid = !wouldExceedDepth && !isOwnDescendant && newLevel <= maxLevel
       setDropIntent({ overId, action: 'reparent', valid })
     }
   }
@@ -216,6 +218,7 @@ export function KpiCategoryTree({
                   isLast={i === tree.length - 1}
                   maxLevel={maxLevel}
                   onRename={onRename}
+                  onUpdateSku={onUpdateSku}
                   onDelete={onDelete}
                   onAddChild={onAddChild}
                   onMoveUp={onMoveUp}

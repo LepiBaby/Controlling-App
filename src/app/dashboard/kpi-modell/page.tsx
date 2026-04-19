@@ -16,18 +16,18 @@ import { KpiCategoryTree } from '@/components/kpi-category-tree'
 import { useKpiCategories, type CategoryType, type KpiCategory } from '@/hooks/use-kpi-categories'
 import { NavSheet } from '@/components/nav-sheet'
 
-const TABS: { value: CategoryType; label: string; maxLevel?: 1 | 3 }[] = [
+const TABS: { value: CategoryType; label: string; maxLevel?: 1 | 2 | 3 }[] = [
   { value: 'umsatz', label: 'Umsatz' },
   { value: 'einnahmen', label: 'Einnahmen' },
   { value: 'ausgaben_kosten', label: 'Ausgaben & Kosten' },
   { value: 'sales_plattformen', label: 'Sales Plattformen', maxLevel: 1 },
-  { value: 'produkte', label: 'Produkte', maxLevel: 1 },
+  { value: 'produkte', label: 'Produkte', maxLevel: 2 },
 ]
 
-function CategoryTab({ type, maxLevel = 3 }: { type: CategoryType; maxLevel?: 1 | 3 }) {
+function CategoryTab({ type, maxLevel = 3 }: { type: CategoryType; maxLevel?: 1 | 2 | 3 }) {
   const {
     tree, categories, loading, error,
-    addCategory, renameCategory, deleteCategory, moveCategory,
+    addCategory, renameCategory, updateSku, deleteCategory, moveCategory,
     reorderCategory, reparentCategory, updateDimensions, updateLabels, updateAbzugsposten,
     getDescendantCount,
   } = useKpiCategories(type)
@@ -50,9 +50,10 @@ function CategoryTab({ type, maxLevel = 3 }: { type: CategoryType; maxLevel?: 1 
         error={error}
         maxLevel={maxLevel}
         onRename={renameCategory}
+        onUpdateSku={type === 'produkte' ? updateSku : undefined}
         onDelete={setPendingDelete}
         onAddCategory={(name) => addCategory(name, null, 1)}
-        onAddChild={(name, parentId, level) => addCategory(name, parentId, level)}
+        onAddChild={(name, parentId, level, skuCode) => addCategory(name, parentId, level, skuCode)}
         onMoveUp={(id) => moveCategory(id, 'up')}
         onMoveDown={(id) => moveCategory(id, 'down')}
         onReorder={reorderCategory}

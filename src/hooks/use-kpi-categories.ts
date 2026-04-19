@@ -9,6 +9,7 @@ export interface KpiCategory {
   type: CategoryType
   parent_id: string | null
   name: string
+  sku_code: string | null
   level: 1 | 2 | 3
   sort_order: number
   sales_plattform_enabled: boolean
@@ -115,7 +116,7 @@ export function useKpiCategories(type: CategoryType) {
 
   const tree = useMemo(() => buildTree(categories), [categories])
 
-  const addCategory = useCallback(async (name: string, parentId: string | null, level: 1 | 2 | 3) => {
+  const addCategory = useCallback(async (name: string, parentId: string | null, level: 1 | 2 | 3, skuCode?: string) => {
     const siblings = categories.filter(c =>
       c.parent_id === parentId && c.type === type
     )
@@ -124,7 +125,7 @@ export function useKpiCategories(type: CategoryType) {
     const res = await fetch('/api/kpi-categories', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, name, parent_id: parentId, level, sort_order: maxOrder + 1 }),
+      body: JSON.stringify({ type, name, parent_id: parentId, level, sort_order: maxOrder + 1, ...(skuCode ? { sku_code: skuCode } : {}) }),
     })
     if (!res.ok) throw new Error((await res.json()).error ?? 'Fehler beim Speichern.')
     const newCat: KpiCategory = await res.json()
@@ -137,6 +138,15 @@ export function useKpiCategories(type: CategoryType) {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name }),
+    })
+  }, [])
+
+  const updateSku = useCallback(async (id: string, name: string, skuCode: string) => {
+    setCategories(prev => prev.map(c => c.id === id ? { ...c, name, sku_code: skuCode } : c))
+    await fetch(`/api/kpi-categories/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, sku_code: skuCode }),
     })
   }, [])
 
@@ -306,7 +316,7 @@ export function useKpiCategories(type: CategoryType) {
 
   return {
     tree, categories, loading, error,
-    addCategory, renameCategory, deleteCategory, moveCategory,
+    addCategory, renameCategory, updateSku, deleteCategory, moveCategory,
     reorderCategory, reparentCategory, updateDimensions, updateLabels, updateAbzugsposten,
     getDescendantCount, getSubtreeDepthForId, isDescendantOfId,
   }

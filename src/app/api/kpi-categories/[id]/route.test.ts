@@ -264,6 +264,80 @@ describe('PATCH /api/kpi-categories/[id]', () => {
     )
     expect(res.status).toBe(200)
   })
+
+  // ─── PROJ-2 SKU Amendment PATCH tests ───────────────────────────────────────
+
+  it('PROJ-2 SKU: accepts sku_code update', async () => {
+    const res = await PATCH(
+      new Request('http://localhost/api/kpi-categories/cat-1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sku_code: 'NEW-SKU-001' }),
+      }),
+      makeCtx('cat-1')
+    )
+    expect(res.status).toBe(200)
+  })
+
+  it('PROJ-2 SKU: accepts combined name + sku_code update', async () => {
+    const res = await PATCH(
+      new Request('http://localhost/api/kpi-categories/cat-1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Neuer Name', sku_code: 'NEW-SKU' }),
+      }),
+      makeCtx('cat-1')
+    )
+    expect(res.status).toBe(200)
+  })
+
+  it('PROJ-2 SKU: returns 400 for empty sku_code string', async () => {
+    const res = await PATCH(
+      new Request('http://localhost/api/kpi-categories/cat-1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sku_code: '' }),
+      }),
+      makeCtx('cat-1')
+    )
+    expect(res.status).toBe(400)
+  })
+
+  it('PROJ-2 SKU: returns 400 for sku_code exceeding 100 characters', async () => {
+    const res = await PATCH(
+      new Request('http://localhost/api/kpi-categories/cat-1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sku_code: 'x'.repeat(101) }),
+      }),
+      makeCtx('cat-1')
+    )
+    expect(res.status).toBe(400)
+  })
+
+  it('PROJ-2 SKU: returns 400 for non-string sku_code', async () => {
+    const res = await PATCH(
+      new Request('http://localhost/api/kpi-categories/cat-1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sku_code: 123 }),
+      }),
+      makeCtx('cat-1')
+    )
+    expect(res.status).toBe(400)
+  })
+
+  it('PROJ-2 SKU: accepts exactly 100-char sku_code (boundary)', async () => {
+    const res = await PATCH(
+      new Request('http://localhost/api/kpi-categories/cat-1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sku_code: 'x'.repeat(100) }),
+      }),
+      makeCtx('cat-1')
+    )
+    expect(res.status).toBe(200)
+  })
 })
 
 describe('DELETE /api/kpi-categories/[id]', () => {

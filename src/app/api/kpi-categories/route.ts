@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { requireAuth } from '@/lib/supabase-server'
 
 const VALID_TYPES = ['umsatz', 'einnahmen', 'ausgaben_kosten', 'sales_plattformen', 'produkte'] as const
-const FLAT_TYPES: Array<typeof VALID_TYPES[number]> = ['sales_plattformen', 'produkte']
+const FLAT_TYPES: Array<typeof VALID_TYPES[number]> = ['sales_plattformen']
 
 const createSchema = z.object({
   type: z.enum(VALID_TYPES),
@@ -11,6 +11,7 @@ const createSchema = z.object({
   parent_id: z.string().uuid().nullable(),
   level: z.union([z.literal(1), z.literal(2), z.literal(3)]),
   sort_order: z.number().int().min(0).optional().default(0),
+  sku_code: z.string().min(1).max(100).transform(s => s.trim()).optional().nullable(),
 })
 
 export async function GET(request: Request) {
@@ -44,11 +45,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
   }
 
-  const { type, name, parent_id, level, sort_order } = parsed.data
+  const { type, name, parent_id, level, sort_order, sku_code } = parsed.data
 
   // Flat types only allow level 1 with no parent
   if (FLAT_TYPES.includes(type) && (level !== 1 || parent_id !== null)) {
     return NextResponse.json({ error: 'Dieser Typ unterstützt nur Hauptkategorien (Ebene 1).' }, { status: 400 })
+  }
+
+  // Produkte: max 2 levels; SKU (level 2) requires sku_code
+  if (type === 'produkte') {
+    if (level === 3) {
+      return NextResponse.json({ error: 'Produkte unterstützen nur 2 Ebenen (Produkt → SKU).' }, { status: 400 })
+    }
+    if (level === 2 && !sku_code) {
+      return NextResponse.json({ error: 'SKU-Code ist Pflichtfeld für SKUs (Ebene 2).' }, { status: 400 })
+    }
   }
 
   // Check duplicate name at same level within same parent
@@ -64,9 +75,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Name bereits vorhanden auf dieser Ebene.' }, { status: 409 })
   }
 
+  // Check duplicate sku_code (global)
+  if (sku_code) {
+    const { data: existingSku } = await supabase
+      .from('kpi_categories')
+      .select('id')
+      .eq('sku_code', sku_code)
+      .limit(1)
+    if (existingSku && existingSku.length > 0) {
+      return NextResponse.json({ error: `SKU-Code "${sku_code}" ist bereits vorhanden.` }, { status: 409 })
+    }
+  }
+
   const { data, error: dbError } = await supabase
     .from('kpi_categories')
-    .insert({ type, name, parent_id, level, sort_order })
+    .insert({ type, name, parent_id, level, sort_order, sku_code: sku_code ?? null })
     .select()
     .single()
 

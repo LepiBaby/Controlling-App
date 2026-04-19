@@ -43,10 +43,11 @@ interface KpiCategoryRowProps {
   category: KpiCategory
   isFirst: boolean
   isLast: boolean
-  maxLevel?: 1 | 3
+  maxLevel?: 1 | 2 | 3
   onRename: (id: string, name: string) => Promise<void>
+  onUpdateSku?: (id: string, name: string, skuCode: string) => Promise<void>
   onDelete: (category: KpiCategory) => void
-  onAddChild: (name: string, parentId: string, level: 1 | 2 | 3) => Promise<void>
+  onAddChild: (name: string, parentId: string, level: 1 | 2 | 3, skuCode?: string) => Promise<void>
   onMoveUp: (id: string) => void
   onMoveDown: (id: string) => void
   onUpdateDimensions?: (id: string, patch: { sales_plattform_enabled?: boolean; produkt_enabled?: boolean }) => Promise<void>
@@ -62,6 +63,7 @@ export function KpiCategoryRow({
   isLast,
   maxLevel = 3,
   onRename,
+  onUpdateSku,
   onDelete,
   onAddChild,
   onMoveUp,
@@ -70,9 +72,13 @@ export function KpiCategoryRow({
   onUpdateLabels,
   onUpdateAbzugsposten,
 }: KpiCategoryRowProps) {
+  const isSkuRow = category.type === 'produkte' && category.level === 2
+  const isSkuParent = category.type === 'produkte' && category.level === 1
+
   const [expanded, setExpanded] = useState(true)
   const [editing, setEditing] = useState(false)
   const [editName, setEditName] = useState(category.name)
+  const [editSkuCode, setEditSkuCode] = useState(category.sku_code ?? '')
   const [showAddChild, setShowAddChild] = useState(false)
   const [kostLabel, setKostLabel] = useState(category.kosten_label ?? '')
   const [ausgLabel, setAusgLabel] = useState(category.ausgaben_label ?? '')
@@ -103,10 +109,20 @@ export function KpiCategoryRow({
 
   function startEdit() {
     setEditName(category.name)
+    setEditSkuCode(category.sku_code ?? '')
     setEditing(true)
   }
 
   async function saveEdit() {
+    if (isSkuRow && onUpdateSku) {
+      const trimmedName = editName.trim()
+      const trimmedSku = editSkuCode.trim()
+      if (!trimmedName || !trimmedSku) { setEditing(false); return }
+      if (trimmedName === category.name && trimmedSku === category.sku_code) { setEditing(false); return }
+      await onUpdateSku(category.id, trimmedName, trimmedSku)
+      setEditing(false)
+      return
+    }
     const trimmed = editName.trim()
     if (!trimmed || trimmed === category.name) { setEditing(false); return }
     await onRename(category.id, trimmed)
@@ -115,11 +131,12 @@ export function KpiCategoryRow({
 
   function cancelEdit() {
     setEditName(category.name)
+    setEditSkuCode(category.sku_code ?? '')
     setEditing(false)
   }
 
   const hasChildren = (category.children?.length ?? 0) > 0
-  const canAddChild = category.level < 3 && maxLevel > 1
+  const canAddChild = category.level < maxLevel && maxLevel > 1
   const showDimensionen = category.level === 1 && maxLevel === 3 && !!onUpdateDimensions
   const hasActiveDimension = category.sales_plattform_enabled || category.produkt_enabled
   const showLabels = category.level === 1 && !!onUpdateLabels
@@ -175,12 +192,22 @@ export function KpiCategoryRow({
         {/* Name / inline edit */}
         {editing ? (
           <div className="flex items-center gap-1 flex-1 min-w-0">
+            {isSkuRow && (
+              <Input
+                value={editSkuCode}
+                onChange={e => setEditSkuCode(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit() }}
+                className="h-6 text-sm py-0 px-2 w-24 shrink-0 font-mono"
+                placeholder="SKU-Code"
+              />
+            )}
             <Input
               ref={inputRef}
               value={editName}
               onChange={e => setEditName(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit() }}
               className="h-6 text-sm py-0 px-2"
+              placeholder={isSkuRow ? 'Anzeigename' : undefined}
             />
             <Button variant="ghost" size="icon" className="h-6 w-6" onClick={saveEdit}>
               <Check className="h-3.5 w-3.5 text-green-600" />
@@ -193,9 +220,15 @@ export function KpiCategoryRow({
           <span
             className="flex-1 text-sm cursor-pointer min-w-0 truncate"
             onClick={startEdit}
-            title={`${category.name} (klicken zum Umbenennen)`}
+            title={isSkuRow ? `${category.sku_code} — ${category.name} (klicken zum Bearbeiten)` : `${category.name} (klicken zum Umbenennen)`}
           >
-            {category.name}
+            {isSkuRow ? (
+              <>
+                <span className="font-mono text-xs text-muted-foreground">{category.sku_code}</span>
+                <span className="text-muted-foreground mx-1">—</span>
+                {category.name}
+              </>
+            ) : category.name}
           </span>
         )}
 
@@ -358,9 +391,10 @@ export function KpiCategoryRow({
       {showAddChild && canAddChild && (
         <div className={cn('mt-1 mb-1', INDENT[(category.level + 1) as 2 | 3])}>
           <KpiAddCategoryForm
-            placeholder={`Neue ${category.level === 1 ? 'Unterkategorie' : 'Unter-Unterkategorie'}...`}
-            onAdd={async (name) => {
-              await onAddChild(name, category.id, (category.level + 1) as 2 | 3)
+            placeholder={isSkuParent ? undefined : `Neue ${category.level === 1 ? 'Unterkategorie' : 'Unter-Unterkategorie'}...`}
+            skuMode={isSkuParent}
+            onAdd={async (name, skuCode) => {
+              await onAddChild(name, category.id, (category.level + 1) as 2 | 3, skuCode)
               setShowAddChild(false)
               setExpanded(true)
             }}
@@ -379,6 +413,7 @@ export function KpiCategoryRow({
               isLast={i === category.children!.length - 1}
               maxLevel={maxLevel}
               onRename={onRename}
+              onUpdateSku={onUpdateSku}
               onDelete={onDelete}
               onAddChild={onAddChild}
               onMoveUp={onMoveUp}

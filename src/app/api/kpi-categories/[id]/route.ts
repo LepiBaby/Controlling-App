@@ -4,6 +4,7 @@ import { requireAuth } from '@/lib/supabase-server'
 
 const patchSchema = z.object({
   name: z.string().min(1).max(100).transform(s => s.trim()).optional(),
+  sku_code: z.string().min(1).max(100).transform(s => s.trim()).optional(),
   sort_order: z.number().int().min(0).optional(),
   parent_id: z.string().uuid().nullable().optional(),
   level: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),

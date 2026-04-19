@@ -15,7 +15,7 @@
 | ID | Feature | Status | Spec | Created |
 |----|---------|--------|------|---------|
 | PROJ-1 | Authentifizierung & Nutzerzugang | Deployed | [PROJ-1-authentifizierung.md](PROJ-1-authentifizierung.md) | 2026-04-17 |
-| PROJ-2 | KPI-Modell Verwaltung | Deployed | [PROJ-2-kpi-modell-verwaltung.md](PROJ-2-kpi-modell-verwaltung.md) | 2026-04-17 |
+| PROJ-2 | KPI-Modell Verwaltung | Approved (Amendment) | [PROJ-2-kpi-modell-verwaltung.md](PROJ-2-kpi-modell-verwaltung.md) | 2026-04-17 |
 | PROJ-3 | Umsatz-Transaktionen Eingabe | Deployed | [PROJ-3-umsatz-transaktionen.md](PROJ-3-umsatz-transaktionen.md) | 2026-04-17 |
 | PROJ-4 | Einnahmen-Transaktionen Eingabe | Deployed | [PROJ-4-einnahmen-transaktionen.md](PROJ-4-einnahmen-transaktionen.md) | 2026-04-17 |
 | PROJ-5 | Ausgaben & Kosten-Transaktionen Eingabe | Deployed | [PROJ-5-ausgaben-kosten-transaktionen.md](PROJ-5-ausgaben-kosten-transaktionen.md) | 2026-04-17 |

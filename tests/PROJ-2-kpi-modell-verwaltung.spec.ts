@@ -91,3 +91,42 @@ test('GET /api/kpi-categories with type=produkte redirects unauthenticated to lo
 // ─── addCategory error handling (covered by unit tests) ──────────────────────
 // - addCategory throws on non-ok response → form shows error, name preserved
 //   (KpiAddCategoryForm: catch block sets error state instead of clearing name)
+
+// ─── PROJ-2 SKU Amendment (AC: Produkte mit SKU-Ebene 2) ──────────────────────
+
+test('PROJ-2 SKU: /dashboard/kpi-modell still redirects unauthenticated after SKU amendment', async ({ page }) => {
+  await page.goto('/dashboard/kpi-modell')
+  await expect(page).toHaveURL(/\/login/)
+})
+
+test('PROJ-2 SKU: PATCH /api/kpi-categories/[id] redirects unauthenticated for sku_code update', async ({ page }) => {
+  // SKU amendment adds sku_code to PATCH schema — middleware still redirects unauthenticated
+  await page.goto('/api/kpi-categories/some-uuid')
+  await expect(page).toHaveURL(/\/login/)
+})
+
+test('PROJ-2 SKU: login page reachable and healthy (regression after SKU amendment)', async ({ page }) => {
+  await page.goto('/login')
+  await expect(page.getByLabel('E-Mail-Adresse')).toBeVisible()
+  await expect(page.getByRole('button', { name: /Magic Link senden/i })).toBeVisible()
+})
+
+// ─── SKU validation unit tests (covered by Vitest, referenced here) ──────────
+// - POST produkte level=1, no sku_code → 201 (route.test.ts)
+// - POST produkte level=2 WITHOUT sku_code → 400 (route.test.ts)
+// - POST produkte level=2 WITH sku_code → 201 (route.test.ts)
+// - POST produkte level=3 (even with sku_code) → 400 (route.test.ts)
+// - POST produkte level=2 empty sku_code → 400 (route.test.ts)
+// - POST duplicate sku_code (global) → 409 (route.test.ts)
+// - POST produkte sku_code max 100 chars → 400 (route.test.ts)
+// - POST produkte sku_code exactly 100 chars → 201 (boundary, route.test.ts)
+// - POST produkte sku_code trimmed whitespace → 201 (route.test.ts)
+// - POST sales_plattformen level=2 still 400 (regression, route.test.ts)
+// - POST umsatz level=2 still 201 (regression, route.test.ts)
+// - POST umsatz level=3 still 201 (regression, route.test.ts)
+// - PATCH with sku_code only → 200 ([id]/route.test.ts)
+// - PATCH with name + sku_code → 200 ([id]/route.test.ts)
+// - PATCH empty sku_code string → 400 ([id]/route.test.ts)
+// - PATCH sku_code max 100 chars → 400 ([id]/route.test.ts)
+// - PATCH non-string sku_code → 400 ([id]/route.test.ts)
+// - PATCH sku_code exactly 100 chars → 200 (boundary, [id]/route.test.ts)
