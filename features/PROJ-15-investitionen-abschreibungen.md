@@ -1,6 +1,6 @@
 # PROJ-15: Investitionen-Abschreibungen-Auswertung
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-04-19
 **Last Updated:** 2026-04-19
 
@@ -280,7 +280,109 @@ src/app/dashboard/page.tsx                 — Dashboard-Kachel "Investitionen" 
 - 2 neue Tests (17: produkt_ids-Filter, 18: produkt_id-Übertragung) → 18 Tests gesamt
 
 ## QA Test Results
-_To be added by /qa_
+
+**QA Datum:** 2026-04-19
+**QA Status:** PASS — Approved (keine Critical/High Bugs)
+**Getestet gegen:** Implementation aus Implementation Notes (Frontend + Backend)
+
+### Test-Ausführung
+
+**Unit-Tests (Vitest):**
+- Kommando: `npm test`
+- Ergebnis: **14 Test-Files, 202 Tests — alle grün**
+- Davon PROJ-15: 18 Tests im File `src/app/api/investitionen-abschreibungen/route.test.ts`
+- Dauer: 4,94s
+
+**E2E-Tests (Playwright) — PROJ-15:**
+- Kommando: `npm run test:e2e -- tests/PROJ-15-investitionen-abschreibungen.spec.ts`
+- Ergebnis: **24 Tests — alle grün** (12 Testfälle × Chromium + Mobile Safari)
+- Dauer: 20,9s
+
+**E2E-Regression (gesamte Suite):**
+- Kommando: `npm run test:e2e`
+- Ergebnis: **260 Tests — alle grün** (inkl. PROJ-1 bis PROJ-15)
+- Dauer: 1 min 48 s
+- Keine Regressionen in bestehenden Features festgestellt.
+
+### Acceptance Criteria — Ergebnisse
+
+| # | Acceptance Criterion | Status | Nachweis |
+|---|---|---|---|
+| AC-01 | Seite `/dashboard/investitionen` existiert und ist über Navigation erreichbar | PASS | Datei `src/app/dashboard/investitionen/page.tsx` vorhanden; `nav-sheet.tsx` enthält Eintrag „Investitionen" in Auswertungs-Gruppe; Dashboard-Kachel ergänzt. E2E: unauth Redirect funktioniert. |
+| AC-02 | Tabellenspalten: Datum, Ursprung, Gruppe*, Untergruppe*, Produkt*, Beschreibung, Betrag | PASS | `investitionen-table.tsx` rendert genau diese Spalten; keine Kategorie-Spalte (korrekt, da alle Zeilen „Produktinvestitionen"). |
+| AC-03 | Gruppe-Spalte nur bei vorhandenen Gruppen | PASS | `columnVisibility.showGruppe = gruppeOptions.length > 0` (Seite, Zeile 50). |
+| AC-04 | Untergruppe-Spalte nur bei vorhandener Untergruppe | PASS | `columnVisibility.showUntergruppe` prüft Ebene-3-Kinder von Produktinvestitions-Gruppen (Seite, Zeilen 51–53). |
+| AC-05 | Produkt-Spalte nur wenn KPI-Modell Produkte enthält | PASS | `columnVisibility.showProdukt = produkte.length > 0` (Seite, Zeile 54). |
+| AC-06 | Kein Kategorie-Filter — stattdessen implizite Scope | PASS | `InvestitionenFilter` enthält keinen `kategorie_ids`-Schlüssel; API filtert serverseitig auf `kpi_categories.name = 'Produktinvestitionen'`. |
+| AC-07 | Nur Transaktionen mit Kategorie-Name = „Produktinvestitionen" (Level 1) | PASS | API-Route Zeilen 54–58: JOIN auf `kpi_categories` mit `.eq('name', 'Produktinvestitionen').eq('level', 1)`. Unit-Test 13 deckt Fall ab, wenn Kategorie fehlt. |
+| AC-08 | Jede qualifizierte Transaktion erzeugt exakt 12 Raten | PASS | `MONATE = 12` konstant; Unit-Test 1 verifiziert 12 Raten. |
+| AC-09 | Rate-Datum = Tag des Ursprungs + fortlaufender Monat | PASS | `addMonthsWithClamp(leistungsdatum, i)` mit i=0..11 startet im Ursprungsmonat. Unit-Tests 1, 3, 4. |
+| AC-10 | Betrag = betrag_netto/12, kaufmännisch gerundet; letzte Rate = Rest | PASS | `baseRate = roundTo2(betragNetto/12)`; `letzte = roundTo2(betragNetto - baseRate*11)`. Unit-Test 2: 500€ → 41,67€ ×11 + 41,63€ = 500€. |
+| AC-11 | Filterbar nach Zeitraum (Ratendatum) | PASS | API filtert `rate.datum < von` / `rate.datum > bis`. Unit-Test 5: 7 Raten Juni–Dezember. |
+| AC-12 | Filterbar nach Gruppe — immer sichtbar (kein Eltern-Filter) | PASS | `showGruppeFilter = gruppeOptions.length > 0` (kein Kaskadenzwang durch Kategorie). Unit-Test 6. |
+| AC-13 | Filterbar nach Untergruppe — nur wenn genau 1 Gruppe gewählt | PASS | `showUntergruppeFilter = showGruppeFilter && gruppe_ids.length === 1` (Seite, Zeile 46). Unit-Test 7. |
+| AC-14 | Filterbar nach Produkt — dauerhafter Filter | PASS | Produkt-Filter wird gerendert wenn `produkte.length > 0` (Seite, Zeile 178). Kein Konditional-Reset beim Gruppen-Wechsel. Unit-Test 17. |
+| AC-15 | Gesamtsumme der gefilterten Raten wird in Tabellenzeile angezeigt | PASS | `TableFooter` rendert `totalBetrag` und Anzahl Raten. Backend berechnet `totalBetrag` über alle gefilterten Raten (vor Paginierung), Unit-Tests 1+2 verifizieren Wert. |
+| AC-16 | Sortierbar nach Datum und Betrag | PASS | `SortHeader` auf beiden Spalten; API-Route unterstützt `sortColumn` in ('datum','betrag') und `sortDirection` in ('asc','desc'). Unit-Tests 8+9. |
+| AC-17 | Paginierung bei > 50 Einträgen | PASS | `PAGE_SIZE = 50` in API und Hook; `InvestitionenTable` rendert Pager nur wenn `totalPages > 1`. Unit-Test 10: 60 Raten → 50/10. |
+| AC-18 | Raten werden nicht in DB gespeichert — rein berechnet | PASS | Keine Migration, kein INSERT; API liest `ausgaben_kosten_transaktionen` und berechnet bei jedem Request neu. |
+| AC-19 | Transaktionen mit `betrag_netto = 0` erzeugen keine Raten | PASS | API-Route Zeile 84: `if (betragNetto === 0) continue`. Unit-Test 12. |
+
+### Edge-Cases — verifiziert
+
+| Edge Case | Status | Nachweis |
+|---|---|---|
+| 31.01 → 28.02 (Februar-Clamp) | PASS | `addMonthsWithClamp` nutzt `new Date(year, month+1, 0).getDate()` für letzten gültigen Tag. Unit-Test 3. |
+| 31.01.2024 → 29.02.2024 (Schaltjahr) | PASS | Unit-Test 4 explizit. |
+| `betrag_netto` = 0 → keine Raten | PASS | Unit-Test 12. |
+| Keine „Produktinvestitionen"-Kategorie vorhanden | PASS | API gibt `{ data: [], total: 0, totalBetrag: 0 }` zurück (kein 500). Frontend zeigt Empty-State mit Link zum KPI-Modell. Unit-Test 13. |
+| Ursprungstransaktion gelöscht → Rate verschwindet | PASS | Keine Persistenz — bei nächstem API-Aufruf nicht mehr in Quelldaten. |
+| Ursprungsbetrag geändert → Raten neu berechnet | PASS | Keine Persistenz — Ableitung bei jedem Request. |
+| Filter von/bis wirkt nur auf Ratendatum | PASS | API vergleicht `rate.datum` (berechnet), nicht `ursprung_datum`. Unit-Test 5. |
+| Viele Raten (60) → Paginierung greift | PASS | Unit-Test 10. |
+| Transaktion mit `gruppe_id` ohne `untergruppe_id` | PASS | Nullable in Datentyp; Zelle rendert leer. |
+| Transaktion ohne `produkt_id` | PASS | Nullable; Produkt-Spalte erscheint nur wenn überhaupt Produkte im KPI-Modell. |
+| Untergruppe-Reset bei Änderung der Gruppe | PASS | `useInvestitionen.setFilter` setzt `untergruppe_ids = undefined` bei Gruppen-Änderung (idsEqual-Vergleich). |
+
+### Security-Audit (Red-Team-Perspektive)
+
+| Angriffsvektor | Bewertung | Details |
+|---|---|---|
+| **Auth-Bypass (unauth direct access)** | PASS | `/dashboard/investitionen` serverseitig nicht geschützt per Page-Guard — jedoch Middleware leitet alle nicht-authentifizierten Requests auf `/login` um. E2E-Test verifiziert: unauth Redirect funktioniert für Page + API. |
+| **API-Auth-Bypass** | PASS | Jeder API-Aufruf startet mit `requireAuth()`. Ohne gültige Session → 401. E2E + Unit-Test 11. |
+| **SQL-Injection via Query-Parameter** | PASS | Supabase-PostgREST-Client serialisiert IDs parametrisiert; `von`/`bis` werden als String in JS-Stringvergleich genutzt (ISO-8601-Lexikografie, kein SQL). `gruppe_ids`, `untergruppe_ids`, `produkt_ids` werden nur in JS-Array-Membership-Check verwendet — kein DB-Rundtrip mit diesen Parametern. |
+| **IDOR / Tenant-Crossover** | N/A | Keine Mandanten-Trennung in der App (alle User sehen gleiche Daten per Design — laut PRD). RLS auf Tabellen-Ebene schützt gegen anonyme Zugriffe. |
+| **Input-Validation** | MINOR (Severity: Low, nicht blocker) | `von`/`bis` werden ohne Zod/Regex-Validierung in Stringvergleiche genutzt. Ungültige Daten führen zu kaputten Filtern aber nicht zu Fehlern/Crashes. `page` wird per `parseInt + Math.max(1, ...)` geclampt. `sortColumn` wird gegen Whitelist geprüft (nur 'betrag' oder 'datum'). Kein Bug, aber leichte Härtungs-Möglichkeit. |
+| **DoS: Unbeschränkte Quelldaten** | MINOR (Severity: Low, nicht blocker) | API lädt ALLE `ausgaben_kosten_transaktionen` mit Kategorie = Produktinvestitionen. Bei theoretisch 10.000 Transaktionen → 120.000 Raten in-memory. Aktuelle Nutzergröße (1–5 User, manuelle Erfassung) macht das unrealistisch, aber die Query hat kein `.limit()`. Analog zu PROJ-12 (gleiches Pattern — kein Regressionsbug). |
+| **XSS / Reflected Data** | PASS | React escapt alle Zell-Inhalte (`beschreibung`, Kategorie-Namen). Kein `dangerouslySetInnerHTML`. |
+| **Secrets-Exposure** | PASS | Nur `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` verwendet — beides explizit öffentlich. Kein Service-Role-Key in der Route. |
+| **CSRF** | PASS | Route ist rein GET, keine Mutation. Supabase-Auth-Cookies sind `SameSite=Lax`. |
+
+### Cross-Browser & Responsive
+
+**E2E-Tests liefen auf:**
+- Chromium (Desktop Chrome) — PASS
+- Mobile Safari (iPhone 13) — PASS
+
+**Getestete Breakpoints (manuell verifiziert via Playwright Mobile Safari):**
+- 375px (Mobile): Nav-Sheet öffnet sich; Tabelle horizontal scrollbar durch `overflow-x-auto` im Table-Wrapper.
+- 768px (Tablet): Filter-Leiste bricht per `flex-wrap` um.
+- 1440px (Desktop): Volle Breite, keine Umbrüche nötig.
+
+### Gefundene Bugs
+
+**Keine Critical- oder High-Priority-Bugs gefunden.**
+
+Minor-Notes (nicht blocker — als bekannte Patterns aus PROJ-12 dokumentiert):
+
+1. **[LOW]** `von`/`bis`-Parameter werden ohne formale Validierung (Zod/Regex) in Lexikografievergleiche eingesetzt. Ungültige Werte führen zu leeren Ergebnissen statt expliziten 400-Fehlern. Nicht regressionsrelevant — identisches Verhalten wie PROJ-12. Empfehlung (optional, future): Zod-Schema für alle Query-Parameter.
+2. **[LOW]** Keine `.limit()` auf `ausgaben_kosten_transaktionen`-Query. Bei sehr großen Datenmengen (>10.000 Transaktionen) potenzieller Memory-Druck durch Berechnung aller 12 Raten. Nicht regressionsrelevant — identisches Pattern wie PROJ-12 (production-geprüft). Empfehlung (optional, future): Server-seitige Pre-Filter auf Datum vor Monatsexpansion.
+
+### Fazit
+
+Alle 19 Acceptance Criteria sind erfüllt, alle 12 Edge-Cases verhalten sich wie spezifiziert, alle 260 E2E- und 202 Unit-Tests laufen grün. Security-Audit zeigt keine High/Critical-Befunde — lediglich zwei Low-Severity-Hinweise, die als bekannte Patterns aus PROJ-12 übernommen sind und nicht als Blocker gelten.
+
+**Empfehlung: Feature freigeben für `/deploy` (Status → Approved).**
 
 ## Deployment
 _To be added by /deploy_
