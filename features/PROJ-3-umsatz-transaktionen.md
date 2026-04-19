@@ -299,6 +299,14 @@ PROJ-3 ist strukturell identisch mit PROJ-4 (Einnahmen-Transaktionen). Die folge
 
 `multi-select.tsx` und `use-kpi-categories.ts` werden unverändert wiederverwendet.
 
+## Implementation Notes (Backend)
+- DB-Migration: `umsatz_transaktionen`-Tabelle mit `DECIMAL(15,2) CHECK (betrag > 0)`, 5 FK-Spalten auf `kpi_categories` (`kategorie_id` mit `ON DELETE RESTRICT`, alle anderen mit `ON DELETE SET NULL`), RLS für alle 4 Operationen (authenticated users), Indizes auf `leistungsdatum`, `betrag`, `kategorie_id`
+- `GET /api/umsatz-transaktionen`: Filter (von/bis/kategorie_ids[]/gruppe_ids[]/untergruppe_ids[]/sales_plattform_ids[]/produkt_ids[] als komma-separierte Query-Parameter, `.in()` statt `.eq()`), Sortierung (leistungsdatum/betrag + asc/desc), Pagination (50/Seite), gibt `{ data, total, totalBetrag }` zurück — `totalBetrag` als Summe über alle gefilterten Zeilen (nicht nur aktuelle Seite)
+- `POST /api/umsatz-transaktionen`: Zod-Validierung (leistungsdatum-Regex, betrag > 0, kategorie_id UUID); alle FK-Felder nullable; gibt 201 zurück
+- `PATCH /api/umsatz-transaktionen/[id]`: Partial-Update mit patchSchema; gibt 400 bei leerem Body; gibt 404 wenn nicht gefunden
+- `DELETE /api/umsatz-transaktionen/[id]`: Löscht Transaktion; gibt 204 zurück
+- Vitest Unit-Tests: 22 neue Tests (GET/POST/PATCH/DELETE) — alle 103 Tests grün
+
 ## QA Test Results
 _To be added by /qa_
 
