@@ -234,8 +234,8 @@ src/app/dashboard/page.tsx                 — Dashboard-Kachel "Investitionen" 
 - Extra Empty-State wenn „Produktinvestitionen" nicht im KPI-Modell existiert (mit Link zum KPI-Modell)
 - `columnVisibility.showUntergruppe` prüft ob irgendeine Ebene-3-Kategorie Kind einer Produktinvestitions-Gruppe ist
 
-### Offene Punkte (nach Produkt-Ergänzung)
-- Backend-API muss `produkt_id` in Raten-Datenmodell und `produkt_ids`-Filter ergänzen
+### Offene Punkte
+- Keine
 
 ## Implementation Notes (Backend — 2026-04-19)
 
@@ -270,8 +270,14 @@ src/app/dashboard/page.tsx                 — Dashboard-Kachel "Investitionen" 
   16. DB-Fehler (kpi_categories) → 500
 
 ### Validierung
-- `npm test`: 14 Test-Files, 200 Tests (inkl. 16 neue für Investitionen) — alle grün
+- `npm test`: 14 Test-Files, 202 Tests (inkl. 18 neue für Investitionen) — alle grün
 - `npm run build`: erfolgreich, `/api/investitionen-abschreibungen` erscheint in der Route-Liste
+
+### Ergänzung (Produkt-Filter — 2026-04-19)
+- `InvestitionsRate`: `produkt_id`-Feld ergänzt
+- Select: `produkt_id` aus DB geladen
+- Filter: `produkt_ids`-Parameter ausgewertet
+- 2 neue Tests (17: produkt_ids-Filter, 18: produkt_id-Übertragung) → 18 Tests gesamt
 
 ## QA Test Results
 _To be added by /qa_

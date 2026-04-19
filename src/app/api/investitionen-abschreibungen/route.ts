@@ -9,6 +9,7 @@ interface InvestitionsRate {
   ursprung_datum: string // YYYY-MM-DD, Leistungsdatum der Ursprungstransaktion
   gruppe_id: string | null
   untergruppe_id: string | null
+  produkt_id: string | null
   beschreibung: string | null
   betrag: number
 }
@@ -47,6 +48,7 @@ export async function GET(request: Request) {
   const bis           = searchParams.get('bis')
   const gruppeIds     = searchParams.get('gruppe_ids')?.split(',').filter(Boolean) ?? []
   const untergruppeIds = searchParams.get('untergruppe_ids')?.split(',').filter(Boolean) ?? []
+  const produktIds    = searchParams.get('produkt_ids')?.split(',').filter(Boolean) ?? []
 
   // ─── Kategorie-ID für "Produktinvestitionen" ermitteln ───────────────────
   const { data: katData, error: katError } = await supabase
@@ -66,7 +68,7 @@ export async function GET(request: Request) {
   // ─── Transaktionen dieser Kategorie laden ────────────────────────────────
   const { data: transaktionen, error: dbError } = await supabase
     .from('ausgaben_kosten_transaktionen')
-    .select('id, leistungsdatum, betrag_netto, gruppe_id, untergruppe_id, beschreibung')
+    .select('id, leistungsdatum, betrag_netto, gruppe_id, untergruppe_id, produkt_id, beschreibung')
     .eq('kategorie_id', produktinvestitionenId)
 
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 })
@@ -90,6 +92,7 @@ export async function GET(request: Request) {
         ursprung_datum: leistungsdatum,
         gruppe_id:      row.gruppe_id ?? null,
         untergruppe_id: row.untergruppe_id ?? null,
+        produkt_id:     row.produkt_id ?? null,
         beschreibung:   row.beschreibung ?? null,
         betrag:         i === MONATE - 1 ? letzte : baseRate,
       })
@@ -105,6 +108,9 @@ export async function GET(request: Request) {
     }
     if (untergruppeIds.length > 0) {
       if (!rate.untergruppe_id || !untergruppeIds.includes(rate.untergruppe_id)) return false
+    }
+    if (produktIds.length > 0) {
+      if (!rate.produkt_id || !produktIds.includes(rate.produkt_id)) return false
     }
     return true
   })

@@ -20,6 +20,8 @@ const GRP_A       = '333e4567-e89b-12d3-a456-426614174000'
 const GRP_B       = '444e4567-e89b-12d3-a456-426614174000'
 const UGP_A       = '555e4567-e89b-12d3-a456-426614174000'
 const UGP_B       = '666e4567-e89b-12d3-a456-426614174000'
+const PRD_A       = '777e4567-e89b-12d3-a456-426614174000'
+const PRD_B       = '888e4567-e89b-12d3-a456-426614174000'
 
 /**
  * Thenable, chainable Mock des Supabase-Query-Builders.
@@ -428,5 +430,72 @@ describe('GET /api/investitionen-abschreibungen', () => {
     expect(res.status).toBe(500)
     const body = await res.json()
     expect(body.error).toBe('Categories unavailable')
+  })
+
+  // ─── 17. Filter produkt_ids ───────────────────────────────────────────────
+  it('filtert Raten nach produkt_ids', async () => {
+    setupMockData({
+      transaktionen: [
+        {
+          id: 't1',
+          leistungsdatum: '2026-01-15',
+          betrag_netto: 1200,
+          gruppe_id: GRP_A,
+          untergruppe_id: UGP_A,
+          produkt_id: PRD_A,
+          beschreibung: 'Produkt A',
+        },
+        {
+          id: 't2',
+          leistungsdatum: '2026-01-15',
+          betrag_netto: 2400,
+          gruppe_id: GRP_A,
+          untergruppe_id: UGP_A,
+          produkt_id: PRD_B,
+          beschreibung: 'Produkt B',
+        },
+        {
+          id: 't3',
+          leistungsdatum: '2026-01-15',
+          betrag_netto: 600,
+          gruppe_id: GRP_B,
+          untergruppe_id: null,
+          produkt_id: null,
+          beschreibung: 'Kein Produkt',
+        },
+      ],
+    })
+
+    const res = await GET(req(`http://localhost/api/investitionen-abschreibungen?produkt_ids=${PRD_A}`))
+    const body = await res.json()
+
+    expect(body.total).toBe(12) // nur t1
+    for (const rate of body.data) {
+      expect(rate.produkt_id).toBe(PRD_A)
+      expect(rate.beschreibung).toBe('Produkt A')
+    }
+  })
+
+  // ─── 18. produkt_id wird in jede Rate übertragen ─────────────────────────
+  it('überträgt produkt_id korrekt in jede Rate', async () => {
+    setupMockData({
+      transaktionen: [{
+        id: 't1',
+        leistungsdatum: '2026-04-09',
+        betrag_netto: 1200,
+        gruppe_id: null,
+        untergruppe_id: null,
+        produkt_id: PRD_A,
+        beschreibung: 'Mit Produkt',
+      }],
+    })
+
+    const res = await GET(req('http://localhost/api/investitionen-abschreibungen'))
+    const body = await res.json()
+
+    expect(body.total).toBe(12)
+    for (const rate of body.data) {
+      expect(rate.produkt_id).toBe(PRD_A)
+    }
   })
 })
