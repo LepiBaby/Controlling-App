@@ -46,9 +46,10 @@ Ursprungstransaktion: 15.01.2026, betrag_netto = 500,00 €, Kategorie = Produkt
 
 ## Acceptance Criteria
 - [ ] Eine neue Seite `/dashboard/investitionen` existiert und ist über die Navigation erreichbar (unter Auswertungen)
-- [ ] Die Tabelle enthält die Spalten: Datum (der Rate), Ursprung (Leistungsdatum der Ausgabentransaktion), Gruppe*, Untergruppe*, Beschreibung (aus Ursprungstransaktion), Betrag
+- [ ] Die Tabelle enthält die Spalten: Datum (der Rate), Ursprung (Leistungsdatum der Ausgabentransaktion), Gruppe*, Untergruppe*, Produkt*, Beschreibung (aus Ursprungstransaktion), Betrag
 - [ ] Gruppe-Spalte wird nur angezeigt, wenn mindestens eine Transaktion eine `gruppe_id` hat
 - [ ] Untergruppe-Spalte wird nur angezeigt, wenn mindestens eine Transaktion eine `untergruppe_id` hat
+- [ ] Produkt-Spalte wird nur angezeigt, wenn mindestens eine Transaktion eine `produkt_id` hat
 - [ ] Kein Kategorie-Filter (alle Einträge sind bereits „Produktinvestitionen") — stattdessen Hinweistext in der Filterleiste
 - [ ] Nur Transaktionen mit Kategorie-Name = „Produktinvestitionen" (Ebene-1-Kategorie) werden berücksichtigt
 - [ ] Jede qualifizierte Ausgaben-Transaktion erzeugt exakt 12 monatliche Raten
@@ -57,6 +58,7 @@ Ursprungstransaktion: 15.01.2026, betrag_netto = 500,00 €, Kategorie = Produkt
 - [ ] Filterbar nach Zeitraum (Von / Bis auf das Ratendatum)
 - [ ] Filterbar nach Gruppe (Ebene 2) — alle Gruppen von „Produktinvestitionen" zur Auswahl
 - [ ] Filterbar nach Untergruppe (Ebene 3) — erscheint nur wenn genau eine Gruppe ausgewählt ist
+- [ ] Filterbar nach Produkt (`produkt_id`) — dauerhafter Filter (nicht konditionell), erscheint wenn KPI-Modell Produkte enthält
 - [ ] Gesamtsumme der gefilterten Raten wird in der Tabellenzeile angezeigt
 - [ ] Sortierbar nach Datum und Betrag
 - [ ] Paginierung bei mehr als 50 Einträgen
@@ -73,6 +75,7 @@ Ursprungstransaktion: 15.01.2026, betrag_netto = 500,00 €, Kategorie = Produkt
 - Filter „Von/Bis" schließt nur Raten ein, deren Ratendatum im Zeitraum liegt — nicht das Ursprungsdatum
 - Sehr viele Raten (z.B. 100 Investitionen × 12 Monate = 1.200 Raten) → Paginierung greift
 - Transaktion hat `gruppe_id` aber keine `untergruppe_id` → Untergruppe-Zelle leer
+- Transaktion hat keine `produkt_id` → Produkt-Zelle leer; Produkt-Spalte erscheint nur wenn irgendeine Transaktion eine `produkt_id` hat
 - Gruppe-Filter wird zurückgesetzt wenn kein Gruppe mehr ausgewählt (kein Kaskadenreset nötig — es gibt keinen übergeordneten Kategorie-Filter)
 - Untergruppe-Filter wird zurückgesetzt wenn Gruppe-Filter auf mehr als 1 oder 0 geändert wird
 
@@ -121,6 +124,7 @@ Felder einer Rate:
 - ursprung_datum  Leistungsdatum der Ausgabentransaktion
 - gruppe_id       Gruppe der Ursprungstransaktion (Ebene 2, kann null sein)
 - untergruppe_id  Untergruppe der Ursprungstransaktion (Ebene 3, kann null sein)
+- produkt_id      Produkt der Ursprungstransaktion (KPI-Dimension, kann null sein)
 - beschreibung    Beschreibung der Ursprungstransaktion
 - betrag          Berechnete Rate (kaufmännisch gerundet; letzte Rate = Rest)
 
@@ -150,12 +154,13 @@ GET /api/investitionen-abschreibungen
     bis            Datums-Filter: Ratendatum ≤ bis
     gruppe_ids     Kommagetrennte Gruppen-IDs (Ebene 2)
     untergruppe_ids Kommagetrennte Untergruppen-IDs (Ebene 3)
+    produkt_ids    Kommagetrennte Produkt-IDs
 
   Ablauf serverseitig:
     1. Ermittle ID der Kategorie "Produktinvestitionen" (Ebene 1) aus kpi_categories
     2. Lade alle ausgaben_kosten_transaktionen WHERE kategorie_id = [ermittelte ID]
     3. Berechne 12 Monatsraten für jede Transaktion (Datumsarithmetik + Rundung)
-    4. Filtere Raten nach von/bis, gruppe_ids, untergruppe_ids
+    4. Filtere Raten nach von/bis, gruppe_ids, untergruppe_ids, produkt_ids
     5. Sortiere
     6. Berechne totalBetrag über alle gefilterten Raten (vor Paginierung)
     7. Paginiere (PAGE_SIZE = 50)
