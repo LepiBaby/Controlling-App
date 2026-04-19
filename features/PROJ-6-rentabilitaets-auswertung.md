@@ -84,8 +84,10 @@ Betrag = `betrag_netto` (negativ, d.h. als negativer Wert dargestellt).
 ### Filter-Hierarchie (Quelle → Kategorie)
 - [ ] **Quelle-Filter**: Multi-Select — Optionen: "Umsatz", "Kosten"; kein Pflichtfeld (kein Quelle-Filter = beide Quellen sichtbar)
 - [ ] **Kategorie-Filter**: wird nur angezeigt, wenn bei Quelle **genau eine** Ausprägung gewählt ist (also entweder nur "Umsatz" oder nur "Kosten"); ist kein Quelle-Filter gesetzt oder sind beide Quellen gewählt, bleibt der Kategorie-Filter ausgeblendet
-- [ ] Wenn Quelle = "Umsatz": Kategorie-Filter zeigt ausschließlich Ebene-1-Kategorien aus dem **Umsatz-KPI-Modell**
-- [ ] Wenn Quelle = "Kosten": Kategorie-Filter zeigt ausschließlich Ebene-1-Kategorien aus dem **Ausgaben & Kosten-KPI-Modell**
+- [ ] Wenn Quelle = "Umsatz": Kategorie-Filter zeigt ausschließlich Ebene-1-Kategorien aus dem **Umsatz-KPI-Modell** — Anzeige mit internem Kategorienamen
+- [ ] Wenn Quelle = "Kosten": Kategorie-Filter zeigt ausschließlich Ebene-1-Kategorien aus dem **Ausgaben & Kosten-KPI-Modell** — Anzeige mit `kosten_label` (PROJ-13); falls kein Label konfiguriert, wird der interne Kategoriename als Fallback verwendet
+- [ ] Der Anzeigetext der Kategorie-Option im Filter ist konsistent mit dem Anzeigetext in der Tabellenspalte (beide zeigen `kosten_label ?? name` wenn Quelle = "Kosten")
+- [ ] Gruppe-Filter und Untergruppe-Filter zeigen weiterhin interne Kategorienamen (alternative Namen sind nur für Hauptkategorien / Ebene 1 definiert)
 - [ ] **Gruppe-Filter**: erscheint nur, wenn Quelle **genau eine** Ausprägung hat UND bei Kategorie **genau eine** Ausprägung gewählt ist; Multi-Select
 - [ ] **Untergruppe-Filter**: erscheint nur, wenn Quelle **genau eine** Ausprägung hat UND Kategorie **genau eine** UND Gruppe **genau eine** Ausprägung hat; Multi-Select
 - [ ] Wird der Quelle-Filter zurückgesetzt oder auf beide Quellen erweitert, werden Kategorie-, Gruppe- und Untergruppe-Filter ausgeblendet und ihre Werte zurückgesetzt

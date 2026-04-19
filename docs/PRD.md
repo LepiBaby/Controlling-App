@@ -24,6 +24,8 @@ Eine interne Controlling-Plattform für das Finanzreporting eines E-Commerce Unt
 | P2 | PROJ-8: Ausgaben/Kosten Trennungslogik | Planned |
 | P1 | PROJ-10: Kategorie-Anzeigebezeichnungen (Ausgaben & Kosten) | Planned |
 | P1 | PROJ-11: Umsatz-Kategorien als Abzugsposten markieren | Planned |
+| P1 | PROJ-12: Abschreibungen-Auswertung | Planned |
+| P1 | PROJ-13: Alternative Kategorienamen in Kategorie-Filtern | Planned |
 
 ## Success Metrics
 - Alle Finanzdaten werden in einer zentralen Plattform erfasst (kein Excel-Chaos)

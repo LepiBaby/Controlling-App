@@ -70,6 +70,15 @@ export default function LiquiditaetPage() {
     [kategoriePool]
   )
 
+  // For filter display: show ausgaben_label when Quelle = "Ausgaben", internal name otherwise
+  const level1KategorienForFilter = useMemo(
+    () => level1Kategorien.map(cat => ({
+      id: cat.id,
+      name: singleQuelle === 'ausgaben' ? (cat.ausgaben_label ?? cat.name) : cat.name,
+    })),
+    [level1Kategorien, singleQuelle]
+  )
+
   // Cascade-filter state based on current selections
   const selectedKategorieId = filter.kategorie_ids?.length === 1 ? filter.kategorie_ids[0] : null
   const selectedGruppeId = filter.gruppe_ids?.length === 1 ? filter.gruppe_ids[0] : null
@@ -181,7 +190,7 @@ export default function LiquiditaetPage() {
               <div className="space-y-1.5">
                 <Label className="text-xs">Kategorie</Label>
                 <MultiSelect
-                  options={level1Kategorien}
+                  options={level1KategorienForFilter}
                   selected={filter.kategorie_ids ?? []}
                   placeholder="Alle Kategorien"
                   onChange={ids => {

@@ -26,6 +26,7 @@ const NAV_GROUPS = [
     items: [
       { href: '/dashboard/rentabilitaet', label: 'Rentabilität', description: 'Umsatz & Kosten Übersicht' },
       { href: '/dashboard/liquiditaet', label: 'Liquidität', description: 'Einnahmen & Ausgaben Übersicht' },
+      { href: '/dashboard/abschreibungen', label: 'Abschreibungen', description: 'Monatliche Abschreibungsraten' },
     ],
   },
 ]

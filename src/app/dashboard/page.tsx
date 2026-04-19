@@ -98,6 +98,13 @@ export default async function DashboardPage() {
                 <p className="font-medium">Liquidität</p>
                 <p className="text-sm text-muted-foreground mt-1">Einnahmen &amp; Ausgaben Übersicht</p>
               </a>
+              <a
+                href="/dashboard/abschreibungen"
+                className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+              >
+                <p className="font-medium">Abschreibungen</p>
+                <p className="text-sm text-muted-foreground mt-1">Monatliche Abschreibungsraten</p>
+              </a>
             </div>
           </div>
         </div>
