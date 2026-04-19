@@ -1,6 +1,6 @@
 # PROJ-3: Umsatz-Transaktionen Eingabe
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-04-17
 **Last Updated:** 2026-04-19
 

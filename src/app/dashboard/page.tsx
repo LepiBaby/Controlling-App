@@ -59,6 +59,13 @@ export default async function DashboardPage() {
               <p className="font-medium">Einnahmen</p>
               <p className="text-sm text-muted-foreground mt-1">Zahlungseingänge erfassen</p>
             </a>
+            <a
+              href="/dashboard/umsatz"
+              className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+            >
+              <p className="font-medium">Umsatz</p>
+              <p className="text-sm text-muted-foreground mt-1">Erlöse / Leistungen erfassen</p>
+            </a>
           </div>
         </div>
       </main>
