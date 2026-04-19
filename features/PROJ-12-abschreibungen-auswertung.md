@@ -1,6 +1,6 @@
 # PROJ-12: Abschreibungen-Auswertung
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-04-19
 **Last Updated:** 2026-04-19
 
@@ -385,4 +385,8 @@ Keine Bugs gefunden.
 - **Recommendation:** Deploy
 
 ## Deployment
-_To be added by /deploy_
+
+**Deployed:** 2026-04-19
+**Production URL:** https://controlling-app-mu.vercel.app/dashboard/abschreibungen
+**Git Tag:** v1.12.0-PROJ-12
+**Commit:** dec492f
