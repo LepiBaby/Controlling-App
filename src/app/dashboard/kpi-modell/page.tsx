@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { KpiCategoryTree } from '@/components/kpi-category-tree'
 import { useKpiCategories, type CategoryType, type KpiCategory } from '@/hooks/use-kpi-categories'
+import { NavSheet } from '@/components/nav-sheet'
 
 const TABS: { value: CategoryType; label: string; maxLevel?: 1 | 3 }[] = [
   { value: 'umsatz', label: 'Umsatz' },
@@ -95,13 +96,13 @@ export default function KpiModellPage() {
     <div className="flex min-h-screen flex-col">
       <header className="border-b bg-background px-6 py-4">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-semibold">KPI-Modell Verwaltung</h1>
-            <p className="text-sm text-muted-foreground">Kategorie-Hierarchien für alle Eingabetabellen</p>
+          <div className="flex items-center gap-2">
+            <NavSheet />
+            <div>
+              <h1 className="text-lg font-semibold">KPI-Modell Verwaltung</h1>
+              <p className="text-sm text-muted-foreground">Kategorie-Hierarchien für alle Eingabetabellen</p>
+            </div>
           </div>
-          <a href="/dashboard" className="text-sm text-muted-foreground hover:text-foreground">
-            ← Dashboard
-          </a>
         </div>
       </header>
 

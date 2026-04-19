@@ -23,6 +23,7 @@ import {
 } from '@/hooks/use-ausgaben-kosten-transaktionen'
 import { AusgabenTable } from '@/components/ausgaben-table'
 import { AusgabenFormDialog } from '@/components/ausgaben-form-dialog'
+import { NavSheet } from '@/components/nav-sheet'
 
 export default function AusgabenPage() {
   const { categories: ausgabenKategorien, loading: kpiLoading } = useKpiCategories('ausgaben_kosten')
@@ -115,10 +116,8 @@ export default function AusgabenPage() {
     <div className="flex min-h-screen flex-col">
       <header className="border-b bg-background px-6 py-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <a href="/dashboard" className="text-sm text-muted-foreground hover:underline">
-              ← Dashboard
-            </a>
+          <div className="flex items-center gap-2">
+            <NavSheet />
             <h1 className="text-lg font-semibold">Ausgaben & Kosten</h1>
           </div>
           {!noKpiModel && (

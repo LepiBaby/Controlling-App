@@ -1,103 +1,98 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { MultiSelect } from '@/components/multi-select'
+import { useKpiCategories, KpiCategory } from '@/hooks/use-kpi-categories'
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import { useKpiCategories } from '@/hooks/use-kpi-categories'
-import { useUmsatzTransaktionen, ColumnVisibility, UmsatzTransaktion } from '@/hooks/use-umsatz-transaktionen'
-import { UmsatzTable } from '@/components/umsatz-table'
-import { UmsatzFormDialog } from '@/components/umsatz-form-dialog'
+  useRentabilitaet,
+  RentabilitaetColumnVisibility,
+  RentabilitaetQuelle,
+} from '@/hooks/use-rentabilitaet'
+import { RentabilitaetTable } from '@/components/rentabilitaet-table'
 import { NavSheet } from '@/components/nav-sheet'
 
-export default function UmsatzPage() {
-  const { categories: umsatzKategorien, loading: kpiLoading } = useKpiCategories('umsatz')
+const QUELLE_OPTIONS: { id: RentabilitaetQuelle; name: string }[] = [
+  { id: 'umsatz', name: 'Umsatz' },
+  { id: 'kosten', name: 'Kosten' },
+]
+
+export default function RentabilitaetPage() {
+  const { categories: umsatzKategorien, loading: umsatzLoading } = useKpiCategories('umsatz')
+  const { categories: ausgabenKategorien, loading: ausgabenLoading } = useKpiCategories('ausgaben_kosten')
   const { categories: salesPlattformen } = useKpiCategories('sales_plattformen')
   const { categories: produkte } = useKpiCategories('produkte')
 
   const {
-    transaktionen, loading, error,
-    total, totalBetrag, page, filter, sortColumn, sortDirection,
+    zeilen, loading, error,
+    total, totalNetto, page, filter, sortColumn, sortDirection,
     setPage, setFilter, setSort,
-    addTransaktion, updateTransaktion, deleteTransaktion,
-  } = useUmsatzTransaktionen()
+  } = useRentabilitaet()
 
-  const [formOpen, setFormOpen] = useState(false)
-  const [editingTransaktion, setEditingTransaktion] = useState<UmsatzTransaktion | null>(null)
-  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
-  const [deleting, setDeleting] = useState(false)
+  const kpiLoading = umsatzLoading || ausgabenLoading
 
-  // Compute dynamic column visibility from KPI model
-  const columnVisibility = useMemo<ColumnVisibility>(() => ({
-    showGruppe: umsatzKategorien.some(c => c.level === 2),
-    showUntergruppe: umsatzKategorien.some(c => c.level === 3),
-    showSalesPlattform: umsatzKategorien.some(c => c.level === 1 && c.sales_plattform_enabled),
-    showProdukte: umsatzKategorien.some(c => c.level === 1 && c.produkt_enabled),
-  }), [umsatzKategorien])
+  // Combined categories from BOTH KPI models for name lookup in the table
+  const combinedCategories = useMemo<KpiCategory[]>(() => {
+    return [...umsatzKategorien, ...ausgabenKategorien]
+  }, [umsatzKategorien, ausgabenKategorien])
 
-  const level1Kategorien = umsatzKategorien.filter(c => c.level === 1)
+  // Column visibility based on EITHER model
+  const columnVisibility = useMemo<RentabilitaetColumnVisibility>(() => ({
+    showGruppe:
+      umsatzKategorien.some(c => c.level === 2) ||
+      ausgabenKategorien.some(c => c.level === 2),
+    showUntergruppe:
+      umsatzKategorien.some(c => c.level === 3) ||
+      ausgabenKategorien.some(c => c.level === 3),
+    showSalesPlattform:
+      umsatzKategorien.some(c => c.level === 1 && c.sales_plattform_enabled) ||
+      ausgabenKategorien.some(c => c.level === 1 && c.sales_plattform_enabled),
+    showProdukte:
+      umsatzKategorien.some(c => c.level === 1 && c.produkt_enabled) ||
+      ausgabenKategorien.some(c => c.level === 1 && c.produkt_enabled),
+  }), [umsatzKategorien, ausgabenKategorien])
 
+  // Kategorie filter is only shown when exactly ONE Quelle is selected
+  const singleQuelle = filter.quelle?.length === 1 ? filter.quelle[0] : null
+  const showKategorieFilter = singleQuelle !== null
+
+  // Source pool for the Kategorie filter depends on which Quelle is selected
+  const kategoriePool = useMemo<KpiCategory[]>(() => {
+    if (singleQuelle === 'umsatz') return umsatzKategorien
+    if (singleQuelle === 'kosten') return ausgabenKategorien
+    return []
+  }, [singleQuelle, umsatzKategorien, ausgabenKategorien])
+
+  const level1Kategorien = useMemo<KpiCategory[]>(
+    () => kategoriePool.filter(c => c.level === 1),
+    [kategoriePool]
+  )
+
+  // Cascade-filter state based on current selections
   const selectedKategorieId = filter.kategorie_ids?.length === 1 ? filter.kategorie_ids[0] : null
-  const selectedGruppeId    = filter.gruppe_ids?.length === 1 ? filter.gruppe_ids[0] : null
+  const selectedGruppeId = filter.gruppe_ids?.length === 1 ? filter.gruppe_ids[0] : null
 
-  const gruppeOptions = useMemo(() => {
+  const gruppeOptions = useMemo<KpiCategory[]>(() => {
     if (!selectedKategorieId) return []
-    return umsatzKategorien.filter(c => c.level === 2 && c.parent_id === selectedKategorieId)
-  }, [umsatzKategorien, selectedKategorieId])
+    return kategoriePool.filter(c => c.level === 2 && c.parent_id === selectedKategorieId)
+  }, [kategoriePool, selectedKategorieId])
 
-  const untergruppeOptions = useMemo(() => {
+  const untergruppeOptions = useMemo<KpiCategory[]>(() => {
     if (!selectedGruppeId) return []
-    return umsatzKategorien.filter(c => c.level === 3 && c.parent_id === selectedGruppeId)
-  }, [umsatzKategorien, selectedGruppeId])
+    return kategoriePool.filter(c => c.level === 3 && c.parent_id === selectedGruppeId)
+  }, [kategoriePool, selectedGruppeId])
 
-  const showGruppeFilter      = (filter.kategorie_ids?.length ?? 0) === 1
+  const showGruppeFilter = showKategorieFilter && (filter.kategorie_ids?.length ?? 0) === 1
   const showUntergruppeFilter = showGruppeFilter && (filter.gruppe_ids?.length ?? 0) === 1
 
   const hasAnyFilter = !!(
     filter.von || filter.bis ||
+    filter.quelle?.length ||
     filter.kategorie_ids?.length || filter.gruppe_ids?.length || filter.untergruppe_ids?.length ||
     filter.sales_plattform_ids?.length || filter.produkt_ids?.length
   )
-
-  const handleNewClick = () => {
-    setEditingTransaktion(null)
-    setFormOpen(true)
-  }
-
-  const handleEditClick = (t: UmsatzTransaktion) => {
-    setEditingTransaktion(t)
-    setFormOpen(true)
-  }
-
-  const handleSave = async (input: Parameters<typeof addTransaktion>[0]) => {
-    if (editingTransaktion) {
-      await updateTransaktion(editingTransaktion.id, input)
-    } else {
-      await addTransaktion(input)
-    }
-  }
-
-  const handleDeleteConfirm = async () => {
-    if (!deleteTargetId) return
-    setDeleting(true)
-    try {
-      await deleteTransaktion(deleteTargetId)
-    } finally {
-      setDeleting(false)
-      setDeleteTargetId(null)
-    }
-  }
 
   const handleSort = (column: typeof sortColumn) => {
     if (column === sortColumn) {
@@ -107,21 +102,15 @@ export default function UmsatzPage() {
     }
   }
 
-  const noKpiModel = !kpiLoading && umsatzKategorien.length === 0
+  // No KPI models yet: neither umsatz nor ausgaben has entries
+  const noKpiModel = !kpiLoading && umsatzKategorien.length === 0 && ausgabenKategorien.length === 0
 
   return (
     <div className="flex min-h-screen flex-col">
       <header className="border-b bg-background px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <NavSheet />
-            <h1 className="text-lg font-semibold">Umsatz</h1>
-          </div>
-          {!noKpiModel && (
-            <Button onClick={handleNewClick} size="sm">
-              + Neue Transaktion
-            </Button>
-          )}
+        <div className="flex items-center gap-2">
+          <NavSheet />
+          <h1 className="text-lg font-semibold">Rentabilitäts-Auswertung</h1>
         </div>
       </header>
 
@@ -131,9 +120,9 @@ export default function UmsatzPage() {
           {/* No KPI model state */}
           {noKpiModel && (
             <div className="rounded-lg border bg-muted/30 p-8 text-center space-y-3">
-              <p className="font-medium">Kein Umsatz-KPI-Modell definiert</p>
+              <p className="font-medium">Keine KPI-Modelle definiert</p>
               <p className="text-sm text-muted-foreground">
-                Bitte zuerst das KPI-Modell unter Einstellungen pflegen, bevor Umsatz-Transaktionen erfasst werden können.
+                Bitte zuerst die KPI-Modelle für Umsatz und Ausgaben &amp; Kosten unter Einstellungen pflegen.
               </p>
               <a href="/dashboard/kpi-modell">
                 <Button variant="outline" size="sm" className="mt-2">
@@ -154,23 +143,42 @@ export default function UmsatzPage() {
           {!noKpiModel && (
             <div className="flex flex-wrap items-end gap-4">
               <div className="space-y-1.5">
-                <Label className="text-xs">Von</Label>
+                <Label className="text-xs">Von (Leistungsdatum)</Label>
                 <Input
                   type="date"
-                  className="h-8 w-36 text-sm"
+                  className="h-8 w-44 text-sm"
                   value={filter.von ?? ''}
                   onChange={e => setFilter({ ...filter, von: e.target.value || undefined })}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Bis</Label>
+                <Label className="text-xs">Bis (Leistungsdatum)</Label>
                 <Input
                   type="date"
-                  className="h-8 w-36 text-sm"
+                  className="h-8 w-44 text-sm"
                   value={filter.bis ?? ''}
                   onChange={e => setFilter({ ...filter, bis: e.target.value || undefined })}
                 />
               </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Quelle</Label>
+                <MultiSelect
+                  options={QUELLE_OPTIONS}
+                  selected={filter.quelle ?? []}
+                  placeholder="Alle Quellen"
+                  onChange={ids => {
+                    setFilter({
+                      ...filter,
+                      quelle: ids.length ? (ids as RentabilitaetQuelle[]) : undefined,
+                      // Reset category cascade when Quelle changes
+                      kategorie_ids: undefined,
+                      gruppe_ids: undefined,
+                      untergruppe_ids: undefined,
+                    })
+                  }}
+                />
+              </div>
+              {showKategorieFilter && (
               <div className="space-y-1.5">
                 <Label className="text-xs">Kategorie</Label>
                 <MultiSelect
@@ -178,10 +186,16 @@ export default function UmsatzPage() {
                   selected={filter.kategorie_ids ?? []}
                   placeholder="Alle Kategorien"
                   onChange={ids => {
-                    setFilter({ ...filter, kategorie_ids: ids.length ? ids : undefined, gruppe_ids: undefined, untergruppe_ids: undefined })
+                    setFilter({
+                      ...filter,
+                      kategorie_ids: ids.length ? ids : undefined,
+                      gruppe_ids: undefined,
+                      untergruppe_ids: undefined,
+                    })
                   }}
                 />
               </div>
+              )}
               {showGruppeFilter && (
                 <div className="space-y-1.5">
                   <Label className="text-xs">Gruppe</Label>
@@ -190,7 +204,11 @@ export default function UmsatzPage() {
                     selected={filter.gruppe_ids ?? []}
                     placeholder="Alle Gruppen"
                     onChange={ids => {
-                      setFilter({ ...filter, gruppe_ids: ids.length ? ids : undefined, untergruppe_ids: undefined })
+                      setFilter({
+                        ...filter,
+                        gruppe_ids: ids.length ? ids : undefined,
+                        untergruppe_ids: undefined,
+                      })
                     }}
                   />
                 </div>
@@ -249,59 +267,24 @@ export default function UmsatzPage() {
 
           {/* Table */}
           {!noKpiModel && (
-            <UmsatzTable
-              transaktionen={transaktionen}
+            <RentabilitaetTable
+              zeilen={zeilen}
               loading={loading}
               columnVisibility={columnVisibility}
-              umsatzKategorien={umsatzKategorien}
+              kpiCategories={combinedCategories}
               salesPlattformen={salesPlattformen}
               produkte={produkte}
               total={total}
-              totalBetrag={totalBetrag}
+              totalNetto={totalNetto}
               page={page}
               onPageChange={setPage}
               sortColumn={sortColumn}
               sortDirection={sortDirection}
               onSort={handleSort}
-              onEdit={handleEditClick}
-              onDelete={id => setDeleteTargetId(id)}
             />
           )}
         </div>
       </main>
-
-      {/* Form dialog */}
-      <UmsatzFormDialog
-        open={formOpen}
-        onOpenChange={setFormOpen}
-        transaktionToEdit={editingTransaktion}
-        umsatzKategorien={umsatzKategorien}
-        salesPlattformen={salesPlattformen}
-        produkte={produkte}
-        onSave={handleSave}
-      />
-
-      {/* Delete confirmation */}
-      <AlertDialog open={deleteTargetId !== null} onOpenChange={open => { if (!open) setDeleteTargetId(null) }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Transaktion löschen?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Diese Aktion kann nicht rückgängig gemacht werden.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Abbrechen</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteConfirm}
-              disabled={deleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting ? 'Löschen…' : 'Löschen'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   )
 }

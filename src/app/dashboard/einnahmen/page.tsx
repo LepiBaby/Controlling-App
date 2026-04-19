@@ -19,6 +19,7 @@ import { useKpiCategories } from '@/hooks/use-kpi-categories'
 import { useEinnahmenTransaktionen, ColumnVisibility, EinnahmenTransaktion } from '@/hooks/use-einnahmen-transaktionen'
 import { EinnahmenTable } from '@/components/einnahmen-table'
 import { EinnahmenFormDialog } from '@/components/einnahmen-form-dialog'
+import { NavSheet } from '@/components/nav-sheet'
 
 export default function EinnahmenPage() {
   const { categories: einnahmenKategorien, loading: kpiLoading } = useKpiCategories('einnahmen')
@@ -114,10 +115,8 @@ export default function EinnahmenPage() {
     <div className="flex min-h-screen flex-col">
       <header className="border-b bg-background px-6 py-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <a href="/dashboard" className="text-sm text-muted-foreground hover:underline">
-              ← Dashboard
-            </a>
+          <div className="flex items-center gap-2">
+            <NavSheet />
             <h1 className="text-lg font-semibold">Einnahmen</h1>
           </div>
           {!noKpiModel && (

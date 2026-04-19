@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { LogoutButton } from '@/components/logout-button'
+import { NavSheet } from '@/components/nav-sheet'
 
 export default async function DashboardPage() {
   const cookieStore = await cookies()
@@ -33,7 +34,10 @@ export default async function DashboardPage() {
     <div className="flex min-h-screen flex-col">
       <header className="border-b bg-background px-6 py-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-lg font-semibold">Controlling App</h1>
+          <div className="flex items-center gap-2">
+              <NavSheet />
+              <h1 className="text-lg font-semibold">Controlling App</h1>
+            </div>
           <div className="flex items-center gap-4">
             <span className="text-sm text-muted-foreground">{user.email}</span>
             <LogoutButton />
@@ -75,6 +79,26 @@ export default async function DashboardPage() {
               <p className="text-sm text-muted-foreground mt-1">Ausgaben und Kosten erfassen</p>
             </a>
           </div>
+          </div>
+
+          <div className="space-y-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Auswertungen</h2>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <a
+                href="/dashboard/rentabilitaet"
+                className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+              >
+                <p className="font-medium">Rentabilität</p>
+                <p className="text-sm text-muted-foreground mt-1">Umsatz &amp; Kosten Übersicht</p>
+              </a>
+              <a
+                href="/dashboard/liquiditaet"
+                className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+              >
+                <p className="font-medium">Liquidität</p>
+                <p className="text-sm text-muted-foreground mt-1">Einnahmen &amp; Ausgaben Übersicht</p>
+              </a>
+            </div>
           </div>
         </div>
       </main>
