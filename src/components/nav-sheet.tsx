@@ -19,6 +19,7 @@ const NAV_GROUPS = [
       { href: '/dashboard/einnahmen', label: 'Einnahmen', description: 'Zahlungseingänge erfassen' },
       { href: '/dashboard/umsatz', label: 'Umsatz', description: 'Erlöse / Leistungen erfassen' },
       { href: '/dashboard/ausgaben', label: 'Ausgaben & Kosten', description: 'Ausgaben und Kosten erfassen' },
+      { href: '/dashboard/produktkosten', label: 'Produktkosten', description: 'Kostenstruktur je Produkt pflegen' },
     ],
   },
   {
