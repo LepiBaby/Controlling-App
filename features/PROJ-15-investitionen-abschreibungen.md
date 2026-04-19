@@ -230,7 +230,43 @@ src/app/dashboard/page.tsx                 — Dashboard-Kachel "Investitionen" 
 - `columnVisibility.showUntergruppe` prüft ob irgendeine Ebene-3-Kategorie Kind einer Produktinvestitions-Gruppe ist
 
 ### Offene Punkte
-- Backend-API `GET /api/investitionen-abschreibungen` noch nicht implementiert
+- Keine
+
+## Implementation Notes (Backend — 2026-04-19)
+
+### Neu erstellte Dateien
+- `src/app/api/investitionen-abschreibungen/route.ts` — `GET`-Handler:
+  - `requireAuth()` als erster Schritt (401 bei fehlender Session)
+  - Schritt 1: Kategorie-ID für „Produktinvestitionen" (level=1) aus `kpi_categories` ermitteln
+  - Falls Kategorie nicht gefunden → leeres Ergebnis `{ data: [], total: 0, totalBetrag: 0 }` (kein Fehler)
+  - Schritt 2: `ausgaben_kosten_transaktionen` WHERE `kategorie_id = [gefundene ID]`
+  - Fix 12 Monatsraten pro Transaktion: `baseRate = round(betrag_netto / 12)`, letzte Rate = Rest
+  - Datumsarithmetik identisch mit PROJ-12: `addMonthsWithClamp` (Monatsgrenzen-Clamp)
+  - Filter: `von`/`bis` auf Ratendatum, `gruppe_ids`, `untergruppe_ids` in JS angewendet
+  - `totalBetrag` über alle gefilterten Raten vor Paginierung
+  - Paginierung: `PAGE_SIZE = 50`
+  - Response-Shape: `{ data, total, totalBetrag }`
+- `src/app/api/investitionen-abschreibungen/route.test.ts` — 16 Vitest-Tests (alle grün):
+  1. Korrekte Anzahl (12), Beträge und Datumsfolge
+  2. Rundungsrest: letzte Rate = Rest, Summe = betrag_netto
+  3. Monatsende-Clamp: 31.01 → 28.02 / 30.04
+  4. Schaltjahr-Clamp: 31.01.2024 → 29.02.2024
+  5. Filter von/bis auf Ratendatum (7 Raten aus Jun–Dez)
+  6. Filter gruppe_ids
+  7. Filter untergruppe_ids
+  8. Sortierung datum asc/desc
+  9. Sortierung betrag asc/desc
+  10. Paginierung (60 Raten → 50/10)
+  11. Unauthenticated → 401
+  12. betrag_netto = 0 → Transaktion überspringen
+  13. Keine „Produktinvestitionen"-Kategorie → leeres Ergebnis
+  14. Leere Transaktionstabelle → leeres Ergebnis
+  15. DB-Fehler (Transaktionen) → 500
+  16. DB-Fehler (kpi_categories) → 500
+
+### Validierung
+- `npm test`: 14 Test-Files, 200 Tests (inkl. 16 neue für Investitionen) — alle grün
+- `npm run build`: erfolgreich, `/api/investitionen-abschreibungen` erscheint in der Route-Liste
 
 ## QA Test Results
 _To be added by /qa_
