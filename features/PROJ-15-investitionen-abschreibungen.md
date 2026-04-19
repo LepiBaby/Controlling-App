@@ -1,6 +1,6 @@
 # PROJ-15: Investitionen-Abschreibungen-Auswertung
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-04-19
 **Last Updated:** 2026-04-19
 
@@ -200,6 +200,37 @@ src/app/api/investitionen-abschreibungen/route.test.ts   — Unit-Tests
 src/components/nav-sheet.tsx               — "Investitionen" in Auswertungen-Gruppe ergänzen
 src/app/dashboard/page.tsx                 — Dashboard-Kachel "Investitionen" ergänzen
 ```
+
+## Implementation Notes (Frontend — 2026-04-19)
+
+### Neu erstellte Dateien
+- `src/hooks/use-investitionen.ts` — Hook analog zu `useAbschreibungen`:
+  - Exportiert `InvestitionsRate`, `InvestitionenFilter`, `InvestitionenSortColumn`, `SortDirection`, `PAGE_SIZE = 50`
+  - Kein `kategorie_ids`-Filter (immer nur „Produktinvestitionen")
+  - Kaskadenreset: Gruppe-Änderung → Untergruppe leeren
+  - Ruft `GET /api/investitionen-abschreibungen` auf
+- `src/components/investitionen-table.tsx` — 4-spaltige Tabelle (ohne Kategorie-Spalte):
+  - Spalten: Datum (sortierbar) | Ursprung | Gruppe* | Untergruppe* | Beschreibung | Betrag (sortierbar, rechts)
+  - Betrag in `text-destructive` (rot), da Kosten
+  - Fußzeile mit Gesamtsumme und Anzahl Raten
+  - Loading-State (Skeleton) und Empty-State
+- `src/app/dashboard/investitionen/page.tsx` — Seite mit FilterBar und Tabelle:
+  - Findet „Produktinvestitionen"-Kategorie per Name im KPI-Modell
+  - Gruppe-Filter zeigt Kinder von „Produktinvestitionen" — erscheint nur wenn diese Gruppen existieren
+  - Untergruppe-Filter: erscheint nur wenn genau 1 Gruppe gewählt
+  - Hinweis-State wenn „Produktinvestitionen"-Kategorie nicht im KPI-Modell vorhanden
+
+### Geänderte Dateien
+- `src/components/nav-sheet.tsx` — „Investitionen" in die Auswertungs-Gruppe ergänzt (hinter Abschreibungen)
+- `src/app/dashboard/page.tsx` — Dashboard-Kachel „Investitionen" ergänzt
+
+### Abweichungen / Design-Entscheidungen
+- Gruppe-Filter ist immer sichtbar (wenn Gruppen vorhanden) — kein übergeordneter Kategorie-Filter
+- Extra Empty-State wenn „Produktinvestitionen" nicht im KPI-Modell existiert (mit Link zum KPI-Modell)
+- `columnVisibility.showUntergruppe` prüft ob irgendeine Ebene-3-Kategorie Kind einer Produktinvestitions-Gruppe ist
+
+### Offene Punkte
+- Backend-API `GET /api/investitionen-abschreibungen` noch nicht implementiert
 
 ## QA Test Results
 _To be added by /qa_
