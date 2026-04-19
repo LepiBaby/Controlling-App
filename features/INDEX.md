@@ -27,7 +27,7 @@
 | PROJ-11 | Umsatz-Kategorien als Abzugsposten markieren | Deployed | [PROJ-11-umsatz-abzugsposten.md](PROJ-11-umsatz-abzugsposten.md) | 2026-04-19 |
 
 | PROJ-12 | Abschreibungen-Auswertung | Deployed | [PROJ-12-abschreibungen-auswertung.md](PROJ-12-abschreibungen-auswertung.md) | 2026-04-19 |
-| PROJ-13 | Alternative Kategorienamen in Kategorie-Filtern | Approved | [PROJ-13-alternative-kategorienamen-filter.md](PROJ-13-alternative-kategorienamen-filter.md) | 2026-04-19 |
+| PROJ-13 | Alternative Kategorienamen in Kategorie-Filtern | Deployed | [PROJ-13-alternative-kategorienamen-filter.md](PROJ-13-alternative-kategorienamen-filter.md) | 2026-04-19 |
 
 <!-- Add features above this line -->
 

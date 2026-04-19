@@ -1,6 +1,6 @@
 # PROJ-13: Alternative Kategorienamen in Kategorie-Filtern
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-04-19
 **Last Updated:** 2026-04-19 (Frontend implementiert)
 
@@ -143,3 +143,18 @@ Rein frontend-seitige Änderung — kein Backend nötig, da `kosten_label`/`ausg
 ### Production-Ready-Entscheidung
 
 **READY** — Alle 14 Acceptance Criteria bestanden, keine Bugs, Sicherheits-Audit sauber, keine Regressions.
+
+## Deployment
+
+**Deployed:** 2026-04-19
+**Git tag:** v1.13.0-PROJ-13
+**Commit:** bb7ce54
+**Branch:** main → Vercel auto-deploy
+
+### Deployment checklist
+- [x] `npm run build` passed locally
+- [x] QA approved (0 Bugs, 14/14 AC passed)
+- [x] 180/180 Vitest Unit-Tests passing
+- [x] 100/100 Playwright E2E Tests passing
+- [x] Code committed und gepusht zu main
+- [x] Git tag v1.13.0-PROJ-13 erstellt und gepusht
