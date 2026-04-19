@@ -1,6 +1,6 @@
 # PROJ-16: Produktkosten-Verwaltung
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-04-19
 **Last Updated:** 2026-04-19
 
@@ -270,4 +270,9 @@ Keine Bugs gefunden.
 - **Recommendation:** Deploy
 
 ## Deployment
-_To be added by /deploy_
+
+**Deployed:** 2026-04-19
+**Production URL:** https://controlling-app-five.vercel.app
+**Git Tag:** v1.16.0-PROJ-16
+**Platform:** Vercel (auto-deploy from main branch)
+**DB Migration:** `make_produktkosten_gueltig_bis_nullable` — applied via Supabase MCP

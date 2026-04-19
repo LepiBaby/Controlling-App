@@ -31,7 +31,7 @@
 
 | PROJ-14 | Relevanz-Pflichtfeld für Ausgaben & Kosten-Transaktionen | Deployed | [PROJ-14-relevanz-pflichtfeld-ausgaben.md](PROJ-14-relevanz-pflichtfeld-ausgaben.md) | 2026-04-19 |
 | PROJ-15 | Investitionen-Abschreibungen-Auswertung | Deployed | [PROJ-15-investitionen-abschreibungen.md](PROJ-15-investitionen-abschreibungen.md) | 2026-04-19 |
-| PROJ-16 | Produktkosten-Verwaltung | Approved | [PROJ-16-produktkosten-verwaltung.md](PROJ-16-produktkosten-verwaltung.md) | 2026-04-19 |
+| PROJ-16 | Produktkosten-Verwaltung | Deployed | [PROJ-16-produktkosten-verwaltung.md](PROJ-16-produktkosten-verwaltung.md) | 2026-04-19 |
 
 <!-- Add features above this line -->
 
