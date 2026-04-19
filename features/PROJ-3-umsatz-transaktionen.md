@@ -1,6 +1,6 @@
 # PROJ-3: Umsatz-Transaktionen Eingabe
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-04-17
 **Last Updated:** 2026-04-19
 
@@ -389,4 +389,8 @@ Keine Bugs gefunden.
 ✅ **READY** — Alle 30 Acceptance Criteria erfüllt. Kein Bug gefunden. Keine Regression.
 
 ## Deployment
-_To be added by /deploy_
+
+**Deployed:** 2026-04-19
+**Commit:** a6362fa
+**Branch:** main → Vercel auto-deploy
+**Tag:** v1.3.0-PROJ-3
