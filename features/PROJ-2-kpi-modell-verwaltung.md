@@ -1,6 +1,6 @@
 # PROJ-2: KPI-Modell Verwaltung
 
-## Status: Approved (Amendment: SKU-Unterpunkte)
+## Status: Deployed
 **Created:** 2026-04-17
 **Last Updated:** 2026-04-19
 
