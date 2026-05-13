@@ -168,13 +168,13 @@ export async function GET(request: Request) {
       .not('leistungsdatum', 'is', null),
     supabase
       .from('bestand_transaktionen')
-      .select('datum, produkt_id, bestand_sendungen(menge, plattform_id)')
+      .select('datum, produkt_id, warenverluste, sendungen_manuell, bestand_sendungen(menge, plattform_id)')
       .gte('datum', vonDate)
       .lte('datum', bisDate)
       .not('produkt_id', 'is', null),
     supabase
       .from('produktkosten_zeitraeume')
-      .select('produkt_id, gueltig_von, gueltig_bis, produktkosten_werte(wert)')
+      .select('produkt_id, gueltig_von, gueltig_bis, produktkosten_werte(kategorie_id, wert)')
       .lte('gueltig_von', bisDate)
       .or(`gueltig_bis.is.null,gueltig_bis.gte.${vonDate}`),
   ])
@@ -276,56 +276,141 @@ export async function GET(request: Request) {
     }
   }
 
-  // ── 5b. Bestandsberechnung: Sendungen × Stückkosten ──────────────────────
+  // ── 5b. Bestandsberechnung: Sendungen × Stückkosten je Kostenkategorie ───────
 
-  // Stückkosten-Lookup: produkt_id → [{von, bis, cost}]
-  type ZeitraumEntry = { von: string; bis: string | null; cost: number }
-  const unitCostByProdukt = new Map<string, ZeitraumEntry[]>()
-  for (const tz of (produktkostenRows ?? []) as Array<{
-    produkt_id: string; gueltig_von: string; gueltig_bis: string | null
-    produktkosten_werte: Array<{ wert: number }>
-  }>) {
-    const unitCost = roundTo2((tz.produktkosten_werte ?? []).reduce((s, w) => s + Number(w.wert), 0))
-    if (!unitCostByProdukt.has(tz.produkt_id)) unitCostByProdukt.set(tz.produkt_id, [])
-    unitCostByProdukt.get(tz.produkt_id)!.push({ von: tz.gueltig_von, bis: tz.gueltig_bis, cost: unitCost })
-  }
-
-  function getUnitCost(produktId: string, datum: string): number {
-    const zeitraeume = unitCostByProdukt.get(produktId) ?? []
-    return zeitraeume.find(z => z.von <= datum && (z.bis === null || z.bis >= datum))?.cost ?? 0
-  }
-
-  // Bestand-Kosten je Produkt und je Produkt+Plattform akkumulieren (als negative P&L-Werte)
-  const bestandPrdVals: EntityMap = new Map()  // key: produkt_id
-  const bestandPltVals: EntityMap = new Map()  // key: "produkt_id:plattform_id"
-
-  for (const row of (bestandTranRows ?? []) as Array<{
-    datum: string; produkt_id: string | null
-    bestand_sendungen: Array<{ menge: number; plattform_id: string }>
-  }>) {
-    if (!row.produkt_id || !row.datum) continue
-    const period = dateToPeriod(row.datum, granularitaet)
-    const unitCost = getUnitCost(row.produkt_id, row.datum)
-    for (const sendung of row.bestand_sendungen ?? []) {
-      const cost = roundTo2(Number(sendung.menge) * unitCost)
-      if (cost === 0) continue
-      addTo(bestandPrdVals, row.produkt_id, period, -cost)
-      if (sendung.plattform_id) {
-        addTo(bestandPltVals, `${row.produkt_id}:${sendung.plattform_id}`, period, -cost)
-      }
-    }
-  }
-
-  // Bestandskosten zur ausgaben_kosten-Kategorie „Produkt" addieren
   const produktKatId = (allCats ?? []).find(
     c => c.type === 'ausgaben_kosten' && c.level === 1 && c.name?.toLowerCase() === 'produkt'
   )?.id ?? null
 
   if (produktKatId && assignedCatIds.has(produktKatId)) {
-    for (const [, pm] of bestandPrdVals) {
-      for (const [period, amount] of pm) {
-        addTo(catVals, produktKatId, period, amount)
+    type WertEntry = { kategorie_id: string; wert: number }
+    type ZeitraumEntry = { von: string; bis: string | null; werte: WertEntry[] }
+    const zeitraumByProdukt = new Map<string, ZeitraumEntry[]>()
+    for (const tz of (produktkostenRows ?? []) as Array<{
+      produkt_id: string; gueltig_von: string; gueltig_bis: string | null
+      produktkosten_werte: Array<{ kategorie_id: string; wert: number }>
+    }>) {
+      if (!zeitraumByProdukt.has(tz.produkt_id)) zeitraumByProdukt.set(tz.produkt_id, [])
+      zeitraumByProdukt.get(tz.produkt_id)!.push({
+        von: tz.gueltig_von,
+        bis: tz.gueltig_bis,
+        werte: (tz.produktkosten_werte ?? []).map(w => ({ kategorie_id: w.kategorie_id, wert: Number(w.wert) })),
+      })
+    }
+
+    for (const row of (bestandTranRows ?? []) as Array<{
+      datum: string; produkt_id: string | null
+      bestand_sendungen: Array<{ menge: number; plattform_id: string }>
+    }>) {
+      if (!row.produkt_id || !row.datum) continue
+      const zeitraeume = zeitraumByProdukt.get(row.produkt_id) ?? []
+      const matching = zeitraeume.find(z => z.von <= row.datum && (z.bis === null || z.bis >= row.datum))
+      if (!matching) continue
+      for (const sendung of row.bestand_sendungen ?? []) {
+        for (const wert of matching.werte) {
+          if (!wert.kategorie_id) continue
+          const cost = roundTo2(Number(sendung.menge) * wert.wert)
+          if (cost === 0) continue
+          processTransaction(
+            produktKatId,
+            wert.kategorie_id,
+            null,
+            sendung.plattform_id || null,
+            row.produkt_id,
+            row.datum,
+            -cost,
+          )
+        }
       }
+    }
+  }
+
+  // ── 5c. Wertverlust-Berechnung: warenverluste × Σ(produktkosten_werte.wert) ──
+  // WV-Kategorie kann Ebene 1 (direkt zugewiesen) ODER Ebene 2 (Kind-Kategorie) sein.
+
+  const wvKat = (allCats ?? []).find(
+    c => c.type === 'ausgaben_kosten' && c.name?.toLowerCase() === 'wertverlust ware'
+  )
+  // wvGrpId: ID der WV-Kategorie selbst (für den Drill-Down in buildGruppe/buildKategorie)
+  const wvGrpId = wvKat?.id ?? null
+  // wvTopCatId: Ebene-1-Kategorie, die in assignedCatIds geprüft wird und catVals bekommt
+  const wvTopCatId = wvKat
+    ? (wvKat.level === 1 ? wvKat.id : (wvKat.parent_id ?? null))
+    : null
+
+  // produkt_id → period → betrag (für produkte_wertverlust Drill-Down)
+  const wvPrdVals: EntityMap = new Map()
+
+  if (wvGrpId && wvTopCatId && assignedCatIds.has(wvTopCatId)) {
+    const zeitraumWvByProdukt = new Map<string, Array<{ von: string; bis: string | null; sumWert: number }>>()
+    for (const tz of (produktkostenRows ?? []) as Array<{
+      produkt_id: string; gueltig_von: string; gueltig_bis: string | null
+      produktkosten_werte: Array<{ wert: number }>
+    }>) {
+      if (!zeitraumWvByProdukt.has(tz.produkt_id)) zeitraumWvByProdukt.set(tz.produkt_id, [])
+      const sumWert = roundTo2((tz.produktkosten_werte ?? []).reduce((s, w) => s + Number(w.wert), 0))
+      zeitraumWvByProdukt.get(tz.produkt_id)!.push({ von: tz.gueltig_von, bis: tz.gueltig_bis, sumWert })
+    }
+
+    for (const row of (bestandTranRows ?? []) as Array<{
+      datum: string; produkt_id: string | null; warenverluste: number | null
+      bestand_sendungen: Array<{ menge: number; plattform_id: string }>
+    }>) {
+      if (!row.produkt_id || !row.datum) continue
+      const wv = Number(row.warenverluste ?? 0)
+      if (wv <= 0) continue
+      const zeitraeume = zeitraumWvByProdukt.get(row.produkt_id) ?? []
+      const matching = zeitraeume.find(z => z.von <= row.datum && (z.bis === null || z.bis >= row.datum))
+      if (!matching || matching.sumWert === 0) continue
+      const cost = roundTo2(wv * matching.sumWert)
+      if (cost === 0) continue
+      const period = dateToPeriod(row.datum, granularitaet)
+      addTo(catVals, wvTopCatId, period, -cost)
+      // Bei Ebene-2-Kategorie auch auf Gruppen-Ebene akkumulieren
+      if (wvGrpId !== wvTopCatId) addTo(grpVals, wvGrpId, period, -cost)
+      addTo(wvPrdVals, row.produkt_id, period, -cost)
+    }
+  }
+
+  // ── 5d. Manuelle-Sendungen-Berechnung: sendungen_manuell × Σ(produktkosten_werte.wert) ──
+
+  const msKat = (allCats ?? []).find(
+    c => c.type === 'ausgaben_kosten' && c.name?.toLowerCase() === 'ersatzteile / kulanz'
+  )
+  const msGrpId = msKat?.id ?? null
+  const msTopCatId = msKat
+    ? (msKat.level === 1 ? msKat.id : (msKat.parent_id ?? null))
+    : null
+
+  const msPrdVals: EntityMap = new Map()
+
+  if (msGrpId && msTopCatId && assignedCatIds.has(msTopCatId)) {
+    const zeitraumMsByProdukt = new Map<string, Array<{ von: string; bis: string | null; sumWert: number }>>()
+    for (const tz of (produktkostenRows ?? []) as Array<{
+      produkt_id: string; gueltig_von: string; gueltig_bis: string | null
+      produktkosten_werte: Array<{ wert: number }>
+    }>) {
+      if (!zeitraumMsByProdukt.has(tz.produkt_id)) zeitraumMsByProdukt.set(tz.produkt_id, [])
+      const sumWert = roundTo2((tz.produktkosten_werte ?? []).reduce((s, w) => s + Number(w.wert), 0))
+      zeitraumMsByProdukt.get(tz.produkt_id)!.push({ von: tz.gueltig_von, bis: tz.gueltig_bis, sumWert })
+    }
+
+    for (const row of (bestandTranRows ?? []) as Array<{
+      datum: string; produkt_id: string | null; sendungen_manuell: number | null
+      bestand_sendungen: Array<{ menge: number; plattform_id: string }>
+    }>) {
+      if (!row.produkt_id || !row.datum) continue
+      const ms = Number(row.sendungen_manuell ?? 0)
+      if (ms <= 0) continue
+      const zeitraeume = zeitraumMsByProdukt.get(row.produkt_id) ?? []
+      const matching = zeitraeume.find(z => z.von <= row.datum && (z.bis === null || z.bis >= row.datum))
+      if (!matching || matching.sumWert === 0) continue
+      const cost = roundTo2(ms * matching.sumWert)
+      if (cost === 0) continue
+      const period = dateToPeriod(row.datum, granularitaet)
+      addTo(catVals, msTopCatId, period, -cost)
+      if (msGrpId !== msTopCatId) addTo(grpVals, msGrpId, period, -cost)
+      addTo(msPrdVals, row.produkt_id, period, -cost)
     }
   }
 
@@ -414,20 +499,47 @@ export async function GET(request: Request) {
     }
   }
 
-  function buildGruppe(grpId: string, spEnabled: boolean) {
+  function buildGruppe(grpId: string, spEnabled: boolean, isProduktGruppe = false) {
     const grp = catById.get(grpId)
     if (!grp) return null
     const untergruppen = (catChildren.get(grpId) ?? [])
       .filter(id => catById.get(id)?.level === 3)
       .map(id => buildUntergruppe(id, spEnabled))
       .filter(Boolean)
+    const hasPlt = isProduktGruppe && [...pltVals.keys()].some(k => k.startsWith(`${grpId}:`))
+
+    // WV auf Ebene 2: Produkte als Drill-Down dieser Gruppe
+    const isWvGrp = grpId === wvGrpId && wvGrpId !== wvTopCatId
+    const produkteWertverlust = isWvGrp
+      ? [...wvPrdVals.entries()]
+          .map(([prdId]) => {
+            const prd = produktById.get(prdId)
+            if (!prd) return null
+            return { id: prdId, name: prd.name, values: getValues(wvPrdVals, prdId, perioden) }
+          })
+          .filter((x): x is NonNullable<typeof x> => x !== null)
+      : undefined
+
+    // MS auf Ebene 2: Produkte als Drill-Down dieser Gruppe
+    const isMsGrp = grpId === msGrpId && msGrpId !== msTopCatId
+    const produkteManuelleSendungen = isMsGrp
+      ? [...msPrdVals.entries()]
+          .map(([prdId]) => {
+            const prd = produktById.get(prdId)
+            if (!prd) return null
+            return { id: prdId, name: prd.name, values: getValues(msPrdVals, prdId, perioden) }
+          })
+          .filter((x): x is NonNullable<typeof x> => x !== null)
+      : undefined
+
     return {
       id: grpId,
       name: grp.name,
       values: getValues(grpVals, grpId, perioden),
       untergruppen,
-      // Plattform-Aufschlüsselung nur an der tiefsten KPI-Ebene zeigen
-      sales_plattformen: spEnabled && untergruppen.length === 0 ? buildPlattformen(grpId) : [],
+      sales_plattformen: (spEnabled || hasPlt) && untergruppen.length === 0 ? buildPlattformen(grpId) : [],
+      ...(produkteWertverlust !== undefined ? { produkte_wertverlust: produkteWertverlust } : {}),
+      ...(produkteManuelleSendungen !== undefined ? { produkte_manuelle_sendungen: produkteManuelleSendungen } : {}),
     }
   }
 
@@ -435,34 +547,36 @@ export async function GET(request: Request) {
     const cat = catById.get(katId)
     if (!cat) return null
     const spEnabled = !!cat.sales_plattform_enabled
-    const gruppen = (catChildren.get(katId) ?? [])
-      .filter(id => catById.get(id)?.level === 2)
-      .map(id => buildGruppe(id, spEnabled))
-      .filter(Boolean)
-
-    // Produkt-Drill-Down für ausgaben_kosten-Kategorie „Produkt" (PROJ-21)
     const isProduktKat =
       cat.type === 'ausgaben_kosten' && cat.level === 1 && cat.name?.toLowerCase() === 'produkt'
-    const produkte: Array<{
-      id: string; name: string; values: Record<string, number>
-      plattformen: Array<{ id: string; name: string; values: Record<string, number>; produkte: [] }>
-    }> = []
-    if (isProduktKat) {
-      for (const [prdId] of bestandPrdVals) {
-        const prd = produktById.get(prdId)
-        if (!prd) continue
-        const plattformen: Array<{ id: string; name: string; values: Record<string, number>; produkte: [] }> = []
-        const prdPltPrefix = `${prdId}:`
-        for (const key of bestandPltVals.keys()) {
-          if (!key.startsWith(prdPltPrefix)) continue
-          const pltId = key.slice(prdPltPrefix.length)
-          const plt = plattformById.get(pltId)
-          if (!plt) continue
-          plattformen.push({ id: pltId, name: plt.name, values: getValues(bestandPltVals, key, perioden), produkte: [] })
-        }
-        produkte.push({ id: prdId, name: prd.name, values: getValues(bestandPrdVals, prdId, perioden), plattformen })
-      }
-    }
+    const gruppen = (catChildren.get(katId) ?? [])
+      .filter(id => catById.get(id)?.level === 2)
+      .map(id => buildGruppe(id, spEnabled, isProduktKat))
+      .filter(Boolean)
+
+    // WV auf Ebene 1: Produkte als Drill-Down dieser Kategorie
+    const isWvKat = katId === wvGrpId && wvGrpId === wvTopCatId
+    const produkteWertverlust = isWvKat
+      ? [...wvPrdVals.entries()]
+          .map(([prdId]) => {
+            const prd = produktById.get(prdId)
+            if (!prd) return null
+            return { id: prdId, name: prd.name, values: getValues(wvPrdVals, prdId, perioden) }
+          })
+          .filter((x): x is NonNullable<typeof x> => x !== null)
+      : undefined
+
+    // MS auf Ebene 1: Produkte als Drill-Down dieser Kategorie
+    const isMsKat = katId === msGrpId && msGrpId === msTopCatId
+    const produkteManuelleSendungen = isMsKat
+      ? [...msPrdVals.entries()]
+          .map(([prdId]) => {
+            const prd = produktById.get(prdId)
+            if (!prd) return null
+            return { id: prdId, name: prd.name, values: getValues(msPrdVals, prdId, perioden) }
+          })
+          .filter((x): x is NonNullable<typeof x> => x !== null)
+      : undefined
 
     return {
       id: katId,
@@ -470,9 +584,9 @@ export async function GET(request: Request) {
       kpi_type: cat.type as 'umsatz' | 'ausgaben_kosten',
       values: getValues(catVals, katId, perioden),
       gruppen,
-      // Plattform-Aufschlüsselung direkt an Kategorie-Ebene wenn keine Gruppen
       sales_plattformen: spEnabled && gruppen.length === 0 ? buildPlattformen(katId) : [],
-      produkte,
+      ...(produkteWertverlust !== undefined ? { produkte_wertverlust: produkteWertverlust } : {}),
+      ...(produkteManuelleSendungen !== undefined ? { produkte_manuelle_sendungen: produkteManuelleSendungen } : {}),
     }
   }
 

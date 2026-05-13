@@ -10,7 +10,6 @@ import type {
   ReportGruppe,
   ReportUntergruppe,
   ReportPlattform,
-  ReportProdukt,
 } from '@/hooks/use-reporting-rentabilitaet'
 
 // ─── Formatierung ─────────────────────────────────────────────────────────────
@@ -118,7 +117,9 @@ function pushGruppe(
   expandedIds: Set<string>,
   indent: number,
 ) {
-  const expandable = grp.untergruppen.length > 0 || grp.sales_plattformen.length > 0
+  const hasWv = (grp.produkte_wertverlust?.length ?? 0) > 0
+  const hasMs = (grp.produkte_manuelle_sendungen?.length ?? 0) > 0
+  const expandable = grp.untergruppen.length > 0 || grp.sales_plattformen.length > 0 || hasWv || hasMs
   rows.push({
     id: grp.id,
     label: grp.name,
@@ -131,39 +132,32 @@ function pushGruppe(
   if (!expandable || !expandedIds.has(grp.id)) return
   if (grp.untergruppen.length > 0) {
     for (const ugr of grp.untergruppen) pushUntergruppe(rows, ugr, expandedIds, indent + 1)
-  } else {
+  } else if (grp.sales_plattformen.length > 0) {
     for (const plt of grp.sales_plattformen) pushPlattform(rows, plt, grp.id, expandedIds, indent + 1)
-  }
-}
-
-function pushProdukt(
-  rows: FlatRow[],
-  prd: ReportProdukt,
-  expandedIds: Set<string>,
-  indent: number,
-) {
-  const rowId = `bprd:${prd.id}`
-  const expandable = prd.plattformen.length > 0
-  rows.push({
-    id: rowId,
-    label: prd.name,
-    indent,
-    kind: 'produkt',
-    values: prd.values,
-    expandable,
-    expanded: expandedIds.has(rowId),
-  })
-  if (!expandable || !expandedIds.has(rowId)) return
-  for (const plt of prd.plattformen) {
-    rows.push({
-      id: `bplt:${prd.id}:${plt.id}`,
-      label: plt.name,
-      indent: indent + 1,
-      kind: 'plattform',
-      values: plt.values,
-      expandable: false,
-      expanded: false,
-    })
+  } else if (hasWv) {
+    for (const prd of grp.produkte_wertverlust!) {
+      rows.push({
+        id: `wvprd:${grp.id}:${prd.id}`,
+        label: prd.name,
+        indent: indent + 1,
+        kind: 'produkt',
+        values: prd.values,
+        expandable: false,
+        expanded: false,
+      })
+    }
+  } else if (hasMs) {
+    for (const prd of grp.produkte_manuelle_sendungen!) {
+      rows.push({
+        id: `msprd:${grp.id}:${prd.id}`,
+        label: prd.name,
+        indent: indent + 1,
+        kind: 'produkt',
+        values: prd.values,
+        expandable: false,
+        expanded: false,
+      })
+    }
   }
 }
 
@@ -173,7 +167,9 @@ function pushKategorie(
   expandedIds: Set<string>,
   indent: number,
 ) {
-  const expandable = kat.gruppen.length > 0 || kat.sales_plattformen.length > 0 || kat.produkte.length > 0
+  const hasWv = (kat.produkte_wertverlust?.length ?? 0) > 0
+  const hasMs = (kat.produkte_manuelle_sendungen?.length ?? 0) > 0
+  const expandable = kat.gruppen.length > 0 || kat.sales_plattformen.length > 0 || hasWv || hasMs
   rows.push({
     id: kat.id,
     label: kat.name,
@@ -187,17 +183,42 @@ function pushKategorie(
   if (!expandable || !expandedIds.has(kat.id)) return
   if (kat.gruppen.length > 0) {
     for (const grp of kat.gruppen) pushGruppe(rows, grp, expandedIds, indent + 1)
-  } else {
+  } else if (kat.sales_plattformen.length > 0) {
     for (const plt of kat.sales_plattformen) pushPlattform(rows, plt, kat.id, expandedIds, indent + 1)
+  } else if (hasWv) {
+    for (const prd of kat.produkte_wertverlust!) {
+      rows.push({
+        id: `wvprd:${kat.id}:${prd.id}`,
+        label: prd.name,
+        indent: indent + 1,
+        kind: 'produkt',
+        values: prd.values,
+        expandable: false,
+        expanded: false,
+      })
+    }
+  } else if (hasMs) {
+    for (const prd of kat.produkte_manuelle_sendungen!) {
+      rows.push({
+        id: `msprd:${kat.id}:${prd.id}`,
+        label: prd.name,
+        indent: indent + 1,
+        kind: 'produkt',
+        values: prd.values,
+        expandable: false,
+        expanded: false,
+      })
+    }
   }
-  for (const prd of kat.produkte) pushProdukt(rows, prd, expandedIds, indent + 1)
 }
 
 function isPositionExpandable(pos: ReportingRentabilitaetData['positionen'][number]): boolean {
   if (pos.type !== 'position' || pos.kategorien.length === 0) return false
   if (pos.kategorien.length > 1) return true
   const kat = pos.kategorien[0]
-  return kat.gruppen.length > 0 || kat.sales_plattformen.length > 0 || kat.produkte.length > 0
+  return kat.gruppen.length > 0 || kat.sales_plattformen.length > 0 ||
+    (kat.produkte_wertverlust?.length ?? 0) > 0 ||
+    (kat.produkte_manuelle_sendungen?.length ?? 0) > 0
 }
 
 function buildFlatRows(data: ReportingRentabilitaetData, expandedIds: Set<string>): FlatRow[] {
@@ -218,14 +239,37 @@ function buildFlatRows(data: ReportingRentabilitaetData, expandedIds: Set<string
     if (!expandable || !expandedIds.has(pos.id)) continue
 
     if (pos.kategorien.length === 1) {
-      // Kategorie-Zeile überspringen — Gruppen/Plattformen/Produkte direkt unter Position
+      // Kategorie-Zeile überspringen — Gruppen/Plattformen/WV-Produkte direkt unter Position
       const kat = pos.kategorien[0]
       if (kat.gruppen.length > 0) {
         for (const grp of kat.gruppen) pushGruppe(rows, grp, expandedIds, 1)
-      } else {
+      } else if (kat.sales_plattformen.length > 0) {
         for (const plt of kat.sales_plattformen) pushPlattform(rows, plt, kat.id, expandedIds, 1)
+      } else if ((kat.produkte_wertverlust?.length ?? 0) > 0) {
+        for (const prd of kat.produkte_wertverlust!) {
+          rows.push({
+            id: `wvprd:${kat.id}:${prd.id}`,
+            label: prd.name,
+            indent: 1,
+            kind: 'produkt',
+            values: prd.values,
+            expandable: false,
+            expanded: false,
+          })
+        }
+      } else if ((kat.produkte_manuelle_sendungen?.length ?? 0) > 0) {
+        for (const prd of kat.produkte_manuelle_sendungen!) {
+          rows.push({
+            id: `msprd:${kat.id}:${prd.id}`,
+            label: prd.name,
+            indent: 1,
+            kind: 'produkt',
+            values: prd.values,
+            expandable: false,
+            expanded: false,
+          })
+        }
       }
-      for (const prd of kat.produkte) pushProdukt(rows, prd, expandedIds, 1)
     } else {
       // Mehrere Kategorien → Kategorie-Zeile zeigen für Unterscheidung
       for (const kat of pos.kategorien) pushKategorie(rows, kat, expandedIds, 1)
@@ -252,7 +296,9 @@ function collectAllExpandableIds(data: ReportingRentabilitaetData): Set<string> 
   }
 
   function addGruppe(grp: ReportGruppe) {
-    if (grp.untergruppen.length > 0 || grp.sales_plattformen.length > 0) {
+    const hasWv = (grp.produkte_wertverlust?.length ?? 0) > 0
+    const hasMs = (grp.produkte_manuelle_sendungen?.length ?? 0) > 0
+    if (grp.untergruppen.length > 0 || grp.sales_plattformen.length > 0 || hasWv || hasMs) {
       ids.add(grp.id)
       for (const ugr of grp.untergruppen) addUntergruppe(ugr)
       addPlattformen(grp.sales_plattformen, grp.id)
@@ -260,13 +306,12 @@ function collectAllExpandableIds(data: ReportingRentabilitaetData): Set<string> 
   }
 
   function addKategorie(kat: ReportKategorie) {
-    if (kat.gruppen.length > 0 || kat.sales_plattformen.length > 0 || kat.produkte.length > 0) {
+    const hasWv = (kat.produkte_wertverlust?.length ?? 0) > 0
+    const hasMs = (kat.produkte_manuelle_sendungen?.length ?? 0) > 0
+    if (kat.gruppen.length > 0 || kat.sales_plattformen.length > 0 || hasWv || hasMs) {
       ids.add(kat.id)
       for (const grp of kat.gruppen) addGruppe(grp)
       addPlattformen(kat.sales_plattformen, kat.id)
-      for (const prd of kat.produkte) {
-        if (prd.plattformen.length > 0) ids.add(`bprd:${prd.id}`)
-      }
     }
   }
 
@@ -277,9 +322,6 @@ function collectAllExpandableIds(data: ReportingRentabilitaetData): Set<string> 
       const kat = pos.kategorien[0]
       for (const grp of kat.gruppen) addGruppe(grp)
       addPlattformen(kat.sales_plattformen, kat.id)
-      for (const prd of kat.produkte) {
-        if (prd.plattformen.length > 0) ids.add(`bprd:${prd.id}`)
-      }
     } else {
       for (const kat of pos.kategorien) addKategorie(kat)
     }

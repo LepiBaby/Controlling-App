@@ -30,13 +30,8 @@ export interface ReportGruppe {
   values: Record<string, number>
   untergruppen: ReportUntergruppe[]
   sales_plattformen: ReportPlattform[]
-}
-
-export interface ReportProdukt {
-  id: string
-  name: string
-  values: Record<string, number>
-  plattformen: ReportPlattform[]
+  produkte_wertverlust?: ReportBlatt[]
+  produkte_manuelle_sendungen?: ReportBlatt[]
 }
 
 export interface ReportKategorie {
@@ -46,7 +41,8 @@ export interface ReportKategorie {
   values: Record<string, number>
   gruppen: ReportGruppe[]
   sales_plattformen: ReportPlattform[]
-  produkte: ReportProdukt[]
+  produkte_wertverlust?: ReportBlatt[]
+  produkte_manuelle_sendungen?: ReportBlatt[]
 }
 
 export interface ReportPosition {

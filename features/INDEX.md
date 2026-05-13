@@ -37,8 +37,9 @@
 | PROJ-19 | Reporting-Bereich & Rentabilitätsreporting-Modell-Konfiguration | Approved | [PROJ-19-reporting-konfiguration.md](PROJ-19-reporting-konfiguration.md) | 2026-05-13 |
 | PROJ-20 | Rentabilitätsreport | Approved | [PROJ-20-rentabilitaetsreport.md](PROJ-20-rentabilitaetsreport.md) | 2026-05-13 |
 | PROJ-21 | Produktkosten-Bestandsberechnung im Rentabilitätsreport | Approved | [PROJ-21-produktkosten-bestandsberechnung.md](PROJ-21-produktkosten-bestandsberechnung.md) | 2026-05-13 |
-| PROJ-22 | Wertverlust-Ware-Berechnung im Rentabilitätsreport | Architected | [PROJ-22-wertverlust-ware-berechnung.md](PROJ-22-wertverlust-ware-berechnung.md) | 2026-05-13 |
+| PROJ-22 | Wertverlust-Ware-Berechnung im Rentabilitätsreport | Approved | [PROJ-22-wertverlust-ware-berechnung.md](PROJ-22-wertverlust-ware-berechnung.md) | 2026-05-13 |
+| PROJ-23 | Manuelle-Sendungen-Berechnung im Rentabilitätsreport | Approved | [PROJ-23-manuelle-sendungen-berechnung.md](PROJ-23-manuelle-sendungen-berechnung.md) | 2026-05-13 |
 
 <!-- Add features above this line -->
 
-## Next Available ID: PROJ-23
+## Next Available ID: PROJ-24

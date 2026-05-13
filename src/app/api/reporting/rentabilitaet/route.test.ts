@@ -27,9 +27,18 @@ const UGR_ID        = 'dddddddd-0000-0000-0000-000000000001'
 
 // PROJ-21 Fixtures
 const KAT_PRODUKT_ID = 'bbbbbbbb-0000-0000-0000-000000000010'  // ausgaben_kosten, level=1, name='Produkt'
+const GRP_WARE_ID    = 'cccccccc-0000-0000-0000-000000000010'  // ausgaben_kosten, level=2, parent=KAT_PRODUKT_ID
 const PRODUKT_ID     = 'eeeeeeee-0000-0000-0000-000000000001'  // kpi_categories type='produkte', level=1
 const PLT_AMAZON_ID  = 'ffffffff-0000-0000-0000-000000000001'  // sales_plattform
 const PLT_EBAY_ID    = 'ffffffff-0000-0000-0000-000000000002'  // sales_plattform
+
+// PROJ-22 Fixtures
+const KAT_WV_ID      = 'bbbbbbbb-0000-0000-0000-000000000020'  // ausgaben_kosten, level=1, name='Wertverlust Ware'
+const PRODUKT2_ID    = 'eeeeeeee-0000-0000-0000-000000000002'  // zweites Produkt für PROJ-22 Tests
+
+// PROJ-23 Fixtures
+const KAT_MS_ID      = 'bbbbbbbb-0000-0000-0000-000000000030'  // ausgaben_kosten, level=1, name='Ersatzteile / Kulanz'
+const PRODUKT3_ID    = 'eeeeeeee-0000-0000-0000-000000000003'  // drittes Produkt für PROJ-23 Tests
 
 // ─── Mock-Builder ─────────────────────────────────────────────────────────────
 
@@ -406,7 +415,7 @@ describe('GET /api/reporting/rentabilitaet', () => {
         produkt_id: PRODUKT_ID,
         gueltig_von: '2026-01-01',
         gueltig_bis: null,
-        produktkosten_werte: [{ wert: 5 }, { wert: 3 }],  // unit_cost = 8
+        produktkosten_werte: [{ kategorie_id: GRP_WARE_ID, wert: 5 }, { kategorie_id: GRP_WARE_ID, wert: 3 }],  // 10 × (5+3) = 80
       }],
       plattformen: [{ id: PLT_AMAZON_ID, name: 'Amazon' }],
     })
@@ -440,7 +449,7 @@ describe('GET /api/reporting/rentabilitaet', () => {
         produkt_id: PRODUKT_ID,
         gueltig_von: '2026-01-01',
         gueltig_bis: null,
-        produktkosten_werte: [{ wert: 10 }],  // unit_cost = 10
+        produktkosten_werte: [{ kategorie_id: GRP_WARE_ID, wert: 10 }],
       }],
       plattformen: [{ id: PLT_AMAZON_ID, name: 'Amazon' }],
     })
@@ -452,11 +461,14 @@ describe('GET /api/reporting/rentabilitaet', () => {
     expect(body.positionen[0].values['2026-01']).toBe(-150)
   })
 
-  it('returns produkte array with bestand costs for the Produkt category', async () => {
+  it('returns Gruppe → Plattform → Produkt drill-down for bestand costs', async () => {
     setupMocks({
       positions:    [{ id: POS_ID, name: 'Produktkosten', type: 'position', sort_order: 0 }],
       rpKategorien: [{ report_position_id: POS_ID, kpi_category_id: KAT_PRODUKT_ID }],
-      kpiCats: [{ id: KAT_PRODUKT_ID, name: 'Produkt', type: 'ausgaben_kosten', level: 1, parent_id: null, sort_order: 0, sales_plattform_enabled: false, produkt_enabled: false }],
+      kpiCats: [
+        { id: KAT_PRODUKT_ID, name: 'Produkt', type: 'ausgaben_kosten', level: 1, parent_id: null, sort_order: 0, sales_plattform_enabled: false, produkt_enabled: false },
+        { id: GRP_WARE_ID, name: 'Ware', type: 'ausgaben_kosten', level: 2, parent_id: KAT_PRODUKT_ID, sort_order: 0, sales_plattform_enabled: false, produkt_enabled: false },
+      ],
       produkte: [{ id: PRODUKT_ID, name: 'Baby-Mütze' }],
       bestandTran: [{
         datum: '2026-01-15',
@@ -467,7 +479,7 @@ describe('GET /api/reporting/rentabilitaet', () => {
         produkt_id: PRODUKT_ID,
         gueltig_von: '2026-01-01',
         gueltig_bis: '2026-03-31',
-        produktkosten_werte: [{ wert: 12.5 }],
+        produktkosten_werte: [{ kategorie_id: GRP_WARE_ID, wert: 12.5 }],
       }],
       plattformen: [{ id: PLT_AMAZON_ID, name: 'Amazon' }],
     })
@@ -477,19 +489,33 @@ describe('GET /api/reporting/rentabilitaet', () => {
 
     const kat = body.positionen[0].kategorien[0]
     expect(kat.id).toBe(KAT_PRODUKT_ID)
-    expect(kat.produkte).toHaveLength(1)
+    expect(kat.gruppen).toHaveLength(1)
 
-    const prd = kat.produkte[0]
+    const grp = kat.gruppen[0]
+    expect(grp.id).toBe(GRP_WARE_ID)
+    expect(grp.name).toBe('Ware')
+    expect(grp.values['2026-01']).toBe(-50)  // 4 × 12.5 = 50, negated
+
+    expect(grp.sales_plattformen).toHaveLength(1)
+    const plt = grp.sales_plattformen[0]
+    expect(plt.id).toBe(PLT_AMAZON_ID)
+    expect(plt.values['2026-01']).toBe(-50)
+
+    expect(plt.produkte).toHaveLength(1)
+    const prd = plt.produkte[0]
     expect(prd.id).toBe(PRODUKT_ID)
     expect(prd.name).toBe('Baby-Mütze')
-    expect(prd.values['2026-01']).toBe(-50)  // 4 × 12.5 = 50, negated
+    expect(prd.values['2026-01']).toBe(-50)
   })
 
-  it('returns plattformen breakdown within produkte', async () => {
+  it('returns Plattform breakdown within Gruppe for bestand costs', async () => {
     setupMocks({
       positions:    [{ id: POS_ID, name: 'Produktkosten', type: 'position', sort_order: 0 }],
       rpKategorien: [{ report_position_id: POS_ID, kpi_category_id: KAT_PRODUKT_ID }],
-      kpiCats: [{ id: KAT_PRODUKT_ID, name: 'Produkt', type: 'ausgaben_kosten', level: 1, parent_id: null, sort_order: 0, sales_plattform_enabled: false, produkt_enabled: false }],
+      kpiCats: [
+        { id: KAT_PRODUKT_ID, name: 'Produkt', type: 'ausgaben_kosten', level: 1, parent_id: null, sort_order: 0, sales_plattform_enabled: false, produkt_enabled: false },
+        { id: GRP_WARE_ID, name: 'Ware', type: 'ausgaben_kosten', level: 2, parent_id: KAT_PRODUKT_ID, sort_order: 0, sales_plattform_enabled: false, produkt_enabled: false },
+      ],
       produkte: [{ id: PRODUKT_ID, name: 'Baby-Mütze' }],
       bestandTran: [{
         datum: '2026-01-10',
@@ -503,7 +529,7 @@ describe('GET /api/reporting/rentabilitaet', () => {
         produkt_id: PRODUKT_ID,
         gueltig_von: '2026-01-01',
         gueltig_bis: null,
-        produktkosten_werte: [{ wert: 10 }],
+        produktkosten_werte: [{ kategorie_id: GRP_WARE_ID, wert: 10 }],
       }],
       plattformen: [
         { id: PLT_AMAZON_ID, name: 'Amazon' },
@@ -514,14 +540,20 @@ describe('GET /api/reporting/rentabilitaet', () => {
     const res = await GET(req({ von: '2026-01', bis: '2026-01', granularitaet: 'monat' }))
     const body = await res.json()
 
-    const prd = body.positionen[0].kategorien[0].produkte[0]
-    expect(prd.values['2026-01']).toBe(-50)  // (3+2) × 10 = 50, negated
+    const grp = body.positionen[0].kategorien[0].gruppen[0]
+    expect(grp.values['2026-01']).toBe(-50)  // (3+2) × 10 = 50, negated
 
-    expect(prd.plattformen).toHaveLength(2)
-    const amazon = prd.plattformen.find((p: { id: string }) => p.id === PLT_AMAZON_ID)
-    const ebay   = prd.plattformen.find((p: { id: string }) => p.id === PLT_EBAY_ID)
+    expect(grp.sales_plattformen).toHaveLength(2)
+    const amazon = grp.sales_plattformen.find((p: { id: string }) => p.id === PLT_AMAZON_ID)
+    const ebay   = grp.sales_plattformen.find((p: { id: string }) => p.id === PLT_EBAY_ID)
     expect(amazon.values['2026-01']).toBe(-30)  // 3 × 10
     expect(ebay.values['2026-01']).toBe(-20)    // 2 × 10
+
+    // Produkt ist innerhalb jeder Plattform sichtbar
+    expect(amazon.produkte).toHaveLength(1)
+    expect(amazon.produkte[0].id).toBe(PRODUKT_ID)
+    expect(amazon.produkte[0].values['2026-01']).toBe(-30)
+    expect(ebay.produkte[0].values['2026-01']).toBe(-20)
   })
 
   it('contributes 0 when no matching produktkosten_zeitraum exists', async () => {
@@ -544,8 +576,8 @@ describe('GET /api/reporting/rentabilitaet', () => {
 
     // No cost contribution → 0
     expect(body.positionen[0].values['2026-01']).toBe(0)
-    // No produkte in response because cost was 0 (skipped)
-    expect(body.positionen[0].kategorien[0].produkte).toHaveLength(0)
+    // No gruppen in response because no cost was accumulated
+    expect(body.positionen[0].kategorien[0].gruppen).toHaveLength(0)
   })
 
   it('aggregates bestand costs from multiple SKUs of the same product', async () => {
@@ -555,14 +587,17 @@ describe('GET /api/reporting/rentabilitaet', () => {
     setupMocks({
       positions:    [{ id: POS_ID, name: 'Produktkosten', type: 'position', sort_order: 0 }],
       rpKategorien: [{ report_position_id: POS_ID, kpi_category_id: KAT_PRODUKT_ID }],
-      kpiCats: [{ id: KAT_PRODUKT_ID, name: 'Produkt', type: 'ausgaben_kosten', level: 1, parent_id: null, sort_order: 0, sales_plattform_enabled: false, produkt_enabled: false }],
+      kpiCats: [
+        { id: KAT_PRODUKT_ID, name: 'Produkt', type: 'ausgaben_kosten', level: 1, parent_id: null, sort_order: 0, sales_plattform_enabled: false, produkt_enabled: false },
+        { id: GRP_WARE_ID, name: 'Ware', type: 'ausgaben_kosten', level: 2, parent_id: KAT_PRODUKT_ID, sort_order: 0, sales_plattform_enabled: false, produkt_enabled: false },
+      ],
       produkte: [{ id: PRODUKT_ID, name: 'Baby-Mütze' }],
       bestandTran: [SKU1_TXN, SKU2_TXN],
       produktkosten: [{
         produkt_id: PRODUKT_ID,
         gueltig_von: '2026-01-01',
         gueltig_bis: null,
-        produktkosten_werte: [{ wert: 4 }],
+        produktkosten_werte: [{ kategorie_id: GRP_WARE_ID, wert: 4 }],
       }],
       plattformen: [{ id: PLT_AMAZON_ID, name: 'Amazon' }],
     })
@@ -572,7 +607,8 @@ describe('GET /api/reporting/rentabilitaet', () => {
 
     // (3+7) × 4 = 40, negated
     expect(body.positionen[0].values['2026-01']).toBe(-40)
-    expect(body.positionen[0].kategorien[0].produkte[0].values['2026-01']).toBe(-40)
+    // Gruppe → Plattform → Produkt
+    expect(body.positionen[0].kategorien[0].gruppen[0].sales_plattformen[0].produkte[0].values['2026-01']).toBe(-40)
   })
 
   it('ignores bestand transactions with no produkt_id', async () => {
@@ -594,6 +630,484 @@ describe('GET /api/reporting/rentabilitaet', () => {
     const body = await res.json()
 
     expect(body.positionen[0].values['2026-01']).toBe(0)
+  })
+
+  // ── PROJ-22: Wertverlust-Berechnung ─────────────────────────────────────────
+
+  it('calculates wertverlust as warenverluste × Σ(produktkosten werte) and negates it', async () => {
+    setupMocks({
+      positions:    [{ id: POS_ID, name: 'Wertverluste', type: 'position', sort_order: 0 }],
+      rpKategorien: [{ report_position_id: POS_ID, kpi_category_id: KAT_WV_ID }],
+      kpiCats: [{ id: KAT_WV_ID, name: 'Wertverlust Ware', type: 'ausgaben_kosten', level: 1, parent_id: null, sort_order: 0, sales_plattform_enabled: false, produkt_enabled: false }],
+      produkte: [{ id: PRODUKT_ID, name: 'Baby-Mütze' }],
+      bestandTran: [{
+        datum: '2026-01-15',
+        produkt_id: PRODUKT_ID,
+        warenverluste: 5,
+        bestand_sendungen: [],
+      }],
+      produktkosten: [{
+        produkt_id: PRODUKT_ID,
+        gueltig_von: '2026-01-01',
+        gueltig_bis: null,
+        produktkosten_werte: [{ kategorie_id: GRP_WARE_ID, wert: 8 }, { kategorie_id: GRP_WARE_ID, wert: 2 }],  // Σ = 10
+      }],
+    })
+
+    const res = await GET(req({ von: '2026-01', bis: '2026-01', granularitaet: 'monat' }))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+
+    // 5 × (8 + 2) = 50, negiert
+    expect(body.positionen[0].values['2026-01']).toBe(-50)
+  })
+
+  it('returns produkte_wertverlust array with correct product values', async () => {
+    setupMocks({
+      positions:    [{ id: POS_ID, name: 'Wertverluste', type: 'position', sort_order: 0 }],
+      rpKategorien: [{ report_position_id: POS_ID, kpi_category_id: KAT_WV_ID }],
+      kpiCats: [{ id: KAT_WV_ID, name: 'Wertverlust Ware', type: 'ausgaben_kosten', level: 1, parent_id: null, sort_order: 0, sales_plattform_enabled: false, produkt_enabled: false }],
+      produkte: [{ id: PRODUKT_ID, name: 'Baby-Mütze' }],
+      bestandTran: [{
+        datum: '2026-01-10',
+        produkt_id: PRODUKT_ID,
+        warenverluste: 3,
+        bestand_sendungen: [],
+      }],
+      produktkosten: [{
+        produkt_id: PRODUKT_ID,
+        gueltig_von: '2026-01-01',
+        gueltig_bis: null,
+        produktkosten_werte: [{ kategorie_id: GRP_WARE_ID, wert: 20 }],
+      }],
+    })
+
+    const res = await GET(req({ von: '2026-01', bis: '2026-01', granularitaet: 'monat' }))
+    const body = await res.json()
+
+    const kat = body.positionen[0].kategorien[0]
+    expect(kat.id).toBe(KAT_WV_ID)
+    expect(kat.produkte_wertverlust).toHaveLength(1)
+    expect(kat.produkte_wertverlust[0].id).toBe(PRODUKT_ID)
+    expect(kat.produkte_wertverlust[0].name).toBe('Baby-Mütze')
+    expect(kat.produkte_wertverlust[0].values['2026-01']).toBe(-60)  // 3 × 20 = 60
+  })
+
+  it('aggregates wertverlust from multiple transactions of the same product', async () => {
+    setupMocks({
+      positions:    [{ id: POS_ID, name: 'Wertverluste', type: 'position', sort_order: 0 }],
+      rpKategorien: [{ report_position_id: POS_ID, kpi_category_id: KAT_WV_ID }],
+      kpiCats: [{ id: KAT_WV_ID, name: 'Wertverlust Ware', type: 'ausgaben_kosten', level: 1, parent_id: null, sort_order: 0, sales_plattform_enabled: false, produkt_enabled: false }],
+      produkte: [{ id: PRODUKT_ID, name: 'Baby-Mütze' }],
+      bestandTran: [
+        { datum: '2026-01-05', produkt_id: PRODUKT_ID, warenverluste: 2, bestand_sendungen: [] },
+        { datum: '2026-01-20', produkt_id: PRODUKT_ID, warenverluste: 3, bestand_sendungen: [] },
+      ],
+      produktkosten: [{
+        produkt_id: PRODUKT_ID,
+        gueltig_von: '2026-01-01',
+        gueltig_bis: null,
+        produktkosten_werte: [{ kategorie_id: GRP_WARE_ID, wert: 10 }],
+      }],
+    })
+
+    const res = await GET(req({ von: '2026-01', bis: '2026-01', granularitaet: 'monat' }))
+    const body = await res.json()
+
+    // (2 + 3) × 10 = 50, negiert
+    expect(body.positionen[0].values['2026-01']).toBe(-50)
+    expect(body.positionen[0].kategorien[0].produkte_wertverlust[0].values['2026-01']).toBe(-50)
+  })
+
+  it('ignores warenverluste = 0 — product does not appear in produkte_wertverlust', async () => {
+    setupMocks({
+      positions:    [{ id: POS_ID, name: 'Wertverluste', type: 'position', sort_order: 0 }],
+      rpKategorien: [{ report_position_id: POS_ID, kpi_category_id: KAT_WV_ID }],
+      kpiCats: [{ id: KAT_WV_ID, name: 'Wertverlust Ware', type: 'ausgaben_kosten', level: 1, parent_id: null, sort_order: 0, sales_plattform_enabled: false, produkt_enabled: false }],
+      produkte: [{ id: PRODUKT_ID, name: 'Baby-Mütze' }],
+      bestandTran: [{
+        datum: '2026-01-10',
+        produkt_id: PRODUKT_ID,
+        warenverluste: 0,
+        bestand_sendungen: [],
+      }],
+      produktkosten: [{
+        produkt_id: PRODUKT_ID,
+        gueltig_von: '2026-01-01',
+        gueltig_bis: null,
+        produktkosten_werte: [{ kategorie_id: GRP_WARE_ID, wert: 15 }],
+      }],
+    })
+
+    const res = await GET(req({ von: '2026-01', bis: '2026-01', granularitaet: 'monat' }))
+    const body = await res.json()
+
+    expect(body.positionen[0].values['2026-01']).toBe(0)
+    expect(body.positionen[0].kategorien[0].produkte_wertverlust).toHaveLength(0)
+  })
+
+  it('contributes 0 wertverlust when no matching produktkosten_zeitraum', async () => {
+    setupMocks({
+      positions:    [{ id: POS_ID, name: 'Wertverluste', type: 'position', sort_order: 0 }],
+      rpKategorien: [{ report_position_id: POS_ID, kpi_category_id: KAT_WV_ID }],
+      kpiCats: [{ id: KAT_WV_ID, name: 'Wertverlust Ware', type: 'ausgaben_kosten', level: 1, parent_id: null, sort_order: 0, sales_plattform_enabled: false, produkt_enabled: false }],
+      produkte: [{ id: PRODUKT_ID, name: 'Baby-Mütze' }],
+      bestandTran: [{
+        datum: '2026-01-10',
+        produkt_id: PRODUKT_ID,
+        warenverluste: 10,
+        bestand_sendungen: [],
+      }],
+      produktkosten: [],  // kein passender Zeitraum
+    })
+
+    const res = await GET(req({ von: '2026-01', bis: '2026-01', granularitaet: 'monat' }))
+    const body = await res.json()
+
+    expect(body.positionen[0].values['2026-01']).toBe(0)
+    expect(body.positionen[0].kategorien[0].produkte_wertverlust).toHaveLength(0)
+  })
+
+  it('does not apply wertverlust when WV-Kategorie is not assigned to any position', async () => {
+    setupMocks({
+      positions:    [{ id: POS_ID, name: 'Sonstiges', type: 'position', sort_order: 0 }],
+      rpKategorien: [{ report_position_id: POS_ID, kpi_category_id: KAT_KOSTEN_ID }],
+      kpiCats: [
+        { id: KAT_KOSTEN_ID, name: 'Logistik',        type: 'ausgaben_kosten', level: 1, parent_id: null, sort_order: 0, sales_plattform_enabled: false, produkt_enabled: false },
+        { id: KAT_WV_ID,     name: 'Wertverlust Ware', type: 'ausgaben_kosten', level: 1, parent_id: null, sort_order: 1, sales_plattform_enabled: false, produkt_enabled: false },
+      ],
+      produkte: [{ id: PRODUKT_ID, name: 'Baby-Mütze' }],
+      bestandTran: [{
+        datum: '2026-01-10',
+        produkt_id: PRODUKT_ID,
+        warenverluste: 5,
+        bestand_sendungen: [],
+      }],
+      produktkosten: [{
+        produkt_id: PRODUKT_ID,
+        gueltig_von: '2026-01-01',
+        gueltig_bis: null,
+        produktkosten_werte: [{ kategorie_id: GRP_WARE_ID, wert: 10 }],
+      }],
+    })
+
+    const res = await GET(req({ von: '2026-01', bis: '2026-01', granularitaet: 'monat' }))
+    const body = await res.json()
+
+    // KAT_WV_ID not assigned → no wertverlust in position
+    expect(body.positionen[0].values['2026-01']).toBe(0)
+  })
+
+  it('adds direct ausgaben bookings and wertverlust calculation together', async () => {
+    setupMocks({
+      positions:    [{ id: POS_ID, name: 'Wertverluste', type: 'position', sort_order: 0 }],
+      rpKategorien: [{ report_position_id: POS_ID, kpi_category_id: KAT_WV_ID }],
+      kpiCats: [{ id: KAT_WV_ID, name: 'Wertverlust Ware', type: 'ausgaben_kosten', level: 1, parent_id: null, sort_order: 0, sales_plattform_enabled: false, produkt_enabled: false }],
+      produkte: [{ id: PRODUKT_ID, name: 'Baby-Mütze' }],
+      ausgaben: [{
+        leistungsdatum: '2026-01-05', betrag_netto: 200,
+        kategorie_id: KAT_WV_ID, gruppe_id: null, untergruppe_id: null,
+        sales_plattform_id: null, produkt_id: null,
+      }],
+      bestandTran: [{
+        datum: '2026-01-10',
+        produkt_id: PRODUKT_ID,
+        warenverluste: 4,
+        bestand_sendungen: [],
+      }],
+      produktkosten: [{
+        produkt_id: PRODUKT_ID,
+        gueltig_von: '2026-01-01',
+        gueltig_bis: null,
+        produktkosten_werte: [{ kategorie_id: GRP_WARE_ID, wert: 25 }],
+      }],
+    })
+
+    const res = await GET(req({ von: '2026-01', bis: '2026-01', granularitaet: 'monat' }))
+    const body = await res.json()
+
+    // -200 (direct) + -(4 × 25) = -200 + -100 = -300
+    expect(body.positionen[0].values['2026-01']).toBe(-300)
+  })
+
+  it('handles multiple products with different wertverlust amounts', async () => {
+    setupMocks({
+      positions:    [{ id: POS_ID, name: 'Wertverluste', type: 'position', sort_order: 0 }],
+      rpKategorien: [{ report_position_id: POS_ID, kpi_category_id: KAT_WV_ID }],
+      kpiCats: [{ id: KAT_WV_ID, name: 'Wertverlust Ware', type: 'ausgaben_kosten', level: 1, parent_id: null, sort_order: 0, sales_plattform_enabled: false, produkt_enabled: false }],
+      produkte: [
+        { id: PRODUKT_ID,  name: 'Baby-Mütze' },
+        { id: PRODUKT2_ID, name: 'Winter-Jacket' },
+      ],
+      bestandTran: [
+        { datum: '2026-01-10', produkt_id: PRODUKT_ID,  warenverluste: 2, bestand_sendungen: [] },
+        { datum: '2026-01-15', produkt_id: PRODUKT2_ID, warenverluste: 3, bestand_sendungen: [] },
+      ],
+      produktkosten: [
+        {
+          produkt_id: PRODUKT_ID,
+          gueltig_von: '2026-01-01', gueltig_bis: null,
+          produktkosten_werte: [{ kategorie_id: GRP_WARE_ID, wert: 10 }],
+        },
+        {
+          produkt_id: PRODUKT2_ID,
+          gueltig_von: '2026-01-01', gueltig_bis: null,
+          produktkosten_werte: [{ kategorie_id: GRP_WARE_ID, wert: 30 }],
+        },
+      ],
+    })
+
+    const res = await GET(req({ von: '2026-01', bis: '2026-01', granularitaet: 'monat' }))
+    const body = await res.json()
+
+    // Produkt 1: 2 × 10 = 20, Produkt 2: 3 × 30 = 90 → gesamt -110
+    expect(body.positionen[0].values['2026-01']).toBe(-110)
+
+    const wvProdukte = body.positionen[0].kategorien[0].produkte_wertverlust
+    expect(wvProdukte).toHaveLength(2)
+    const p1 = wvProdukte.find((p: { id: string }) => p.id === PRODUKT_ID)
+    const p2 = wvProdukte.find((p: { id: string }) => p.id === PRODUKT2_ID)
+    expect(p1.values['2026-01']).toBe(-20)
+    expect(p2.values['2026-01']).toBe(-90)
+  })
+
+  // ── PROJ-23: Manuelle-Sendungen-Berechnung ─────────────────────────────────
+
+  it('calculates manuelle sendungen as sendungen_manuell × Σ(produktkosten werte) and negates it', async () => {
+    setupMocks({
+      positions:    [{ id: POS_ID, name: 'Vertriebskosten', type: 'position', sort_order: 0 }],
+      rpKategorien: [{ report_position_id: POS_ID, kpi_category_id: KAT_MS_ID }],
+      kpiCats: [{ id: KAT_MS_ID, name: 'Ersatzteile / Kulanz', type: 'ausgaben_kosten', level: 1, parent_id: null, sort_order: 0, sales_plattform_enabled: false, produkt_enabled: false }],
+      produkte: [{ id: PRODUKT_ID, name: 'Baby-Mütze' }],
+      bestandTran: [{
+        datum: '2026-01-15',
+        produkt_id: PRODUKT_ID,
+        sendungen_manuell: 4,
+        bestand_sendungen: [],
+      }],
+      produktkosten: [{
+        produkt_id: PRODUKT_ID,
+        gueltig_von: '2026-01-01',
+        gueltig_bis: null,
+        produktkosten_werte: [{ kategorie_id: GRP_WARE_ID, wert: 8 }, { kategorie_id: GRP_WARE_ID, wert: 2 }],  // Σ = 10
+      }],
+    })
+
+    const res = await GET(req({ von: '2026-01', bis: '2026-01', granularitaet: 'monat' }))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+
+    // 4 × (8 + 2) = 40, negiert
+    expect(body.positionen[0].values['2026-01']).toBe(-40)
+  })
+
+  it('returns produkte_manuelle_sendungen array with correct product values', async () => {
+    setupMocks({
+      positions:    [{ id: POS_ID, name: 'Vertriebskosten', type: 'position', sort_order: 0 }],
+      rpKategorien: [{ report_position_id: POS_ID, kpi_category_id: KAT_MS_ID }],
+      kpiCats: [{ id: KAT_MS_ID, name: 'Ersatzteile / Kulanz', type: 'ausgaben_kosten', level: 1, parent_id: null, sort_order: 0, sales_plattform_enabled: false, produkt_enabled: false }],
+      produkte: [{ id: PRODUKT_ID, name: 'Baby-Mütze' }],
+      bestandTran: [{
+        datum: '2026-01-10',
+        produkt_id: PRODUKT_ID,
+        sendungen_manuell: 3,
+        bestand_sendungen: [],
+      }],
+      produktkosten: [{
+        produkt_id: PRODUKT_ID,
+        gueltig_von: '2026-01-01',
+        gueltig_bis: null,
+        produktkosten_werte: [{ kategorie_id: GRP_WARE_ID, wert: 20 }],
+      }],
+    })
+
+    const res = await GET(req({ von: '2026-01', bis: '2026-01', granularitaet: 'monat' }))
+    const body = await res.json()
+
+    const kat = body.positionen[0].kategorien[0]
+    expect(kat.id).toBe(KAT_MS_ID)
+    expect(kat.produkte_manuelle_sendungen).toHaveLength(1)
+    expect(kat.produkte_manuelle_sendungen[0].id).toBe(PRODUKT_ID)
+    expect(kat.produkte_manuelle_sendungen[0].name).toBe('Baby-Mütze')
+    expect(kat.produkte_manuelle_sendungen[0].values['2026-01']).toBe(-60)  // 3 × 20 = 60
+  })
+
+  it('aggregates manuelle sendungen from multiple transactions of the same product', async () => {
+    setupMocks({
+      positions:    [{ id: POS_ID, name: 'Vertriebskosten', type: 'position', sort_order: 0 }],
+      rpKategorien: [{ report_position_id: POS_ID, kpi_category_id: KAT_MS_ID }],
+      kpiCats: [{ id: KAT_MS_ID, name: 'Ersatzteile / Kulanz', type: 'ausgaben_kosten', level: 1, parent_id: null, sort_order: 0, sales_plattform_enabled: false, produkt_enabled: false }],
+      produkte: [{ id: PRODUKT_ID, name: 'Baby-Mütze' }],
+      bestandTran: [
+        { datum: '2026-01-05', produkt_id: PRODUKT_ID, sendungen_manuell: 2, bestand_sendungen: [] },
+        { datum: '2026-01-20', produkt_id: PRODUKT_ID, sendungen_manuell: 3, bestand_sendungen: [] },
+      ],
+      produktkosten: [{
+        produkt_id: PRODUKT_ID,
+        gueltig_von: '2026-01-01',
+        gueltig_bis: null,
+        produktkosten_werte: [{ kategorie_id: GRP_WARE_ID, wert: 10 }],
+      }],
+    })
+
+    const res = await GET(req({ von: '2026-01', bis: '2026-01', granularitaet: 'monat' }))
+    const body = await res.json()
+
+    // (2 + 3) × 10 = 50, negiert
+    expect(body.positionen[0].values['2026-01']).toBe(-50)
+    expect(body.positionen[0].kategorien[0].produkte_manuelle_sendungen[0].values['2026-01']).toBe(-50)
+  })
+
+  it('ignores sendungen_manuell = 0 — product does not appear in produkte_manuelle_sendungen', async () => {
+    setupMocks({
+      positions:    [{ id: POS_ID, name: 'Vertriebskosten', type: 'position', sort_order: 0 }],
+      rpKategorien: [{ report_position_id: POS_ID, kpi_category_id: KAT_MS_ID }],
+      kpiCats: [{ id: KAT_MS_ID, name: 'Ersatzteile / Kulanz', type: 'ausgaben_kosten', level: 1, parent_id: null, sort_order: 0, sales_plattform_enabled: false, produkt_enabled: false }],
+      produkte: [{ id: PRODUKT_ID, name: 'Baby-Mütze' }],
+      bestandTran: [{
+        datum: '2026-01-10',
+        produkt_id: PRODUKT_ID,
+        sendungen_manuell: 0,
+        bestand_sendungen: [],
+      }],
+      produktkosten: [{
+        produkt_id: PRODUKT_ID,
+        gueltig_von: '2026-01-01',
+        gueltig_bis: null,
+        produktkosten_werte: [{ kategorie_id: GRP_WARE_ID, wert: 15 }],
+      }],
+    })
+
+    const res = await GET(req({ von: '2026-01', bis: '2026-01', granularitaet: 'monat' }))
+    const body = await res.json()
+
+    expect(body.positionen[0].values['2026-01']).toBe(0)
+    expect(body.positionen[0].kategorien[0].produkte_manuelle_sendungen).toHaveLength(0)
+  })
+
+  it('contributes 0 manuelle sendungen when no matching produktkosten_zeitraum', async () => {
+    setupMocks({
+      positions:    [{ id: POS_ID, name: 'Vertriebskosten', type: 'position', sort_order: 0 }],
+      rpKategorien: [{ report_position_id: POS_ID, kpi_category_id: KAT_MS_ID }],
+      kpiCats: [{ id: KAT_MS_ID, name: 'Ersatzteile / Kulanz', type: 'ausgaben_kosten', level: 1, parent_id: null, sort_order: 0, sales_plattform_enabled: false, produkt_enabled: false }],
+      produkte: [{ id: PRODUKT_ID, name: 'Baby-Mütze' }],
+      bestandTran: [{
+        datum: '2026-01-10',
+        produkt_id: PRODUKT_ID,
+        sendungen_manuell: 10,
+        bestand_sendungen: [],
+      }],
+      produktkosten: [],  // kein passender Zeitraum
+    })
+
+    const res = await GET(req({ von: '2026-01', bis: '2026-01', granularitaet: 'monat' }))
+    const body = await res.json()
+
+    expect(body.positionen[0].values['2026-01']).toBe(0)
+    expect(body.positionen[0].kategorien[0].produkte_manuelle_sendungen).toHaveLength(0)
+  })
+
+  it('does not apply manuelle sendungen when MS-Kategorie is not assigned to any position', async () => {
+    setupMocks({
+      positions:    [{ id: POS_ID, name: 'Sonstiges', type: 'position', sort_order: 0 }],
+      rpKategorien: [{ report_position_id: POS_ID, kpi_category_id: KAT_KOSTEN_ID }],
+      kpiCats: [
+        { id: KAT_KOSTEN_ID, name: 'Logistik',              type: 'ausgaben_kosten', level: 1, parent_id: null, sort_order: 0, sales_plattform_enabled: false, produkt_enabled: false },
+        { id: KAT_MS_ID,     name: 'Ersatzteile / Kulanz',  type: 'ausgaben_kosten', level: 1, parent_id: null, sort_order: 1, sales_plattform_enabled: false, produkt_enabled: false },
+      ],
+      produkte: [{ id: PRODUKT_ID, name: 'Baby-Mütze' }],
+      bestandTran: [{
+        datum: '2026-01-10',
+        produkt_id: PRODUKT_ID,
+        sendungen_manuell: 5,
+        bestand_sendungen: [],
+      }],
+      produktkosten: [{
+        produkt_id: PRODUKT_ID,
+        gueltig_von: '2026-01-01',
+        gueltig_bis: null,
+        produktkosten_werte: [{ kategorie_id: GRP_WARE_ID, wert: 10 }],
+      }],
+    })
+
+    const res = await GET(req({ von: '2026-01', bis: '2026-01', granularitaet: 'monat' }))
+    const body = await res.json()
+
+    // KAT_MS_ID not assigned → keine manuelle Sendungen in Position
+    expect(body.positionen[0].values['2026-01']).toBe(0)
+  })
+
+  it('adds direct ausgaben bookings and manuelle sendungen calculation together', async () => {
+    setupMocks({
+      positions:    [{ id: POS_ID, name: 'Vertriebskosten', type: 'position', sort_order: 0 }],
+      rpKategorien: [{ report_position_id: POS_ID, kpi_category_id: KAT_MS_ID }],
+      kpiCats: [{ id: KAT_MS_ID, name: 'Ersatzteile / Kulanz', type: 'ausgaben_kosten', level: 1, parent_id: null, sort_order: 0, sales_plattform_enabled: false, produkt_enabled: false }],
+      produkte: [{ id: PRODUKT_ID, name: 'Baby-Mütze' }],
+      ausgaben: [{
+        leistungsdatum: '2026-01-05', betrag_netto: 150,
+        kategorie_id: KAT_MS_ID, gruppe_id: null, untergruppe_id: null,
+        sales_plattform_id: null, produkt_id: null,
+      }],
+      bestandTran: [{
+        datum: '2026-01-10',
+        produkt_id: PRODUKT_ID,
+        sendungen_manuell: 3,
+        bestand_sendungen: [],
+      }],
+      produktkosten: [{
+        produkt_id: PRODUKT_ID,
+        gueltig_von: '2026-01-01',
+        gueltig_bis: null,
+        produktkosten_werte: [{ kategorie_id: GRP_WARE_ID, wert: 25 }],
+      }],
+    })
+
+    const res = await GET(req({ von: '2026-01', bis: '2026-01', granularitaet: 'monat' }))
+    const body = await res.json()
+
+    // -150 (direct) + -(3 × 25) = -150 + -75 = -225
+    expect(body.positionen[0].values['2026-01']).toBe(-225)
+  })
+
+  it('handles multiple products with different sendungen_manuell amounts', async () => {
+    setupMocks({
+      positions:    [{ id: POS_ID, name: 'Vertriebskosten', type: 'position', sort_order: 0 }],
+      rpKategorien: [{ report_position_id: POS_ID, kpi_category_id: KAT_MS_ID }],
+      kpiCats: [{ id: KAT_MS_ID, name: 'Ersatzteile / Kulanz', type: 'ausgaben_kosten', level: 1, parent_id: null, sort_order: 0, sales_plattform_enabled: false, produkt_enabled: false }],
+      produkte: [
+        { id: PRODUKT_ID,  name: 'Baby-Mütze' },
+        { id: PRODUKT3_ID, name: 'Sommer-Mütze' },
+      ],
+      bestandTran: [
+        { datum: '2026-01-10', produkt_id: PRODUKT_ID,  sendungen_manuell: 2, bestand_sendungen: [] },
+        { datum: '2026-01-15', produkt_id: PRODUKT3_ID, sendungen_manuell: 5, bestand_sendungen: [] },
+      ],
+      produktkosten: [
+        {
+          produkt_id: PRODUKT_ID,
+          gueltig_von: '2026-01-01', gueltig_bis: null,
+          produktkosten_werte: [{ kategorie_id: GRP_WARE_ID, wert: 10 }],
+        },
+        {
+          produkt_id: PRODUKT3_ID,
+          gueltig_von: '2026-01-01', gueltig_bis: null,
+          produktkosten_werte: [{ kategorie_id: GRP_WARE_ID, wert: 20 }],
+        },
+      ],
+    })
+
+    const res = await GET(req({ von: '2026-01', bis: '2026-01', granularitaet: 'monat' }))
+    const body = await res.json()
+
+    // Produkt 1: 2 × 10 = 20, Produkt 2: 5 × 20 = 100 → gesamt -120
+    expect(body.positionen[0].values['2026-01']).toBe(-120)
+
+    const msProdukte = body.positionen[0].kategorien[0].produkte_manuelle_sendungen
+    expect(msProdukte).toHaveLength(2)
+    const p1 = msProdukte.find((p: { id: string }) => p.id === PRODUKT_ID)
+    const p2 = msProdukte.find((p: { id: string }) => p.id === PRODUKT3_ID)
+    expect(p1.values['2026-01']).toBe(-20)
+    expect(p2.values['2026-01']).toBe(-100)
   })
 
   it('does not add bestand costs when the Produkt category is not assigned to any position', async () => {
