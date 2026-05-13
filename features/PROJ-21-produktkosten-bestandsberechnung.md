@@ -1,6 +1,6 @@
 # PROJ-21: Produktkosten-Bestandsberechnung im Rentabilitätsreport
 
-## Status: Planned
+## Status: In Progress
 **Created:** 2026-05-13
 **Last Updated:** 2026-05-13
 
@@ -255,6 +255,27 @@ src/components/reporting-rentabilitaet-matrix.tsx
 ### Dependencies
 
 Keine neuen Packages.
+
+## Implementation Notes (Backend — 2026-05-13)
+
+### Geänderte Dateien
+- `src/app/api/reporting/rentabilitaet/route.ts` — Stage 3 erweitert um 2 neue parallele Queries (`bestand_transaktionen` + `produktkosten_zeitraeume`); Stage 5b hinzugefügt (Stückkosten-Lookup, Akkumulation in `bestandPrdVals`/`bestandPltVals`, Addition zur „Produkt"-Ausgaben-Kategorie); `buildKategorie()` gibt jetzt `produkte`-Array zurück
+- `src/hooks/use-reporting-rentabilitaet.ts` — Neuer Typ `ReportProdukt`; `ReportKategorie` erhält `produkte: ReportProdukt[]`
+- `src/components/reporting-rentabilitaet-matrix.tsx` — Neue Funktion `pushProdukt()`; `pushKategorie()`, `isPositionExpandable()`, `collectAllExpandableIds()` und `buildFlatRows()` um Produkt-Drill-Down erweitert
+
+### Build & Tests
+- `npm run build` ✅ — alle Routen korrekt, keine TypeScript-Fehler
+- `npm test` ✅ — 321/321 Tests grün (8 neue Tests für PROJ-21 Bestandsberechnung)
+
+### Neue Tests (8)
+1. Bestandskosten werden zur „Produkt"-Kategorie addiert
+2. Bestandskosten werden auf bestehende Direktbuchungen addiert
+3. `produkte`-Array in `ReportKategorie` für „Produkt"-Kategorie vorhanden
+4. Plattform-Aufschlüsselung innerhalb der Produkte korrekt
+5. Kein passender Zeitraum → 0 € Beitrag, kein `produkte`-Eintrag
+6. Mehrere SKUs desselben Produkts werden aggregiert
+7. `produkt_id = null` in Bestandstransaktion wird ignoriert
+8. „Produkt"-Kategorie nicht zugewiesen → keine Bestandskosten im Report
 
 ## QA Test Results
 _To be added by /qa_
