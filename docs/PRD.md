@@ -29,6 +29,11 @@ Eine interne Controlling-Plattform für das Finanzreporting eines E-Commerce Unt
 | P1 | PROJ-14: Relevanz-Pflichtfeld für Ausgaben & Kosten-Transaktionen | Planned |
 | P1 | PROJ-15: Investitionen-Abschreibungen-Auswertung | Planned |
 | P1 | PROJ-16: Produktkosten-Verwaltung | Planned |
+| P1 | PROJ-17: Bestandsveränderungen-Verwaltung | Planned |
+| P1 | PROJ-18: Assistierter Produktkosten-Zeitraum | Planned |
+| P1 | PROJ-19: Reporting-Bereich & Report-Stufen-Konfiguration | Planned |
+| P1 | PROJ-20: Rentabilitätsreport | Planned |
+| P1 | PROJ-21: Produktkosten-Bestandsberechnung im Rentabilitätsreport | Planned |
 
 ## Success Metrics
 - Alle Finanzdaten werden in einer zentralen Plattform erfasst (kein Excel-Chaos)
