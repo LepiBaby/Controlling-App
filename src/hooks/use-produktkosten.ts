@@ -16,12 +16,20 @@ export interface ProduktkostenZeitraum {
   gueltig_bis: string | null
   created_at: string
   werte: ProduktkostenWert[]
+  berechnungs_menge: number | null
+  berechnungs_transaktions_ids: string[] | null
+  berechnungs_alt_zeitraum_id: string | null
+  berechnungs_alt_restmenge: number | null
 }
 
 export interface ProduktkostenFormData {
   gueltig_von: string
   gueltig_bis: string | null
   werte: { kategorie_id: string; wert: number }[]
+  berechnungs_menge?: number | null
+  berechnungs_transaktions_ids?: string[] | null
+  berechnungs_alt_zeitraum_id?: string | null
+  berechnungs_alt_restmenge?: number | null
 }
 
 export function useProduktkostenZeitraeume(produktId: string | null) {

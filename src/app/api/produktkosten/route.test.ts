@@ -27,6 +27,9 @@ const MOCK_ZEITRAUM = {
   created_at:  '2024-01-01T10:00:00Z',
 }
 
+const TX_ID_1 = '423e4567-e89b-12d3-a456-426614174003'
+const TX_ID_2 = '523e4567-e89b-12d3-a456-426614174004'
+
 const VALID_POST_BODY = {
   produkt_id:  PRODUKT_ID,
   gueltig_von: '2024-01-01',
@@ -185,5 +188,69 @@ describe('POST /api/produktkosten', () => {
       body: JSON.stringify(VALID_POST_BODY),
     }))
     expect(res.status).toBe(401)
+  })
+
+  it('accepts berechnungs_* fields and returns 201', async () => {
+    mockFrom
+      .mockReturnValueOnce({
+        select: () => ({
+          eq: () => ({
+            or: () => ({
+              lte: () => ({ data: [], error: null }),
+            }),
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        insert: () => ({
+          select: () => ({
+            single: () => ({ data: { ...MOCK_ZEITRAUM, berechnungs_menge: 500, berechnungs_transaktions_ids: [TX_ID_1, TX_ID_2] }, error: null }),
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        insert: () => ({ error: null }),
+      })
+
+    const bodyWithBerechnung = {
+      ...VALID_POST_BODY,
+      berechnungs_menge: 500,
+      berechnungs_transaktions_ids: [TX_ID_1, TX_ID_2],
+    }
+    const res = await POST(req('http://localhost/api/produktkosten', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(bodyWithBerechnung),
+    }))
+    expect(res.status).toBe(201)
+    const body = await res.json()
+    expect(body).toHaveProperty('id')
+  })
+
+  it('returns 400 when berechnungs_menge is negative', async () => {
+    const res = await POST(req('http://localhost/api/produktkosten', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...VALID_POST_BODY, berechnungs_menge: -10 }),
+    }))
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 400 when berechnungs_alt_restmenge is negative', async () => {
+    const res = await POST(req('http://localhost/api/produktkosten', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...VALID_POST_BODY, berechnungs_alt_restmenge: -5 }),
+    }))
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 400 when berechnungs_transaktions_ids contains invalid uuid', async () => {
+    const res = await POST(req('http://localhost/api/produktkosten', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...VALID_POST_BODY, berechnungs_transaktions_ids: ['not-a-uuid'] }),
+    }))
+    expect(res.status).toBe(400)
   })
 })

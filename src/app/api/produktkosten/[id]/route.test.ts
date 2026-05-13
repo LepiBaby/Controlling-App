@@ -199,6 +199,51 @@ describe('PATCH /api/produktkosten/[id]', () => {
     )
     expect(res.status).toBe(401)
   })
+
+  it('accepts berechnungs_* fields and returns 200', async () => {
+    mockHappyPath()
+
+    const TX_ID_1 = '423e4567-e89b-12d3-a456-426614174003'
+    const TX_ID_2 = '523e4567-e89b-12d3-a456-426614174004'
+    const res = await PATCH(
+      req(`http://localhost/api/produktkosten/${ZEITRAUM_ID}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...VALID_PATCH_BODY,
+          berechnungs_menge: 300,
+          berechnungs_transaktions_ids: [TX_ID_1, TX_ID_2],
+          berechnungs_alt_restmenge: 100,
+        }),
+      }),
+      makeParams(ZEITRAUM_ID)
+    )
+    expect(res.status).toBe(200)
+  })
+
+  it('returns 400 when berechnungs_menge is negative for PATCH', async () => {
+    const res = await PATCH(
+      req(`http://localhost/api/produktkosten/${ZEITRAUM_ID}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...VALID_PATCH_BODY, berechnungs_menge: -1 }),
+      }),
+      makeParams(ZEITRAUM_ID)
+    )
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 400 when berechnungs_transaktions_ids contains invalid uuid for PATCH', async () => {
+    const res = await PATCH(
+      req(`http://localhost/api/produktkosten/${ZEITRAUM_ID}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...VALID_PATCH_BODY, berechnungs_transaktions_ids: ['not-a-uuid'] }),
+      }),
+      makeParams(ZEITRAUM_ID)
+    )
+    expect(res.status).toBe(400)
+  })
 })
 
 // ─── DELETE ───────────────────────────────────────────────────────────────────
