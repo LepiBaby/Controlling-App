@@ -40,6 +40,7 @@ const NAV_GROUPS = [
       { href: '/dashboard/reporting/deckungsbeitrag', label: 'Deckungsbeitragsreport' },
       { href: '/dashboard/reporting/break-even', label: 'Break-Even-Report' },
       { href: '/dashboard/reporting/liquiditaet', label: 'Liquiditätsreport' },
+      { href: '/dashboard/reporting/umsatzsteuer', label: 'Umsatzsteuer-Report' },
     ],
   },
 ]

@@ -1,8 +1,8 @@
 # PROJ-31: Umsatzsteuer-Reporting
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-05-14
-**Last Updated:** 2026-05-14 (Architected)
+**Last Updated:** 2026-05-14 (Frontend implementiert)
 
 ## Dependencies
 - PROJ-3: Umsatz-Transaktionen (Datenquelle: `umsatz_transaktionen`)
@@ -280,6 +280,20 @@ UmsatzsteuerPage → useReportingUmsatzsteuer (Hook)
 ### Keine neuen Abhängigkeiten
 
 Alle benötigten UI-Primitiven (Input, Tabs, Button, Table, Skeleton, Card) sind bereits installiert.
+
+## Implementation Notes (Frontend — 2026-05-14)
+
+### Neue Dateien
+- `src/hooks/use-reporting-umsatzsteuer.ts` — Typen (UstKategorie/Gruppe/Untergruppe/Produkt, VorsteuerKategorie/Gruppe/Untergruppe, ReportingUmsatzsteuerData) + Filterzustand (von/bis/granularitaet) + API-Aufruf
+- `src/components/reporting-umsatzsteuer-matrix.tsx` — Matrix mit zwei Sektionen, Expand/Collapse via Set<string>, sticky erste Spalte, Leerzustand-Handling
+- `src/app/dashboard/reporting/umsatzsteuer/page.tsx` — Seite mit Von/Bis-Monatsauswahl, Granularitäts-Tabs, Fehleranzeige
+
+### Geänderte Dateien
+- `src/components/nav-sheet.tsx` — Eintrag „Umsatzsteuer-Report" unter Reporting ergänzt
+
+### Build & Tests
+- `npm run build` ✅ — `/dashboard/reporting/umsatzsteuer` korrekt gebaut
+- `npm test` ✅ — 498/498 Tests grün
 
 ## QA Test Results
 _To be added by /qa_
