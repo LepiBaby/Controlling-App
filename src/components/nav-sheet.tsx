@@ -30,12 +30,16 @@ const NAV_GROUPS = [
       { href: '/dashboard/liquiditaet', label: 'Liquidität' },
       { href: '/dashboard/abschreibungen', label: 'Abschreibungen' },
       { href: '/dashboard/investitionen', label: 'Investitionen' },
+      { href: '/dashboard/vorsteuer', label: 'Abziehbare Vorsteuer' },
     ],
   },
   {
     label: 'Reporting',
     items: [
       { href: '/dashboard/reporting/rentabilitaet', label: 'Rentabilitätsreport' },
+      { href: '/dashboard/reporting/deckungsbeitrag', label: 'Deckungsbeitragsreport' },
+      { href: '/dashboard/reporting/break-even', label: 'Break-Even-Report' },
+      { href: '/dashboard/reporting/liquiditaet', label: 'Liquiditätsreport' },
     ],
   },
 ]

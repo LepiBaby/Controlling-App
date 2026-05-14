@@ -1,6 +1,6 @@
 # PROJ-30: Abziehbare Vorsteuer
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-05-14
 **Last Updated:** 2026-05-14 (Architected)
 
