@@ -23,7 +23,8 @@ export default function RentabilitaetPage() {
   const { categories: umsatzKategorien, loading: umsatzLoading } = useKpiCategories('umsatz')
   const { categories: ausgabenKategorien, loading: ausgabenLoading } = useKpiCategories('ausgaben_kosten')
   const { categories: salesPlattformen } = useKpiCategories('sales_plattformen')
-  const { categories: produkte } = useKpiCategories('produkte')
+  const { categories: produkteAll } = useKpiCategories('produkte')
+  const produkte = useMemo(() => produkteAll.filter(p => p.level === 1), [produkteAll])
 
   const {
     zeilen, loading, error,

@@ -1,6 +1,6 @@
 # PROJ-18: Assistierter Produktkosten-Zeitraum
 
-## Status: In Review
+## Status: Approved
 **Created:** 2026-05-13
 **Last Updated:** 2026-05-13
 

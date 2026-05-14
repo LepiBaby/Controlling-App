@@ -15,20 +15,27 @@ const NAV_GROUPS = [
   {
     label: 'Datenpflege',
     items: [
-      { href: '/dashboard/kpi-modell', label: 'KPI-Modell Verwaltung', description: 'Kategorie-Hierarchien pflegen' },
-      { href: '/dashboard/einnahmen', label: 'Einnahmen', description: 'Zahlungseingänge erfassen' },
-      { href: '/dashboard/umsatz', label: 'Umsatz', description: 'Erlöse / Leistungen erfassen' },
-      { href: '/dashboard/ausgaben', label: 'Ausgaben & Kosten', description: 'Ausgaben und Kosten erfassen' },
-      { href: '/dashboard/produktkosten', label: 'Produktkosten', description: 'Kostenstruktur je Produkt pflegen' },
+      { href: '/dashboard/kpi-modell', label: 'KPI-Modell Verwaltung' },
+      { href: '/dashboard/einnahmen', label: 'Einnahmen' },
+      { href: '/dashboard/umsatz', label: 'Umsatz' },
+      { href: '/dashboard/ausgaben', label: 'Ausgaben & Kosten' },
+      { href: '/dashboard/produktkosten', label: 'Produktkosten' },
+      { href: '/dashboard/bestandsverwaltung', label: 'Bestandsverwaltung' },
     ],
   },
   {
     label: 'Auswertungen',
     items: [
-      { href: '/dashboard/rentabilitaet', label: 'Rentabilität', description: 'Umsatz & Kosten Übersicht' },
-      { href: '/dashboard/liquiditaet', label: 'Liquidität', description: 'Einnahmen & Ausgaben Übersicht' },
-      { href: '/dashboard/abschreibungen', label: 'Abschreibungen', description: 'Monatliche Abschreibungsraten' },
-      { href: '/dashboard/investitionen', label: 'Investitionen', description: 'Produktinvestitionen auf 12 Monate verteilt' },
+      { href: '/dashboard/rentabilitaet', label: 'Rentabilität' },
+      { href: '/dashboard/liquiditaet', label: 'Liquidität' },
+      { href: '/dashboard/abschreibungen', label: 'Abschreibungen' },
+      { href: '/dashboard/investitionen', label: 'Investitionen' },
+    ],
+  },
+  {
+    label: 'Reporting',
+    items: [
+      { href: '/dashboard/reporting/rentabilitaet', label: 'Rentabilitätsreport' },
     ],
   },
 ]
@@ -64,10 +71,9 @@ export function NavSheet() {
                     key={item.href}
                     href={item.href}
                     onClick={() => setOpen(false)}
-                    className="rounded-md px-3 py-2 hover:bg-muted transition-colors"
+                    className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted transition-colors"
                   >
-                    <p className="text-sm font-medium">{item.label}</p>
-                    <p className="text-xs text-muted-foreground">{item.description}</p>
+                    {item.label}
                   </a>
                 ))}
               </div>

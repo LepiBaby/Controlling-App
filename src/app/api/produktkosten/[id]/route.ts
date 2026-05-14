@@ -15,6 +15,10 @@ const patchSchema = z.object({
   gueltig_von: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Ungültiges Datumsformat (YYYY-MM-DD)'),
   gueltig_bis: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Ungültiges Datumsformat (YYYY-MM-DD)').nullable().optional(),
   werte:       z.array(wertSchema),
+  berechnungs_menge:             z.number().positive().nullable().optional(),
+  berechnungs_transaktions_ids:  z.array(z.string().uuid()).nullable().optional(),
+  berechnungs_alt_zeitraum_id:   z.string().uuid().nullable().optional(),
+  berechnungs_alt_restmenge:     z.number().min(0).nullable().optional(),
 }).refine(d => !d.gueltig_bis || d.gueltig_bis >= d.gueltig_von, {
   message: 'Gültig bis muss nach oder gleich Gültig von liegen',
   path: ['gueltig_bis'],
@@ -31,7 +35,11 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
   }
 
-  const { gueltig_von, gueltig_bis, werte } = parsed.data
+  const {
+    gueltig_von, gueltig_bis, werte,
+    berechnungs_menge, berechnungs_transaktions_ids,
+    berechnungs_alt_zeitraum_id, berechnungs_alt_restmenge,
+  } = parsed.data
 
   // Fetch current row to get produkt_id for overlap check
   const { data: current, error: fetchError } = await supabase
@@ -68,7 +76,13 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   // Update Zeitraum header
   const { data: updated, error: updateError } = await supabase
     .from('produktkosten_zeitraeume')
-    .update({ gueltig_von, gueltig_bis })
+    .update({
+      gueltig_von, gueltig_bis,
+      berechnungs_menge: berechnungs_menge ?? null,
+      berechnungs_transaktions_ids: berechnungs_transaktions_ids ?? null,
+      berechnungs_alt_zeitraum_id: berechnungs_alt_zeitraum_id ?? null,
+      berechnungs_alt_restmenge: berechnungs_alt_restmenge ?? null,
+    })
     .eq('id', id)
     .select()
     .single()

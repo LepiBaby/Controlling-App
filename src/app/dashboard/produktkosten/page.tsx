@@ -18,10 +18,9 @@ import { useKpiCategories, type KpiCategory } from '@/hooks/use-kpi-categories'
 import {
   useProduktkostenZeitraeume,
   type ProduktkostenZeitraum,
-  type ProduktkostenFormData,
 } from '@/hooks/use-produktkosten'
 import { ProduktkostenTable } from '@/components/produktkosten-table'
-import { ProduktkostenFormDialog } from '@/components/produktkosten-form-dialog'
+import { ProduktkostenAssistentDialog } from '@/components/produktkosten-assistent-dialog'
 
 function ProduktTab({
   produktId,
@@ -33,27 +32,19 @@ function ProduktTab({
   const { zeitraeume, loading, error, addZeitraum, updateZeitraum, deleteZeitraum } =
     useProduktkostenZeitraeume(produktId)
 
-  const [formOpen, setFormOpen] = useState(false)
+  const [assistentOpen, setAssistentOpen] = useState(false)
   const [editingZeitraum, setEditingZeitraum] = useState<ProduktkostenZeitraum | null>(null)
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
 
   const handleNewClick = () => {
     setEditingZeitraum(null)
-    setFormOpen(true)
+    setAssistentOpen(true)
   }
 
   const handleEditClick = (z: ProduktkostenZeitraum) => {
     setEditingZeitraum(z)
-    setFormOpen(true)
-  }
-
-  const handleSave = async (data: ProduktkostenFormData) => {
-    if (editingZeitraum) {
-      await updateZeitraum(editingZeitraum.id, data)
-    } else {
-      await addZeitraum(produktId, data)
-    }
+    setAssistentOpen(true)
   }
 
   const handleDeleteConfirm = async () => {
@@ -93,13 +84,23 @@ function ProduktTab({
         onDelete={id => setDeleteTargetId(id)}
       />
 
-      <ProduktkostenFormDialog
-        open={formOpen}
-        onOpenChange={setFormOpen}
-        zeitraumToEdit={editingZeitraum}
+      <ProduktkostenAssistentDialog
+        open={assistentOpen}
+        onOpenChange={open => {
+          setAssistentOpen(open)
+          if (!open) setEditingZeitraum(null)
+        }}
         produktId={produktId}
         kostenkategorien={kostenkategorien}
-        onSave={handleSave}
+        zeitraeume={zeitraeume}
+        zeitraumToEdit={editingZeitraum}
+        onSave={async data => {
+          if (editingZeitraum) {
+            await updateZeitraum(editingZeitraum.id, data)
+          } else {
+            await addZeitraum(produktId, data)
+          }
+        }}
       />
 
       <AlertDialog
@@ -147,7 +148,7 @@ export default function ProduktkostenPage() {
   }, [ausgabenKategorien])
 
   const sortedProdukte = useMemo(
-    () => [...produkte].sort((a, b) => a.sort_order - b.sort_order),
+    () => [...produkte].filter(p => p.level === 1).sort((a, b) => a.sort_order - b.sort_order),
     [produkte]
   )
 

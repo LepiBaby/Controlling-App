@@ -10,7 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { KpiAddCategoryForm } from '@/components/kpi-add-category-form'
 import {
   ChevronRight, ChevronDown, Plus, Pencil, Trash2,
-  ArrowUp, ArrowDown, Check, X, GripVertical, SlidersHorizontal, Tag, TrendingDown,
+  ArrowUp, ArrowDown, Check, X, GripVertical, SlidersHorizontal, Tag, TrendingDown, Percent,
 } from 'lucide-react'
 import type { KpiCategory } from '@/hooks/use-kpi-categories'
 import { cn } from '@/lib/utils'
@@ -53,6 +53,7 @@ interface KpiCategoryRowProps {
   onUpdateDimensions?: (id: string, patch: { sales_plattform_enabled?: boolean; produkt_enabled?: boolean }) => Promise<void>
   onUpdateLabels?: (id: string, patch: { kosten_label?: string | null; ausgaben_label?: string | null }) => Promise<void>
   onUpdateAbzugsposten?: (id: string, ist_abzugsposten: boolean) => Promise<void>
+  onUpdateUstSatz?: (id: string, ust_satz: number | null) => Promise<void>
 }
 
 const INDENT: Record<number, string> = { 1: 'pl-0', 2: 'pl-6', 3: 'pl-12' }
@@ -71,6 +72,7 @@ export function KpiCategoryRow({
   onUpdateDimensions,
   onUpdateLabels,
   onUpdateAbzugsposten,
+  onUpdateUstSatz,
 }: KpiCategoryRowProps) {
   const isSkuRow = category.type === 'produkte' && category.level === 2
   const isSkuParent = category.type === 'produkte' && category.level === 1
@@ -83,6 +85,8 @@ export function KpiCategoryRow({
   const [kostLabel, setKostLabel] = useState(category.kosten_label ?? '')
   const [ausgLabel, setAusgLabel] = useState(category.ausgaben_label ?? '')
   const [labelsOpen, setLabelsOpen] = useState(false)
+  const [ustSatzInput, setUstSatzInput] = useState(category.ust_satz != null ? String(category.ust_satz) : '')
+  const [ustSatzOpen, setUstSatzOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -142,6 +146,7 @@ export function KpiCategoryRow({
   const showLabels = category.level === 1 && !!onUpdateLabels
   const hasActiveLabels = !!(category.kosten_label || category.ausgaben_label)
   const showAbzugsposten = category.level === 1 && !!onUpdateAbzugsposten
+  const showUstSatz = isSkuParent && !!onUpdateUstSatz
 
   // Drop indicator for this row
   const myIntent = dropIntent?.overId === category.id ? dropIntent : null
@@ -370,6 +375,48 @@ export function KpiCategoryRow({
                 </PopoverContent>
               </Popover>
             )}
+            {showUstSatz && (
+              <Popover
+                open={ustSatzOpen}
+                onOpenChange={(open) => {
+                  if (!open && onUpdateUstSatz) {
+                    const trimmed = ustSatzInput.trim()
+                    const parsed = trimmed === '' ? null : parseFloat(trimmed)
+                    const next = parsed === null || isNaN(parsed) ? null : Math.min(100, Math.max(0, parsed))
+                    if (next !== category.ust_satz) onUpdateUstSatz(category.id, next)
+                  }
+                  setUstSatzOpen(open)
+                }}
+              >
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="ghost" size="icon"
+                    className={cn('h-6 w-6', category.ust_satz != null && category.ust_satz > 0 && 'text-primary')}
+                    title="USt-Satz konfigurieren"
+                  >
+                    <Percent className="h-3 w-3" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-56 p-3" align="end">
+                  <p className="text-xs font-medium text-muted-foreground mb-3">USt-Satz</p>
+                  <div className="space-y-1">
+                    <Label htmlFor={`ust-${category.id}`} className="text-xs">USt-Satz (%)</Label>
+                    <Input
+                      id={`ust-${category.id}`}
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={0.1}
+                      value={ustSatzInput}
+                      placeholder="z.B. 19"
+                      className="h-7 text-sm"
+                      onChange={e => setUstSatzInput(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground pt-0.5">Leer lassen = kein USt (0 %)</p>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
             <Button
               variant="ghost" size="icon"
               className="h-6 w-6 text-destructive hover:text-destructive"
@@ -421,6 +468,7 @@ export function KpiCategoryRow({
               onUpdateDimensions={onUpdateDimensions}
               onUpdateLabels={onUpdateLabels}
               onUpdateAbzugsposten={onUpdateAbzugsposten}
+              onUpdateUstSatz={onUpdateUstSatz}
             />
           ))}
         </div>

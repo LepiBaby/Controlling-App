@@ -13,6 +13,7 @@ const patchSchema = z.object({
   kosten_label: z.string().max(100).nullable().optional(),
   ausgaben_label: z.string().max(100).nullable().optional(),
   ist_abzugsposten: z.boolean().optional(),
+  ust_satz: z.number().min(0).max(100).nullable().optional(),
 })
 
 interface RouteContext {

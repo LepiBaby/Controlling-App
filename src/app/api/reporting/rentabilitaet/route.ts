@@ -145,7 +145,7 @@ export async function GET(request: Request) {
       .eq('type', 'sales_plattformen'),
     supabase
       .from('kpi_categories')
-      .select('id, name')
+      .select('id, name, ust_satz')
       .eq('type', 'produkte')
       .eq('level', 1),
     supabase
@@ -187,6 +187,33 @@ export async function GET(request: Request) {
   if (abErr)   return NextResponse.json({ error: abErr.message   }, { status: 500 })
   if (btErr)   return NextResponse.json({ error: btErr.message   }, { status: 500 })
   if (pkErr)   return NextResponse.json({ error: pkErr.message   }, { status: 500 })
+
+  // ── 3b. Produktinvestitionen-Transaktionen laden ──────────────────────────
+  // Sequenziell nach Stage 3: produktinvestitionenCatId kommt aus allCats.
+  // Ohne Datumsfilter geladen — Raten können außerhalb des Buchungsmonats fallen.
+
+  const produktinvestitionenCatId = (allCats ?? []).find(
+    c => c.type === 'ausgaben_kosten' && c.level === 1 && c.name?.toLowerCase() === 'produktinvestitionen'
+  )?.id ?? null
+
+  let piRows: Array<{
+    leistungsdatum: string
+    betrag_netto: number | string
+    kategorie_id: string
+    gruppe_id: string | null
+    untergruppe_id: string | null
+  }> = []
+
+  if (produktinvestitionenCatId && assignedCatIds.has(produktinvestitionenCatId)) {
+    const { data: piData, error: piErr2 } = await supabase
+      .from('ausgaben_kosten_transaktionen')
+      .select('leistungsdatum, betrag_netto, kategorie_id, gruppe_id, untergruppe_id')
+      .eq('kategorie_id', produktinvestitionenCatId)
+      .is('abschreibung', null)
+      .not('leistungsdatum', 'is', null)
+    if (piErr2) return NextResponse.json({ error: piErr2.message }, { status: 500 })
+    piRows = piData ?? []
+  }
 
   // ── 4. Lookup-Maps aufbauen ───────────────────────────────────────────────
 
@@ -249,6 +276,7 @@ export async function GET(request: Request) {
   for (const row of ausgabenRows ?? []) {
     if (!row.leistungsdatum || !row.kategorie_id) continue
     if (!assignedCatIds.has(row.kategorie_id)) continue
+    if (row.kategorie_id === produktinvestitionenCatId) continue
     processTransaction(
       row.kategorie_id, row.gruppe_id, row.untergruppe_id,
       row.sales_plattform_id, row.produkt_id,
@@ -414,6 +442,52 @@ export async function GET(request: Request) {
     }
   }
 
+  // ── 5e. Produktinvestitionen-Raten (12 Monate fix, analog PROJ-15) ────────
+
+  const PI_MONATE = 12
+
+  for (const row of piRows) {
+    if (!row.leistungsdatum || !row.kategorie_id) continue
+    const betragNetto = Number(row.betrag_netto ?? 0)
+    if (betragNetto === 0) continue
+    const baseRate = roundTo2(betragNetto / PI_MONATE)
+    const lastRate = roundTo2(betragNetto - baseRate * (PI_MONATE - 1))
+    for (let i = 0; i < PI_MONATE; i++) {
+      const rateDatum = addMonthsWithClamp(row.leistungsdatum, i)
+      if (rateDatum < vonDate || rateDatum > bisDate) continue
+      processTransaction(
+        row.kategorie_id, row.gruppe_id, row.untergruppe_id,
+        null, null, rateDatum,
+        -(i === PI_MONATE - 1 ? lastRate : baseRate),
+      )
+    }
+  }
+
+  // ── 5f. Umsatzsteuer-Berechnung: Netto-Basis je Produkt × USt-Satz ──────────
+
+  const ustPrdNetBase: EntityMap = new Map()
+
+  for (const row of umsatzRows ?? []) {
+    if (!row.leistungsdatum || !row.kategorie_id || !row.produkt_id) continue
+    const isAbzug = !!catById.get(row.kategorie_id)?.ist_abzugsposten
+    const period = dateToPeriod(row.leistungsdatum, granularitaet)
+    addTo(ustPrdNetBase, row.produkt_id, period, isAbzug ? -Number(row.betrag) : Number(row.betrag))
+  }
+
+  const ustPrdVals: EntityMap = new Map()
+
+  for (const [prdId, periodMap] of ustPrdNetBase) {
+    const prd = produktById.get(prdId)
+    if (!prd || prd.ust_satz == null || Number(prd.ust_satz) <= 0) continue
+    const ustSatz = Number(prd.ust_satz)
+    for (const [period, netBase] of periodMap) {
+      // Brutto-Herausrechnung: USt = Brutto × (USt-Satz / (100 + USt-Satz))
+      const ust = roundTo2(netBase * ustSatz / (100 + ustSatz))
+      if (ust === 0) continue
+      addTo(ustPrdVals, prdId, period, -ust)
+    }
+  }
+
   // ── 6. Positions-Werte berechnen ──────────────────────────────────────────
 
   const katsByPosition = new Map<string, string[]>()
@@ -437,6 +511,15 @@ export async function GET(request: Request) {
       const kv = catVals.get(katId)
       if (!kv) continue
       for (const p of perioden) vals[p] = roundTo2(vals[p] + (kv.get(p) ?? 0))
+    }
+    positionValues.set(pos.id, vals)
+  }
+
+  for (const pos of rpRows) {
+    if (pos.type !== 'umsatzsteuer') continue
+    const vals = zeroValues(perioden)
+    for (const [, pv] of ustPrdVals) {
+      for (const p of perioden) vals[p] = roundTo2(vals[p] + (pv.get(p) ?? 0))
     }
     positionValues.set(pos.id, vals)
   }
@@ -590,16 +673,41 @@ export async function GET(request: Request) {
     }
   }
 
-  const positionen = rpRows.map(pos => ({
-    id: pos.id,
-    name: pos.name,
-    type: pos.type,
-    sort_order: pos.sort_order,
-    values: positionValues.get(pos.id) ?? zeroValues(perioden),
-    kategorien: pos.type === 'position'
-      ? (katsByPosition.get(pos.id) ?? []).map(buildKategorie).filter(Boolean)
-      : [],
-  }))
+  const positionen = rpRows.map(pos => {
+    if (pos.type === 'umsatzsteuer') {
+      const ust_produkte = [...ustPrdVals.entries()]
+        .map(([prdId]) => {
+          const prd = produktById.get(prdId)
+          if (!prd) return null
+          return {
+            id: prdId,
+            name: prd.name,
+            ust_satz: Number(prd.ust_satz),
+            values: getValues(ustPrdVals, prdId, perioden),
+          }
+        })
+        .filter((x): x is NonNullable<typeof x> => x !== null)
+      return {
+        id: pos.id,
+        name: pos.name,
+        type: pos.type,
+        sort_order: pos.sort_order,
+        values: positionValues.get(pos.id) ?? zeroValues(perioden),
+        kategorien: [],
+        ust_produkte,
+      }
+    }
+    return {
+      id: pos.id,
+      name: pos.name,
+      type: pos.type,
+      sort_order: pos.sort_order,
+      values: positionValues.get(pos.id) ?? zeroValues(perioden),
+      kategorien: pos.type === 'position'
+        ? (katsByPosition.get(pos.id) ?? []).map(buildKategorie).filter(Boolean)
+        : [],
+    }
+  })
 
   return NextResponse.json({ perioden, positionen })
 }

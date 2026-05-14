@@ -78,6 +78,13 @@ export default async function DashboardPage() {
               <p className="font-medium">Ausgaben & Kosten</p>
               <p className="text-sm text-muted-foreground mt-1">Ausgaben und Kosten erfassen</p>
             </a>
+            <a
+              href="/dashboard/produktkosten"
+              className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+            >
+              <p className="font-medium">Produktkosten</p>
+              <p className="text-sm text-muted-foreground mt-1">Kostenstruktur je Produkt pflegen</p>
+            </a>
           </div>
           </div>
 
@@ -111,6 +118,19 @@ export default async function DashboardPage() {
               >
                 <p className="font-medium">Investitionen</p>
                 <p className="text-sm text-muted-foreground mt-1">Produktinvestitionen auf 12 Monate verteilt</p>
+              </a>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Reporting</h2>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <a
+                href="/dashboard/reporting/rentabilitaet"
+                className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+              >
+                <p className="font-medium">Rentabilitätsreport</p>
+                <p className="text-sm text-muted-foreground mt-1">GuV-Rechnung mit Monats-, Quartals- und Jahresansicht</p>
               </a>
             </div>
           </div>

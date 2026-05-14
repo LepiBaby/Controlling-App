@@ -13,6 +13,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { KpiCategoryTree } from '@/components/kpi-category-tree'
+import { ReportModellTab } from '@/components/report-modell-tab'
 import { useKpiCategories, type CategoryType, type KpiCategory } from '@/hooks/use-kpi-categories'
 import { NavSheet } from '@/components/nav-sheet'
 
@@ -28,7 +29,7 @@ function CategoryTab({ type, maxLevel = 3 }: { type: CategoryType; maxLevel?: 1 
   const {
     tree, categories, loading, error,
     addCategory, renameCategory, updateSku, deleteCategory, moveCategory,
-    reorderCategory, reparentCategory, updateDimensions, updateLabels, updateAbzugsposten,
+    reorderCategory, reparentCategory, updateDimensions, updateLabels, updateAbzugsposten, updateUstSatz,
     getDescendantCount,
   } = useKpiCategories(type)
   const [pendingDelete, setPendingDelete] = useState<KpiCategory | null>(null)
@@ -61,6 +62,7 @@ function CategoryTab({ type, maxLevel = 3 }: { type: CategoryType; maxLevel?: 1 
         onUpdateDimensions={maxLevel === 3 ? updateDimensions : undefined}
         onUpdateLabels={type === 'ausgaben_kosten' ? updateLabels : undefined}
         onUpdateAbzugsposten={type === 'umsatz' ? updateAbzugsposten : undefined}
+        onUpdateUstSatz={type === 'produkte' ? updateUstSatz : undefined}
       />
 
       <AlertDialog open={!!pendingDelete} onOpenChange={open => { if (!open) setPendingDelete(null) }}>
@@ -111,18 +113,22 @@ export default function KpiModellPage() {
       </header>
 
       <main className="flex-1 p-6">
-        <div className="mx-auto max-w-2xl">
+        <div className="mx-auto max-w-4xl">
           <Tabs defaultValue="umsatz">
-            <TabsList className="grid w-full grid-cols-5">
+            <TabsList className="grid w-full grid-cols-6">
               {TABS.map(t => (
                 <TabsTrigger key={t.value} value={t.value} className="text-xs">{t.label}</TabsTrigger>
               ))}
+              <TabsTrigger value="reporting" className="text-xs">Reporting-Modell</TabsTrigger>
             </TabsList>
             {TABS.map(t => (
               <TabsContent key={t.value} value={t.value} className="mt-4">
                 <CategoryTab type={t.value} maxLevel={t.maxLevel} />
               </TabsContent>
             ))}
+            <TabsContent value="reporting" className="mt-4">
+              <ReportModellTab />
+            </TabsContent>
           </Tabs>
         </div>
       </main>

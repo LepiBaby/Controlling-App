@@ -24,7 +24,8 @@ import { NavSheet } from '@/components/nav-sheet'
 export default function UmsatzPage() {
   const { categories: umsatzKategorien, loading: kpiLoading } = useKpiCategories('umsatz')
   const { categories: salesPlattformen } = useKpiCategories('sales_plattformen')
-  const { categories: produkte } = useKpiCategories('produkte')
+  const { categories: produkteAll } = useKpiCategories('produkte')
+  const produkte = useMemo(() => produkteAll.filter(p => p.level === 1), [produkteAll])
 
   const {
     transaktionen, loading, error,

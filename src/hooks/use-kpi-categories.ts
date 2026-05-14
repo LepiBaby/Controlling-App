@@ -17,6 +17,7 @@ export interface KpiCategory {
   kosten_label: string | null
   ausgaben_label: string | null
   ist_abzugsposten: boolean
+  ust_satz: number | null
   children?: KpiCategory[]
 }
 
@@ -314,10 +315,24 @@ export function useKpiCategories(type: CategoryType) {
     }
   }, [categories])
 
+  const updateUstSatz = useCallback(async (id: string, ust_satz: number | null) => {
+    const prev = categories.find(c => c.id === id)
+    if (!prev) return
+    setCategories(cats => cats.map(c => c.id === id ? { ...c, ust_satz } : c))
+    const res = await fetch(`/api/kpi-categories/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ust_satz }),
+    })
+    if (!res.ok) {
+      setCategories(cats => cats.map(c => c.id === id ? { ...c, ...prev } : c))
+    }
+  }, [categories])
+
   return {
     tree, categories, loading, error,
     addCategory, renameCategory, updateSku, deleteCategory, moveCategory,
-    reorderCategory, reparentCategory, updateDimensions, updateLabels, updateAbzugsposten,
+    reorderCategory, reparentCategory, updateDimensions, updateLabels, updateAbzugsposten, updateUstSatz,
     getDescendantCount, getSubtreeDepthForId, isDescendantOfId,
   }
 }

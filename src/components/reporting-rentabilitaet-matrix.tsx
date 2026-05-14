@@ -10,6 +10,7 @@ import type {
   ReportGruppe,
   ReportUntergruppe,
   ReportPlattform,
+  ReportAnzeigemodus,
 } from '@/hooks/use-reporting-rentabilitaet'
 
 // ─── Formatierung ─────────────────────────────────────────────────────────────
@@ -37,9 +38,39 @@ function formatPeriode(periode: string): string {
   return periode
 }
 
+export function formatProzentWert(value: number, basis: number): string {
+  if (basis === 0) return '—'
+  const pct = (value / basis) * 100
+  return `${pct.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`
+}
+
+export type WachstumsWert = number | 'n/a' | null
+
+export function calcWachstum(value: number, vorwert: number | undefined): WachstumsWert {
+  if (vorwert === undefined) return null
+  if (vorwert === 0 && value === 0) return 0
+  if (vorwert === 0) return 'n/a'
+  return ((value - vorwert) / Math.abs(vorwert)) * 100
+}
+
+export function formatWachstum(w: WachstumsWert): string {
+  if (w === null) return '—'
+  if (w === 'n/a') return 'n/a'
+  if (w === 0) return '0,0 %'
+  const abs = Math.abs(w)
+  const str = abs.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+  return w > 0 ? `+${str} % ↑` : `−${str} % ↓`
+}
+
+export function wachstumColorClass(w: WachstumsWert): string {
+  if (w === null || w === 'n/a' || w === 0) return 'text-muted-foreground'
+  if (typeof w === 'number' && w > 0) return 'text-green-700 dark:text-green-500'
+  return 'text-red-600 dark:text-red-400'
+}
+
 // ─── Flache Zeilen ────────────────────────────────────────────────────────────
 
-type RowKind = 'position' | 'summe' | 'kategorie' | 'gruppe' | 'untergruppe' | 'plattform' | 'produkt'
+type RowKind = 'position' | 'summe' | 'umsatzsteuer' | 'kategorie' | 'gruppe' | 'untergruppe' | 'plattform' | 'produkt'
 
 interface FlatRow {
   id: string
@@ -213,6 +244,7 @@ function pushKategorie(
 }
 
 function isPositionExpandable(pos: ReportingRentabilitaetData['positionen'][number]): boolean {
+  if (pos.type === 'umsatzsteuer') return (pos.ust_produkte?.length ?? 0) > 0
   if (pos.type !== 'position' || pos.kategorien.length === 0) return false
   if (pos.kategorien.length > 1) return true
   const kat = pos.kategorien[0]
@@ -237,6 +269,22 @@ function buildFlatRows(data: ReportingRentabilitaetData, expandedIds: Set<string
     })
 
     if (!expandable || !expandedIds.has(pos.id)) continue
+
+    // umsatzsteuer: flat product list
+    if (pos.type === 'umsatzsteuer') {
+      for (const prd of (pos.ust_produkte ?? [])) {
+        rows.push({
+          id: `ust:${pos.id}:${prd.id}`,
+          label: `${prd.name} (${prd.ust_satz} %)`,
+          indent: 1,
+          kind: 'produkt',
+          values: prd.values,
+          expandable: false,
+          expanded: false,
+        })
+      }
+      continue
+    }
 
     if (pos.kategorien.length === 1) {
       // Kategorie-Zeile überspringen — Gruppen/Plattformen/WV-Produkte direkt unter Position
@@ -318,6 +366,7 @@ function collectAllExpandableIds(data: ReportingRentabilitaetData): Set<string> 
   for (const pos of data.positionen) {
     if (!isPositionExpandable(pos)) continue
     ids.add(pos.id)
+    if (pos.type === 'umsatzsteuer') continue
     if (pos.kategorien.length === 1) {
       const kat = pos.kategorien[0]
       for (const grp of kat.gruppen) addGruppe(grp)
@@ -348,9 +397,17 @@ interface Props {
   data: ReportingRentabilitaetData | null
   loading: boolean
   hasDateRange: boolean
+  anzeigemodus: ReportAnzeigemodus
+  displayPerioden: string[]
 }
 
-export function ReportingRentabilitaetMatrix({ data, loading, hasDateRange }: Props) {
+export function ReportingRentabilitaetMatrix({
+  data,
+  loading,
+  hasDateRange,
+  anzeigemodus,
+  displayPerioden,
+}: Props) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
 
   const allExpandableIds = useMemo(
@@ -365,6 +422,26 @@ export function ReportingRentabilitaetMatrix({ data, loading, hasDateRange }: Pr
     [data, expandedIds],
   )
 
+  // Bruttoumsatz-Basis für Prozentual-Modus: Summe aller reinen Umsatz-Positionen
+  const bruttoumsatzByPeriode = useMemo(() => {
+    if (!data || anzeigemodus !== 'prozentual') return null
+    const result: Record<string, number> = {}
+    for (const pos of data.positionen) {
+      if (pos.type !== 'position') continue
+      if (!pos.kategorien.every(k => k.kpi_type === 'umsatz')) continue
+      for (const p of data.perioden) {
+        // Nur positive Beiträge zählen → Abzugsposten (z.B. Retouren) werden ausgeschlossen
+        result[p] = (result[p] ?? 0) + Math.max(0, pos.values[p] ?? 0)
+      }
+    }
+    return result
+  }, [data, anzeigemodus])
+
+  const allesBruttoumsatzNull = useMemo(() => {
+    if (!bruttoumsatzByPeriode) return false
+    return displayPerioden.every(p => (bruttoumsatzByPeriode[p] ?? 0) === 0)
+  }, [bruttoumsatzByPeriode, displayPerioden])
+
   function toggleRow(id: string) {
     setExpandedIds(prev => {
       const next = new Set(prev)
@@ -376,6 +453,14 @@ export function ReportingRentabilitaetMatrix({ data, loading, hasDateRange }: Pr
 
   function toggleAll() {
     setExpandedIds(allExpanded ? new Set() : new Set(allExpandableIds))
+  }
+
+  // Gibt den Vorperioden-Schlüssel für eine angezeigte Periode zurück
+  function vorperiodOf(p: string): string | undefined {
+    if (!data) return undefined
+    const idx = data.perioden.indexOf(p)
+    if (idx <= 0) return undefined
+    return data.perioden[idx - 1]
   }
 
   // ── Leerzustände ──────────────────────────────────────────────────────────
@@ -420,10 +505,17 @@ export function ReportingRentabilitaetMatrix({ data, loading, hasDateRange }: Pr
     )
   }
 
-  const perioden = data.perioden
+  const perioden = displayPerioden.length > 0 ? displayPerioden : data.perioden
 
   return (
     <div className="space-y-2">
+      {/* Hinweis: kein Bruttoumsatz im Prozentual-Modus */}
+      {anzeigemodus === 'prozentual' && allesBruttoumsatzNull && (
+        <p className="text-sm text-muted-foreground rounded-md border border-dashed px-4 py-2">
+          Kein Bruttoumsatz im gewählten Zeitraum — prozentuale Berechnung nicht möglich.
+        </p>
+      )}
+
       {/* Toolbar */}
       {allExpandableIds.size > 0 && (
         <div className="flex justify-end">
@@ -463,13 +555,14 @@ export function ReportingRentabilitaetMatrix({ data, loading, hasDateRange }: Pr
           <tbody>
             {rows.map((row, idx) => {
               const isSumme = row.kind === 'summe'
+              const isBold = isSumme
               const isLeaf = row.kind === 'produkt'
               return (
                 <tr
                   key={`${row.id}-${idx}`}
                   className={[
                     'border-b last:border-b-0',
-                    isSumme ? `${rowBgClass(row.kind)} border-t-2 border-t-border` : 'hover:bg-muted/20',
+                    isBold ? `${rowBgClass(row.kind)} border-t-2 border-t-border` : 'hover:bg-muted/20',
                   ].filter(Boolean).join(' ')}
                 >
                   {/* Bezeichnung — sticky */}
@@ -498,7 +591,7 @@ export function ReportingRentabilitaetMatrix({ data, loading, hasDateRange }: Pr
                         <span className="h-3.5 w-3.5 flex-shrink-0" />
                       )}
                       <span className={[
-                        isSumme ? 'font-semibold' : '',
+                        isBold ? 'font-semibold' : '',
                         isLeaf ? 'text-muted-foreground text-xs' : '',
                         row.kind === 'untergruppe' || row.kind === 'plattform' ? 'text-sm' : '',
                       ].filter(Boolean).join(' ')}>
@@ -510,12 +603,52 @@ export function ReportingRentabilitaetMatrix({ data, loading, hasDateRange }: Pr
                   {/* Wert-Zellen */}
                   {perioden.map(p => {
                     const value = row.values[p] ?? 0
+
+                    if (anzeigemodus === 'prozentual') {
+                      const basis = bruttoumsatzByPeriode?.[p] ?? 0
+                      return (
+                        <td
+                          key={p}
+                          className={[
+                            'px-3 py-2 text-right tabular-nums whitespace-nowrap',
+                            isBold ? 'font-semibold' : '',
+                            isLeaf ? 'text-xs' : '',
+                          ].filter(Boolean).join(' ')}
+                        >
+                          <div className={basis === 0 ? 'text-muted-foreground' : valueColorClass(value)}>
+                            {formatProzentWert(value, basis)}
+                          </div>
+                          <div className="text-xs mt-0.5 text-muted-foreground">{formatBetrag(value)}</div>
+                        </td>
+                      )
+                    }
+
+                    if (anzeigemodus === 'wachstum') {
+                      const vp = vorperiodOf(p)
+                      const vorwert = vp !== undefined ? (row.values[vp] ?? 0) : undefined
+                      const wachstum = calcWachstum(value, vorwert)
+                      return (
+                        <td
+                          key={p}
+                          className={[
+                            'px-3 py-2 text-right tabular-nums whitespace-nowrap',
+                            isBold ? 'font-semibold' : '',
+                            isLeaf ? 'text-xs' : '',
+                          ].filter(Boolean).join(' ')}
+                        >
+                          <div className={wachstumColorClass(wachstum)}>{formatWachstum(wachstum)}</div>
+                          <div className="text-xs mt-0.5 text-muted-foreground">{formatBetrag(value)}</div>
+                        </td>
+                      )
+                    }
+
+                    // Absolut (Standard)
                     return (
                       <td
                         key={p}
                         className={[
                           'px-3 py-2 text-right tabular-nums whitespace-nowrap',
-                          isSumme ? 'font-semibold' : '',
+                          isBold ? 'font-semibold' : '',
                           isLeaf ? 'text-xs' : '',
                           valueColorClass(value),
                         ].filter(Boolean).join(' ')}

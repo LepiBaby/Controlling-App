@@ -12,6 +12,10 @@ const createSchema = z.object({
   gueltig_von: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Ungültiges Datumsformat (YYYY-MM-DD)'),
   gueltig_bis: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Ungültiges Datumsformat (YYYY-MM-DD)').nullable().optional(),
   werte:       z.array(wertSchema),
+  berechnungs_menge:             z.number().positive().nullable().optional(),
+  berechnungs_transaktions_ids:  z.array(z.string().uuid()).nullable().optional(),
+  berechnungs_alt_zeitraum_id:   z.string().uuid().nullable().optional(),
+  berechnungs_alt_restmenge:     z.number().min(0).nullable().optional(),
 }).refine(d => !d.gueltig_bis || d.gueltig_bis >= d.gueltig_von, {
   message: 'Gültig bis muss nach oder gleich Gültig von liegen',
   path: ['gueltig_bis'],
@@ -49,7 +53,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
   }
 
-  const { produkt_id, gueltig_von, gueltig_bis, werte } = parsed.data
+  const {
+    produkt_id, gueltig_von, gueltig_bis, werte,
+    berechnungs_menge, berechnungs_transaktions_ids,
+    berechnungs_alt_zeitraum_id, berechnungs_alt_restmenge,
+  } = parsed.data
 
   // Overlap check — handles nullable gueltig_bis on both sides
   const overlapBase = supabase
@@ -74,7 +82,13 @@ export async function POST(request: Request) {
   // Insert Zeitraum
   const { data: zeitraum, error: insertError } = await supabase
     .from('produktkosten_zeitraeume')
-    .insert({ produkt_id, gueltig_von, gueltig_bis })
+    .insert({
+      produkt_id, gueltig_von, gueltig_bis,
+      berechnungs_menge: berechnungs_menge ?? null,
+      berechnungs_transaktions_ids: berechnungs_transaktions_ids ?? null,
+      berechnungs_alt_zeitraum_id: berechnungs_alt_zeitraum_id ?? null,
+      berechnungs_alt_restmenge: berechnungs_alt_restmenge ?? null,
+    })
     .select()
     .single()
 

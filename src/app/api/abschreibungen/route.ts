@@ -1,15 +1,8 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/supabase-server'
+import { ABSCHREIBUNG_MONATE, addMonthsWithClamp, roundTo2 } from '@/lib/abschreibung-utils'
 
 const PAGE_SIZE = 50
-
-// Abschreibungszeitraum → Anzahl Monatsraten
-const ABSCHREIBUNG_MONATE: Record<string, number> = {
-  '3_jahre': 36,
-  '5_jahre': 60,
-  '7_jahre': 84,
-  '10_jahre': 120,
-}
 
 interface AbschreibungsRate {
   datum: string          // YYYY-MM-DD, berechnetes Ratendatum
@@ -19,37 +12,6 @@ interface AbschreibungsRate {
   untergruppe_id: string | null
   beschreibung: string | null
   betrag: number
-}
-
-/**
- * Berechnet das Ratendatum für den gegebenen Monats-Offset ab dem Ursprungsdatum.
- * Monatsgrenzen-Clamp: Falls der Tag im Zielmonat nicht existiert (z.B. 31.01 → 28.02),
- * wird der letzte gültige Tag des Zielmonats verwendet.
- */
-function addMonthsWithClamp(ursprung: string, offset: number): string {
-  const [yStr, mStr, dStr] = ursprung.split('-')
-  const y = parseInt(yStr, 10)
-  const m = parseInt(mStr, 10) - 1 // 0-basiert
-  const d = parseInt(dStr, 10)
-
-  // Zielmonat berechnen (Jahr-Overflow wird von Date automatisch behandelt)
-  const zielJahr = y + Math.floor((m + offset) / 12)
-  const zielMonat = ((m + offset) % 12 + 12) % 12 // 0-basiert, immer positiv
-
-  // Letzter Tag des Zielmonats: new Date(y, m+1, 0) gibt letzten Tag von Monat m
-  const letzterTag = new Date(zielJahr, zielMonat + 1, 0).getDate()
-  const tag = Math.min(d, letzterTag)
-
-  const mm = String(zielMonat + 1).padStart(2, '0')
-  const dd = String(tag).padStart(2, '0')
-  return `${zielJahr}-${mm}-${dd}`
-}
-
-/**
- * Rundet kaufmännisch auf 2 Dezimalstellen.
- */
-function roundTo2(value: number): number {
-  return Math.round(value * 100) / 100
 }
 
 export async function GET(request: Request) {
