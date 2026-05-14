@@ -49,7 +49,8 @@
 
 | PROJ-29 | Liquiditätsreport | Approved | [PROJ-29-liquiditaetsreport.md](PROJ-29-liquiditaetsreport.md) | 2026-05-14 |
 | PROJ-30 | Abziehbare Vorsteuer | In Progress | [PROJ-30-abziehbare-vorsteuer.md](PROJ-30-abziehbare-vorsteuer.md) | 2026-05-14 |
+| PROJ-31 | Umsatzsteuer-Reporting | Architected | [PROJ-31-umsatzsteuer-reporting.md](PROJ-31-umsatzsteuer-reporting.md) | 2026-05-14 |
 
 <!-- Add features above this line -->
 
-## Next Available ID: PROJ-31
+## Next Available ID: PROJ-32
