@@ -2,7 +2,7 @@
 
 ## Status: In Progress
 **Created:** 2026-05-14
-**Last Updated:** 2026-05-14 (Frontend implementiert)
+**Last Updated:** 2026-05-14 (Backend implementiert)
 
 ## Dependencies
 - PROJ-3: Umsatz-Transaktionen (Datenquelle: `umsatz_transaktionen`)
@@ -294,6 +294,22 @@ Alle benötigten UI-Primitiven (Input, Tabs, Button, Table, Skeleton, Card) sind
 ### Build & Tests
 - `npm run build` ✅ — `/dashboard/reporting/umsatzsteuer` korrekt gebaut
 - `npm test` ✅ — 498/498 Tests grün
+
+## Implementation Notes (Backend — 2026-05-14)
+
+### Neue Dateien
+- `src/app/api/reporting/umsatzsteuer/route.ts` — GET-Handler: Zod-Validierung, 5 parallele Supabase-Abfragen (umsatzCats, ausgabenCats, produkteCats, umsatzRows, vsRows), EntityMap-Akkumulation, hierarchische Response
+- `src/app/api/reporting/umsatzsteuer/route.test.ts` — 15 Vitest-Tests: Validierung (400), USt-Berechnung 19%/7%, Abzugsposten-Negation, null ust_satz überspringen, Vorsteuer-Aggregation, fällige USt, negative fällige USt, Drill-Down (Gruppe/Untergruppe), Granularität (quartal/jahr), mehrere Produkte, DB-Fehler 500
+
+### Wichtige Implementierungsdetails
+- USt-Berechnung Brutto-Herausrechnung: `USt = Brutto × ust_satz / (100 + ust_satz)` (nicht Netto-Aufschlag — Brutto-Transaktionsdaten)
+- `ist_abzugsposten`-Logik: betrag wird negiert für Abzugsposten-Kategorien (z. B. Retouren)
+- Produkt-Placement: Produkte akkumulieren in `ustPrdInUgr`, `ustPrdInGrp`, oder `ustPrdInCat` je nach tiefster verfügbarer Hierarchieebene
+- `requireAuth()` ohne `user.id`: keine `report_positionen` (user_id nötig), RLS schützt alle anderen Tabellen
+
+### Build & Tests
+- `npm run build` ✅ — `/api/reporting/umsatzsteuer` und `/dashboard/reporting/umsatzsteuer` korrekt gebaut
+- `npm test` ✅ — 517/517 Tests grün (davon 15 neue Backend-Tests)
 
 ## QA Test Results
 _To be added by /qa_
