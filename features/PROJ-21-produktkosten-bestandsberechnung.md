@@ -1,6 +1,6 @@
 # PROJ-21: Produktkosten-Bestandsberechnung im Rentabilitätsreport
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-05-13
 **Last Updated:** 2026-05-13
 

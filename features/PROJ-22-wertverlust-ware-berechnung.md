@@ -1,6 +1,6 @@
 # PROJ-22: Wertverlust-Ware-Berechnung im Rentabilitätsreport
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-05-13
 **Last Updated:** 2026-05-13
 

@@ -1,6 +1,6 @@
 # PROJ-23: Manuelle-Sendungen-Berechnung im Rentabilitätsreport
 
-## Status: In Progress
+## Status: Deployed
 **Created:** 2026-05-13
 **Last Updated:** 2026-05-13
 

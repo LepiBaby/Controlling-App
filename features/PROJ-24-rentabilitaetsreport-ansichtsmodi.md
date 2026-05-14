@@ -1,6 +1,6 @@
 # PROJ-24: Rentabilitätsreport — Prozentuale & Wachstumsansicht
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-05-13
 **Last Updated:** 2026-05-13
 

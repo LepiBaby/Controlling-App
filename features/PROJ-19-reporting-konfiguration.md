@@ -1,6 +1,6 @@
 # PROJ-19: Reporting-Bereich & Rentabilitätsreporting-Modell-Konfiguration
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-05-13
 **Last Updated:** 2026-05-13
 
