@@ -1,8 +1,8 @@
 # PROJ-30: Abziehbare Vorsteuer
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-05-14
-**Last Updated:** 2026-05-14
+**Last Updated:** 2026-05-14 (Architected)
 
 ## Dependencies
 - PROJ-5: Ausgaben & Kosten-Transaktionen Eingabe (Datenquelle: `ausgaben_kosten_transaktionen` mit Feld `ust_betrag`)
@@ -71,7 +71,61 @@ Eine neue Auswertungsseite im Bereich **Auswertungen** mit dem Titel „Abziehba
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Komponentenstruktur
+
+```
+/dashboard/vorsteuer (Neue Seite)
+├── NavSheet (bestehend — Eintrag „Abziehbare Vorsteuer" unter Auswertungen ergänzen)
+├── Filter-Leiste
+│   ├── Von/Bis Datumsfelder (Input, bestehend)
+│   ├── Kategorie-Filter (MultiSelect, bestehend, Level-1-Kategorien)
+│   ├── Gruppe-Filter (MultiSelect, kaskadierend, nur bei 1 Kategorie)
+│   ├── Untergruppe-Filter (MultiSelect, kaskadierend, nur bei 1 Gruppe)
+│   └── „Filter zurücksetzen"-Button (bestehend)
+├── Fehlermeldung / Kein-KPI-Modell-Hinweis
+└── VorsteuerTable (NEU)
+    ├── Tabellenkopf (sortierbar: Leistungsdatum, Bruttobetrag)
+    ├── Tabellenzeilen (Leistungsdatum | Kategorie | Gruppe | Untergruppe | Brutto | Netto | USt-Satz | USt-Betrag)
+    ├── Leer-Zustand
+    ├── Lade-Zustand (Skeleton)
+    └── Paginierung (bestehend)
+```
+
+### Neue Dateien
+
+| Datei | Zweck |
+|-------|-------|
+| `src/app/api/vorsteuer/route.ts` | API-Endpunkt: liest `ausgaben_kosten_transaktionen` WHERE `ust_betrag > 0`, wendet Nutzerfilter an, paginiert |
+| `src/hooks/use-vorsteuer.ts` | Custom Hook: verwaltet Filter, Sortierung, Paginierung, ruft API auf |
+| `src/components/vorsteuer-table.tsx` | Tabellenkomponente mit Spalten: Leistungsdatum, Kategorie/Gruppe/Untergruppe, Brutto, Netto, USt-Satz, USt-Betrag |
+| `src/app/dashboard/vorsteuer/page.tsx` | Seite: kombiniert Filter-Leiste, VorsteuerTable und Hook |
+
+### Bestehende Dateien geändert
+
+| Datei | Änderung |
+|-------|----------|
+| `src/components/nav-sheet.tsx` | Eintrag `{ href: '/dashboard/vorsteuer', label: 'Abziehbare Vorsteuer' }` unter Auswertungen |
+
+### Datenpfad
+
+```
+VorsteuerPage → useVorsteuer (Hook)
+  → GET /api/vorsteuer?page=&von=&bis=&kategorie_ids=&gruppe_ids=&untergruppe_ids=
+    → Supabase: ausgaben_kosten_transaktionen
+        WHERE ust_betrag > 0          ← fester Filter
+        + Nutzerfilter (Datum, Kategorien)
+        + Sortierung + Paginierung (50/Seite)
+    ← { data: [...], total: Zahl }
+  ← transaktionen, loading, error, filter, setFilter, setSort, setPage
+→ VorsteuerTable (rendering)
+```
+
+### Technische Entscheidungen
+
+- **Eigener Endpunkt `/api/vorsteuer`**: Der bestehende Ausgaben-Endpunkt enthält CRUD-Logik. Reine Auswertungsrouten werden getrennt geführt — identisches Muster wie `/api/abschreibungen`.
+- **Blaupause: PROJ-12 Abschreibungen**: Gleiche Dateistruktur, gleiche Filter-Logik, nur andere DB-Query und Spalten.
+- **Keine neuen Abhängigkeiten**: Alle UI-Primitives (Input, MultiSelect, Button, Table, Pagination, Skeleton) bereits vorhanden.
 
 ## QA Test Results
 _To be added by /qa_

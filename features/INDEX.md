@@ -48,7 +48,7 @@
 | PROJ-28 | Break-Even-Report | Approved | [PROJ-28-break-even-report.md](PROJ-28-break-even-report.md) | 2026-05-14 |
 
 | PROJ-29 | Liquiditätsreport | Approved | [PROJ-29-liquiditaetsreport.md](PROJ-29-liquiditaetsreport.md) | 2026-05-14 |
-| PROJ-30 | Abziehbare Vorsteuer | Planned | [PROJ-30-abziehbare-vorsteuer.md](PROJ-30-abziehbare-vorsteuer.md) | 2026-05-14 |
+| PROJ-30 | Abziehbare Vorsteuer | Architected | [PROJ-30-abziehbare-vorsteuer.md](PROJ-30-abziehbare-vorsteuer.md) | 2026-05-14 |
 
 <!-- Add features above this line -->
 
