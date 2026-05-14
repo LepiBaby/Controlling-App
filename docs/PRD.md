@@ -37,6 +37,12 @@ Eine interne Controlling-Plattform für das Finanzreporting eines E-Commerce Unt
 | P1 | PROJ-22: Wertverlust-Ware-Berechnung im Rentabilitätsreport | Planned |
 | P1 | PROJ-23: Manuelle-Sendungen-Berechnung im Rentabilitätsreport | Planned |
 | P1 | PROJ-24: Rentabilitätsreport — Prozentuale & Wachstumsansicht | Planned |
+| P1 | PROJ-25: „Ohne Investitionen"-Filter im Rentabilitätsreport | Planned |
+| P1 | PROJ-26: Liniendiagramm im Rentabilitätsreport | Planned |
+| P1 | PROJ-27: Deckungsbeitragsreport | Planned |
+| P1 | PROJ-28: Break-Even-Report | Planned |
+| P1 | PROJ-29: Liquiditätsreport | Planned |
+| P1 | PROJ-30: Abziehbare Vorsteuer | Planned |
 
 ## Success Metrics
 - Alle Finanzdaten werden in einer zentralen Plattform erfasst (kein Excel-Chaos)

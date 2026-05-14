@@ -42,6 +42,14 @@
 
 | PROJ-24 | Rentabilitätsreport — Prozentuale & Wachstumsansicht | Deployed | [PROJ-24-rentabilitaetsreport-ansichtsmodi.md](PROJ-24-rentabilitaetsreport-ansichtsmodi.md) | 2026-05-13 |
 
+| PROJ-25 | „Ohne Investitionen"-Filter im Rentabilitätsreport | In Review | [PROJ-25-ohne-investitionen-filter.md](PROJ-25-ohne-investitionen-filter.md) | 2026-05-14 |
+| PROJ-26 | Liniendiagramm im Rentabilitätsreport | Approved | [PROJ-26-rentabilitaetsreport-liniendiagramm.md](PROJ-26-rentabilitaetsreport-liniendiagramm.md) | 2026-05-14 |
+| PROJ-27 | Deckungsbeitragsreport | Approved | [PROJ-27-deckungsbeitragsreport.md](PROJ-27-deckungsbeitragsreport.md) | 2026-05-14 |
+| PROJ-28 | Break-Even-Report | Approved | [PROJ-28-break-even-report.md](PROJ-28-break-even-report.md) | 2026-05-14 |
+
+| PROJ-29 | Liquiditätsreport | Approved | [PROJ-29-liquiditaetsreport.md](PROJ-29-liquiditaetsreport.md) | 2026-05-14 |
+| PROJ-30 | Abziehbare Vorsteuer | Planned | [PROJ-30-abziehbare-vorsteuer.md](PROJ-30-abziehbare-vorsteuer.md) | 2026-05-14 |
+
 <!-- Add features above this line -->
 
-## Next Available ID: PROJ-25
+## Next Available ID: PROJ-31
