@@ -4,6 +4,20 @@ import { useState, useEffect, useCallback } from 'react'
 
 export type ReportGranularitaet = 'monat' | 'quartal' | 'jahr'
 
+export interface UstPlattformProdukt {
+  id: string
+  name: string
+  ust_satz: number
+  values: Record<string, number>
+}
+
+export interface UstPlattform {
+  id: string
+  name: string
+  values: Record<string, number>
+  produkte: UstPlattformProdukt[]
+}
+
 export interface UstProdukt {
   id: string
   name: string
@@ -16,6 +30,7 @@ export interface UstUntergruppe {
   name: string
   values: Record<string, number>
   produkte: UstProdukt[]
+  plattformen: UstPlattform[]
 }
 
 export interface UstGruppe {
@@ -24,6 +39,7 @@ export interface UstGruppe {
   values: Record<string, number>
   untergruppen: UstUntergruppe[]
   produkte: UstProdukt[]
+  plattformen: UstPlattform[]
 }
 
 export interface UstKategorie {
@@ -32,12 +48,34 @@ export interface UstKategorie {
   values: Record<string, number>
   gruppen: UstGruppe[]
   produkte: UstProdukt[]
+  plattformen: UstPlattform[]
+}
+
+export interface VorsteuerProdukt {
+  id: string
+  name: string
+  values: Record<string, number>
+}
+
+export interface VorsteuerPlattformProdukt {
+  id: string
+  name: string
+  values: Record<string, number>
+}
+
+export interface VorsteuerPlattform {
+  id: string
+  name: string
+  values: Record<string, number>
+  produkte: VorsteuerPlattformProdukt[]
 }
 
 export interface VorsteuerUntergruppe {
   id: string
   name: string
   values: Record<string, number>
+  plattformen: VorsteuerPlattform[]
+  produkte: VorsteuerProdukt[]
 }
 
 export interface VorsteuerGruppe {
@@ -45,6 +83,8 @@ export interface VorsteuerGruppe {
   name: string
   values: Record<string, number>
   untergruppen: VorsteuerUntergruppe[]
+  plattformen: VorsteuerPlattform[]
+  produkte: VorsteuerProdukt[]
 }
 
 export interface VorsteuerKategorie {
@@ -52,6 +92,8 @@ export interface VorsteuerKategorie {
   name: string
   values: Record<string, number>
   gruppen: VorsteuerGruppe[]
+  plattformen: VorsteuerPlattform[]
+  produkte: VorsteuerProdukt[]
 }
 
 export interface ReportingUmsatzsteuerData {
@@ -67,13 +109,16 @@ export interface ReportingUmsatzsteuerData {
   faelligeUst: Record<string, number>
 }
 
-function getCurrentYear(): { von: string; bis: string } {
-  const year = new Date().getFullYear()
-  return { von: `${year}-01`, bis: `${year}-12` }
+function getLast12Months(): { von: string; bis: string } {
+  const now = new Date()
+  const bis = now.toISOString().slice(0, 7)
+  const vonDate = new Date(now.getFullYear(), now.getMonth() - 11, 1)
+  const von = vonDate.toISOString().slice(0, 7)
+  return { von, bis }
 }
 
 export function useReportingUmsatzsteuer() {
-  const { von: defaultVon, bis: defaultBis } = getCurrentYear()
+  const { von: defaultVon, bis: defaultBis } = getLast12Months()
   const [von, setVon] = useState(defaultVon)
   const [bis, setBis] = useState(defaultBis)
   const [granularitaet, setGranularitaet] = useState<ReportGranularitaet>('monat')

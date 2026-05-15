@@ -39,26 +39,29 @@ function chain(result: { data: unknown; error: unknown }) {
 }
 
 /**
- * 5 aufeinanderfolgende Mocks (Reihenfolge entspricht Promise.all in route.ts):
+ * 6 aufeinanderfolgende Mocks (Reihenfolge entspricht Promise.all in route.ts):
  *  1. kpi_categories (umsatz)
  *  2. kpi_categories (ausgaben_kosten)
  *  3. kpi_categories (produkte)
- *  4. umsatz_transaktionen
- *  5. ausgaben_kosten_transaktionen (vorsteuer)
+ *  4. kpi_categories (sales_plattformen)
+ *  5. umsatz_transaktionen
+ *  6. ausgaben_kosten_transaktionen (vorsteuer)
  */
 function setup(opts: {
-  umsatzCats?:   unknown[]
-  ausgabenCats?: unknown[]
-  produkteCats?: unknown[]
-  umsatz?:       unknown[]
-  vorsteuer?:    unknown[]
+  umsatzCats?:     unknown[]
+  ausgabenCats?:   unknown[]
+  produkteCats?:   unknown[]
+  plattformenCats?: unknown[]
+  umsatz?:         unknown[]
+  vorsteuer?:      unknown[]
 }) {
   mockFrom
-    .mockReturnValueOnce(chain({ data: opts.umsatzCats   ?? [], error: null }))
-    .mockReturnValueOnce(chain({ data: opts.ausgabenCats ?? [], error: null }))
-    .mockReturnValueOnce(chain({ data: opts.produkteCats ?? [], error: null }))
-    .mockReturnValueOnce(chain({ data: opts.umsatz       ?? [], error: null }))
-    .mockReturnValueOnce(chain({ data: opts.vorsteuer    ?? [], error: null }))
+    .mockReturnValueOnce(chain({ data: opts.umsatzCats      ?? [], error: null }))
+    .mockReturnValueOnce(chain({ data: opts.ausgabenCats    ?? [], error: null }))
+    .mockReturnValueOnce(chain({ data: opts.produkteCats    ?? [], error: null }))
+    .mockReturnValueOnce(chain({ data: opts.plattformenCats ?? [], error: null }))
+    .mockReturnValueOnce(chain({ data: opts.umsatz          ?? [], error: null }))
+    .mockReturnValueOnce(chain({ data: opts.vorsteuer       ?? [], error: null }))
 }
 
 const BASE_PARAMS = { von: '2026-01', bis: '2026-03', granularitaet: 'monat' }
@@ -327,6 +330,7 @@ describe('GET /api/reporting/umsatzsteuer', () => {
   it('gibt 500 zurück wenn eine DB-Abfrage fehlschlägt', async () => {
     mockFrom
       .mockReturnValueOnce(chain({ data: null, error: { message: 'DB connection error' } }))
+      .mockReturnValueOnce(chain({ data: [], error: null }))
       .mockReturnValueOnce(chain({ data: [], error: null }))
       .mockReturnValueOnce(chain({ data: [], error: null }))
       .mockReturnValueOnce(chain({ data: [], error: null }))

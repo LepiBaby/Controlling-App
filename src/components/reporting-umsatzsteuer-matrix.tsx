@@ -9,8 +9,11 @@ import type {
   UstKategorie,
   UstGruppe,
   UstUntergruppe,
+  UstPlattform,
   VorsteuerKategorie,
   VorsteuerGruppe,
+  VorsteuerUntergruppe,
+  VorsteuerPlattform,
 } from '@/hooks/use-reporting-umsatzsteuer'
 
 // ─── Formatierung ─────────────────────────────────────────────────────────────
@@ -35,8 +38,8 @@ function formatPeriode(periode: string): string {
 // ─── Flat Rows ────────────────────────────────────────────────────────────────
 
 type RowKind =
-  | 'ust-kat' | 'ust-grp' | 'ust-ugr' | 'ust-prd' | 'ust-summe'
-  | 'vs-kat'  | 'vs-grp'  | 'vs-ugr'  | 'vs-summe'
+  | 'ust-kat' | 'ust-grp' | 'ust-ugr' | 'ust-prd' | 'ust-plt' | 'ust-plt-prd' | 'ust-summe'
+  | 'vs-kat'  | 'vs-grp'  | 'vs-ugr'  | 'vs-prd'  | 'vs-plt'  | 'vs-plt-prd'  | 'vs-summe'
   | 'ergebnis'
 
 interface FlatRow {
@@ -49,6 +52,32 @@ interface FlatRow {
   expanded: boolean
 }
 
+// ─── USt Push-Funktionen ──────────────────────────────────────────────────────
+
+function pushUstPlattform(
+  rows: FlatRow[],
+  plt: UstPlattform,
+  parentRowId: string,
+  indent: number,
+  expandedIds: Set<string>,
+) {
+  const rowId = `ust-plt:${parentRowId}:${plt.id}`
+  const expandable = plt.produkte.length > 0
+  rows.push({ id: rowId, label: plt.name, indent, kind: 'ust-plt', values: plt.values, expandable, expanded: expandedIds.has(rowId) })
+  if (!expandable || !expandedIds.has(rowId)) return
+  for (const prd of plt.produkte) {
+    rows.push({
+      id: `ust-plt-prd:${rowId}:${prd.id}`,
+      label: `${prd.name} (${prd.ust_satz} %)`,
+      indent: indent + 1,
+      kind: 'ust-plt-prd',
+      values: prd.values,
+      expandable: false,
+      expanded: false,
+    })
+  }
+}
+
 function pushUstUntergruppe(
   rows: FlatRow[],
   ugr: UstUntergruppe,
@@ -56,7 +85,7 @@ function pushUstUntergruppe(
   expandedIds: Set<string>,
 ) {
   const rowId = `ust-ugr:${grpId}:${ugr.id}`
-  const expandable = ugr.produkte.length > 0
+  const expandable = ugr.produkte.length > 0 || ugr.plattformen.length > 0
   rows.push({ id: rowId, label: ugr.name, indent: 2, kind: 'ust-ugr', values: ugr.values, expandable, expanded: expandedIds.has(rowId) })
   if (!expandable || !expandedIds.has(rowId)) return
   for (const prd of ugr.produkte) {
@@ -70,6 +99,7 @@ function pushUstUntergruppe(
       expanded: false,
     })
   }
+  for (const plt of ugr.plattformen) pushUstPlattform(rows, plt, rowId, 3, expandedIds)
 }
 
 function pushUstGruppe(
@@ -79,7 +109,7 @@ function pushUstGruppe(
   expandedIds: Set<string>,
 ) {
   const rowId = `ust-grp:${katId}:${grp.id}`
-  const expandable = grp.untergruppen.length > 0 || grp.produkte.length > 0
+  const expandable = grp.untergruppen.length > 0 || grp.produkte.length > 0 || grp.plattformen.length > 0
   rows.push({ id: rowId, label: grp.name, indent: 1, kind: 'ust-grp', values: grp.values, expandable, expanded: expandedIds.has(rowId) })
   if (!expandable || !expandedIds.has(rowId)) return
   if (grp.untergruppen.length > 0) {
@@ -96,6 +126,7 @@ function pushUstGruppe(
         expanded: false,
       })
     }
+    for (const plt of grp.plattformen) pushUstPlattform(rows, plt, rowId, 2, expandedIds)
   }
 }
 
@@ -105,7 +136,7 @@ function pushUstKategorie(
   expandedIds: Set<string>,
 ) {
   const rowId = `ust-kat:${kat.id}`
-  const expandable = kat.gruppen.length > 0 || kat.produkte.length > 0
+  const expandable = kat.gruppen.length > 0 || kat.produkte.length > 0 || kat.plattformen.length > 0
   rows.push({ id: rowId, label: kat.name, indent: 0, kind: 'ust-kat', values: kat.values, expandable, expanded: expandedIds.has(rowId) })
   if (!expandable || !expandedIds.has(rowId)) return
   if (kat.gruppen.length > 0) {
@@ -122,7 +153,58 @@ function pushUstKategorie(
         expanded: false,
       })
     }
+    for (const plt of kat.plattformen) pushUstPlattform(rows, plt, rowId, 1, expandedIds)
   }
+}
+
+// ─── VS Push-Funktionen ───────────────────────────────────────────────────────
+
+function pushVsPlattform(
+  rows: FlatRow[],
+  plt: VorsteuerPlattform,
+  parentRowId: string,
+  indent: number,
+  expandedIds: Set<string>,
+) {
+  const rowId = `vs-plt:${parentRowId}:${plt.id}`
+  const expandable = plt.produkte.length > 0
+  rows.push({ id: rowId, label: plt.name, indent, kind: 'vs-plt', values: plt.values, expandable, expanded: expandedIds.has(rowId) })
+  if (!expandable || !expandedIds.has(rowId)) return
+  for (const prd of plt.produkte) {
+    rows.push({
+      id: `vs-plt-prd:${rowId}:${prd.id}`,
+      label: prd.name,
+      indent: indent + 1,
+      kind: 'vs-plt-prd',
+      values: prd.values,
+      expandable: false,
+      expanded: false,
+    })
+  }
+}
+
+function pushVsUntergruppe(
+  rows: FlatRow[],
+  ugr: VorsteuerUntergruppe,
+  grpId: string,
+  expandedIds: Set<string>,
+) {
+  const rowId = `vs-ugr:${grpId}:${ugr.id}`
+  const expandable = ugr.plattformen.length > 0 || ugr.produkte.length > 0
+  rows.push({ id: rowId, label: ugr.name, indent: 2, kind: 'vs-ugr', values: ugr.values, expandable, expanded: expandedIds.has(rowId) })
+  if (!expandable || !expandedIds.has(rowId)) return
+  for (const prd of ugr.produkte) {
+    rows.push({
+      id: `vs-prd:${rowId}:${prd.id}`,
+      label: prd.name,
+      indent: 3,
+      kind: 'vs-prd',
+      values: prd.values,
+      expandable: false,
+      expanded: false,
+    })
+  }
+  for (const plt of ugr.plattformen) pushVsPlattform(rows, plt, rowId, 3, expandedIds)
 }
 
 function pushVsGruppe(
@@ -132,19 +214,24 @@ function pushVsGruppe(
   expandedIds: Set<string>,
 ) {
   const rowId = `vs-grp:${katId}:${grp.id}`
-  const expandable = grp.untergruppen.length > 0
+  const expandable = grp.untergruppen.length > 0 || grp.plattformen.length > 0 || grp.produkte.length > 0
   rows.push({ id: rowId, label: grp.name, indent: 1, kind: 'vs-grp', values: grp.values, expandable, expanded: expandedIds.has(rowId) })
   if (!expandable || !expandedIds.has(rowId)) return
-  for (const ugr of grp.untergruppen) {
-    rows.push({
-      id: `vs-ugr:${grp.id}:${ugr.id}`,
-      label: ugr.name,
-      indent: 2,
-      kind: 'vs-ugr',
-      values: ugr.values,
-      expandable: false,
-      expanded: false,
-    })
+  if (grp.untergruppen.length > 0) {
+    for (const ugr of grp.untergruppen) pushVsUntergruppe(rows, ugr, grp.id, expandedIds)
+  } else {
+    for (const prd of grp.produkte) {
+      rows.push({
+        id: `vs-prd:${rowId}:${prd.id}`,
+        label: prd.name,
+        indent: 2,
+        kind: 'vs-prd',
+        values: prd.values,
+        expandable: false,
+        expanded: false,
+      })
+    }
+    for (const plt of grp.plattformen) pushVsPlattform(rows, plt, rowId, 2, expandedIds)
   }
 }
 
@@ -154,11 +241,28 @@ function pushVsKategorie(
   expandedIds: Set<string>,
 ) {
   const rowId = `vs-kat:${kat.id}`
-  const expandable = kat.gruppen.length > 0
+  const expandable = kat.gruppen.length > 0 || kat.plattformen.length > 0 || kat.produkte.length > 0
   rows.push({ id: rowId, label: kat.name, indent: 0, kind: 'vs-kat', values: kat.values, expandable, expanded: expandedIds.has(rowId) })
   if (!expandable || !expandedIds.has(rowId)) return
-  for (const grp of kat.gruppen) pushVsGruppe(rows, grp, kat.id, expandedIds)
+  if (kat.gruppen.length > 0) {
+    for (const grp of kat.gruppen) pushVsGruppe(rows, grp, kat.id, expandedIds)
+  } else {
+    for (const prd of kat.produkte) {
+      rows.push({
+        id: `vs-prd:${rowId}:${prd.id}`,
+        label: prd.name,
+        indent: 1,
+        kind: 'vs-prd',
+        values: prd.values,
+        expandable: false,
+        expanded: false,
+      })
+    }
+    for (const plt of kat.plattformen) pushVsPlattform(rows, plt, rowId, 1, expandedIds)
+  }
 }
+
+// ─── FlatRows aufbauen ────────────────────────────────────────────────────────
 
 function buildFlatRows(
   data: ReportingUmsatzsteuerData,
@@ -206,53 +310,108 @@ function buildFlatRows(
   return rows
 }
 
+// ─── Expandierbare IDs sammeln ────────────────────────────────────────────────
+
+function collectUstExpandableIds(
+  kat: UstKategorie,
+  ids: Set<string>,
+) {
+  const katRowId = `ust-kat:${kat.id}`
+  const katExpandable = kat.gruppen.length > 0 || kat.produkte.length > 0 || kat.plattformen.length > 0
+  if (!katExpandable) return
+  ids.add(katRowId)
+
+  for (const grp of kat.gruppen) {
+    const grpRowId = `ust-grp:${kat.id}:${grp.id}`
+    const grpExpandable = grp.untergruppen.length > 0 || grp.produkte.length > 0 || grp.plattformen.length > 0
+    if (!grpExpandable) continue
+    ids.add(grpRowId)
+
+    for (const ugr of grp.untergruppen) {
+      const ugrRowId = `ust-ugr:${grp.id}:${ugr.id}`
+      const ugrExpandable = ugr.produkte.length > 0 || ugr.plattformen.length > 0
+      if (!ugrExpandable) continue
+      ids.add(ugrRowId)
+      for (const plt of ugr.plattformen) {
+        if (plt.produkte.length > 0) ids.add(`ust-plt:${ugrRowId}:${plt.id}`)
+      }
+    }
+
+    // Plattformen direkt unter Gruppe (keine Untergruppen)
+    for (const plt of grp.plattformen) {
+      if (plt.produkte.length > 0) ids.add(`ust-plt:${grpRowId}:${plt.id}`)
+    }
+  }
+
+  // Plattformen direkt unter Kategorie (keine Gruppen)
+  for (const plt of kat.plattformen) {
+    if (plt.produkte.length > 0) ids.add(`ust-plt:${katRowId}:${plt.id}`)
+  }
+}
+
+function collectVsExpandableIds(
+  kat: VorsteuerKategorie,
+  ids: Set<string>,
+) {
+  const katRowId = `vs-kat:${kat.id}`
+  const katExpandable = kat.gruppen.length > 0 || kat.plattformen.length > 0 || kat.produkte.length > 0
+  if (!katExpandable) return
+  ids.add(katRowId)
+
+  for (const grp of kat.gruppen) {
+    const grpRowId = `vs-grp:${kat.id}:${grp.id}`
+    const grpExpandable = grp.untergruppen.length > 0 || grp.plattformen.length > 0 || grp.produkte.length > 0
+    if (!grpExpandable) continue
+    ids.add(grpRowId)
+
+    for (const ugr of grp.untergruppen) {
+      const ugrRowId = `vs-ugr:${grp.id}:${ugr.id}`
+      const ugrExpandable = ugr.plattformen.length > 0 || ugr.produkte.length > 0
+      if (!ugrExpandable) continue
+      ids.add(ugrRowId)
+      for (const plt of ugr.plattformen) {
+        if (plt.produkte.length > 0) ids.add(`vs-plt:${ugrRowId}:${plt.id}`)
+      }
+    }
+
+    for (const plt of grp.plattformen) {
+      if (plt.produkte.length > 0) ids.add(`vs-plt:${grpRowId}:${plt.id}`)
+    }
+  }
+
+  for (const plt of kat.plattformen) {
+    if (plt.produkte.length > 0) ids.add(`vs-plt:${katRowId}:${plt.id}`)
+  }
+}
+
 function collectAllExpandableIds(
   data: ReportingUmsatzsteuerData,
   visibleVsKategorien: VorsteuerKategorie[],
 ): Set<string> {
   const ids = new Set<string>()
-
-  for (const kat of data.abzufuehrendeUst.kategorien) {
-    const katExpandable = kat.gruppen.length > 0 || kat.produkte.length > 0
-    if (!katExpandable) continue
-    ids.add(`ust-kat:${kat.id}`)
-    for (const grp of kat.gruppen) {
-      const grpExpandable = grp.untergruppen.length > 0 || grp.produkte.length > 0
-      if (!grpExpandable) continue
-      ids.add(`ust-grp:${kat.id}:${grp.id}`)
-      for (const ugr of grp.untergruppen) {
-        if (ugr.produkte.length > 0) ids.add(`ust-ugr:${grp.id}:${ugr.id}`)
-      }
-    }
-  }
-
-  for (const kat of visibleVsKategorien) {
-    if (kat.gruppen.length === 0) continue
-    ids.add(`vs-kat:${kat.id}`)
-    for (const grp of kat.gruppen) {
-      if (grp.untergruppen.length > 0) ids.add(`vs-grp:${kat.id}:${grp.id}`)
-    }
-  }
-
+  for (const kat of data.abzufuehrendeUst.kategorien) collectUstExpandableIds(kat, ids)
+  for (const kat of visibleVsKategorien) collectVsExpandableIds(kat, ids)
   return ids
 }
 
 // ─── Styling ──────────────────────────────────────────────────────────────────
 
 function rowBgClass(kind: RowKind): string {
-  if (kind === 'ust-summe' || kind === 'vs-summe') return 'bg-muted'
-  if (kind === 'ergebnis') return 'bg-muted'
+  if (kind === 'ust-summe' || kind === 'vs-summe' || kind === 'ergebnis') return 'bg-muted'
   return ''
 }
 
 function stickyBgClass(kind: RowKind): string {
-  if (kind === 'ust-summe' || kind === 'vs-summe') return 'bg-muted'
-  if (kind === 'ergebnis') return 'bg-muted'
+  if (kind === 'ust-summe' || kind === 'vs-summe' || kind === 'ergebnis') return 'bg-muted'
   return 'bg-background'
 }
 
 function isSummaryRow(kind: RowKind): boolean {
   return kind === 'ust-summe' || kind === 'vs-summe' || kind === 'ergebnis'
+}
+
+function isLeafRow(kind: RowKind): boolean {
+  return kind === 'ust-prd' || kind === 'ust-plt-prd' || kind === 'vs-prd' || kind === 'vs-plt-prd'
 }
 
 function ustColorClass(value: number): string {
@@ -271,9 +430,18 @@ function ergebnisColorClass(value: number): string {
   return 'text-muted-foreground'
 }
 
+function valueColorClass(kind: RowKind, value: number): string {
+  const isUst = kind === 'ust-kat' || kind === 'ust-grp' || kind === 'ust-ugr' || kind === 'ust-prd' || kind === 'ust-plt' || kind === 'ust-plt-prd' || kind === 'ust-summe'
+  const isVs  = kind === 'vs-kat'  || kind === 'vs-grp'  || kind === 'vs-ugr'  || kind === 'vs-prd'  || kind === 'vs-plt'  || kind === 'vs-plt-prd'  || kind === 'vs-summe'
+  if (kind === 'ergebnis') return ergebnisColorClass(value)
+  if (isUst) return ustColorClass(value)
+  if (isVs)  return vsColorClass(value)
+  return value === 0 ? 'text-muted-foreground' : 'text-foreground'
+}
+
 // ─── Hidden-VS-Kategorien ─────────────────────────────────────────────────────
 
-const HIDDEN_VS_NAMES = new Set(['Finanzierung', 'Steuern'])
+const HIDDEN_VS_NAMES    = new Set(['Finanzierung', 'Steuern'])
 const PROMOTED_GROUP_NAMES = new Set(['Einfuhrumsatzsteuer'])
 
 // ─── Hauptkomponente ──────────────────────────────────────────────────────────
@@ -305,7 +473,11 @@ export function ReportingUmsatzsteuerMatrix({ data, loading, hasDateRange }: Pro
               name: ugr.name,
               values: ugr.values,
               untergruppen: [],
+              plattformen: ugr.plattformen,
+              produkte: ugr.produkte,
             })),
+            plattformen: grp.plattformen,
+            produkte: grp.produkte,
           })
         }
       }
@@ -424,7 +596,7 @@ export function ReportingUmsatzsteuerMatrix({ data, loading, hasDateRange }: Pro
             {rows.map((row, idx) => {
               const isSummary = isSummaryRow(row.kind)
               const isErgebnis = row.kind === 'ergebnis'
-              const isLeaf = row.kind === 'ust-prd'
+              const isLeaf = isLeafRow(row.kind)
 
               return (
                 <tr
@@ -476,12 +648,7 @@ export function ReportingUmsatzsteuerMatrix({ data, loading, hasDateRange }: Pro
                   {/* Wert-Zellen */}
                   {perioden.map(p => {
                     const value = row.values[p] ?? 0
-                    const isUst = row.kind === 'ust-kat' || row.kind === 'ust-grp' || row.kind === 'ust-ugr' || row.kind === 'ust-prd' || row.kind === 'ust-summe'
-                    const isVs  = row.kind === 'vs-kat'  || row.kind === 'vs-grp'  || row.kind === 'vs-ugr'  || row.kind === 'vs-summe'
-                    const colorClass = isErgebnis ? ergebnisColorClass(value)
-                      : isUst ? ustColorClass(value)
-                      : isVs  ? vsColorClass(value)
-                      : value === 0 ? 'text-muted-foreground' : 'text-foreground'
+                    const colorClass = valueColorClass(row.kind, value)
                     return (
                       <td
                         key={p}
