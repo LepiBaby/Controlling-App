@@ -43,6 +43,9 @@ Eine interne Controlling-Plattform für das Finanzreporting eines E-Commerce Unt
 | P1 | PROJ-28: Break-Even-Report | Planned |
 | P1 | PROJ-29: Liquiditätsreport | Planned |
 | P1 | PROJ-30: Abziehbare Vorsteuer | Planned |
+| P1 | PROJ-32: Vermögenswerte-Verwaltung | Planned |
+| P1 | PROJ-33: Absatztabelle in Rentabilitäts- und Deckungsbeitragsreport | Planned |
+| P1 | PROJ-34: Vermögensreport | Planned |
 
 ## Success Metrics
 - Alle Finanzdaten werden in einer zentralen Plattform erfasst (kein Excel-Chaos)
