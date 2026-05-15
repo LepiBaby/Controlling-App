@@ -1,8 +1,26 @@
 # PROJ-34: Vermögensreport
 
-## Status: Planned
+## Status: In Progress
 **Created:** 2026-05-15
 **Last Updated:** 2026-05-15
+
+## Implementation Notes (Frontend + Backend)
+
+### Implementierte Dateien
+
+| Datei | Status |
+|-------|--------|
+| `src/hooks/use-reporting-vermoegen.ts` | Neu — Hook mit Typen (VermoegenKPIs, ReportingVermoegenData), einmaliger Fetch beim Mount |
+| `src/app/api/reporting/vermoegen/route.ts` | Neu — GET Handler: Auth, 6 parallele Queries (Snapshots + Nested, Produkte, SKUs, Bestand, PK-Zeiträume, PK-Werte), alle KPI-Formeln serverseitig |
+| `src/app/api/reporting/vermoegen/route.test.ts` | Neu — 9 Vitest Unit-Tests (alle grün) |
+| `src/components/reporting-vermoegen-waren.tsx` | Neu — Tab 1: 5 KPI-Kacheln + Warenkapital-Entwicklung + Warenbindungsquote-Diagramm |
+| `src/components/reporting-vermoegen-liquiditaet.tsx` | Neu — Tab 2: Working Capital + 3 Liquiditätsgrade mit Ampel-Badge + 2 Recharts-Diagramme mit Referenzlinien |
+| `src/components/reporting-vermoegen-bilanzkennzahlen.tsx` | Neu — Tab 3: 6 KPI-Kacheln, EK/FK-Progress-Bar, Vermögensentwicklung + EK-Quote-Diagramm |
+| `src/app/dashboard/reporting/vermoegen/page.tsx` | Neu — Hauptseite mit NavSheet, Header mit Stand-Datum, Loading/Error/Empty States, 3 Tabs |
+| `src/components/nav-sheet.tsx` | Geändert — Eintrag „Vermögensbericht" in Reporting-Gruppe hinzugefügt |
+
+### Tabellennamen (Hinweis: Schreibfehler in DB)
+Die tatsächlichen Tabellennamen haben „warte" statt „werte": `vermoegenswarte_snapshots`, `vermoegenswarte_lagerwerte`, `vermoegenswarte_transitwerte`, `vermoegenswarte_forderungen` (konsistent mit PROJ-32 Implementierung).
 
 ## Dependencies
 - Requires: PROJ-1 (Authentifizierung) — nur eingeloggte Nutzer

@@ -21,6 +21,7 @@ const NAV_GROUPS = [
       { href: '/dashboard/ausgaben', label: 'Ausgaben & Kosten' },
       { href: '/dashboard/produktkosten', label: 'Produktkosten' },
       { href: '/dashboard/bestandsverwaltung', label: 'Bestandsverwaltung' },
+      { href: '/dashboard/vermoegenswerte', label: 'Vermögenswerte' },
     ],
   },
   {
@@ -41,6 +42,7 @@ const NAV_GROUPS = [
       { href: '/dashboard/reporting/break-even', label: 'Break-Even-Report' },
       { href: '/dashboard/reporting/liquiditaet', label: 'Liquiditätsreport' },
       { href: '/dashboard/reporting/umsatzsteuer', label: 'Umsatzsteuer-Report' },
+      { href: '/dashboard/reporting/vermoegen', label: 'Vermögensbericht' },
     ],
   },
 ]

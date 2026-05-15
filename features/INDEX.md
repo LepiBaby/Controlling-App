@@ -52,8 +52,8 @@
 | PROJ-31 | Umsatzsteuer-Reporting | Approved | [PROJ-31-umsatzsteuer-reporting.md](PROJ-31-umsatzsteuer-reporting.md) | 2026-05-14 |
 
 | PROJ-32 | Vermögenswerte-Verwaltung | Approved | [PROJ-32-vermoegenswerte.md](PROJ-32-vermoegenswerte.md) | 2026-05-15 |
-| PROJ-33 | Absatztabelle in Rentabilitäts- und Deckungsbeitragsreport | In Review | [PROJ-33-absatztabelle-in-reports.md](PROJ-33-absatztabelle-in-reports.md) | 2026-05-15 |
-| PROJ-34 | Vermögensreport | Architected | [PROJ-34-vermoegensreport.md](PROJ-34-vermoegensreport.md) | 2026-05-15 |
+| PROJ-33 | Absatztabelle in Rentabilitäts- und Deckungsbeitragsreport | Approved | [PROJ-33-absatztabelle-in-reports.md](PROJ-33-absatztabelle-in-reports.md) | 2026-05-15 |
+| PROJ-34 | Vermögensreport | In Progress | [PROJ-34-vermoegensreport.md](PROJ-34-vermoegensreport.md) | 2026-05-15 |
 
 <!-- Add features above this line -->
 
