@@ -166,14 +166,10 @@ export async function GET(request: Request) {
   const ustCatVals: EntityMap = new Map()
   const ustGrpVals: EntityMap = new Map()
   const ustUgrVals: EntityMap = new Map()
-  // Direkte Produkte (ohne Plattform): key = "${levelId}:${prdId}"
-  const ustPrdInUgr: EntityMap = new Map()
-  const ustPrdInGrp: EntityMap = new Map()
-  const ustPrdInCat: EntityMap = new Map()
-  // Plattformen: key = "${levelId}:${pltId}"
-  const ustPltVals:    EntityMap = new Map()
-  // Produkte unter Plattform: key = "${levelId}:${pltId}:${prdId}"
-  const ustPltPrdVals: EntityMap = new Map()
+  // Direkte Produkte/Plattformen am tiefsten gesetzten Level: key = "${directLevelId}:..."
+  const ustPrdDirect:    EntityMap = new Map()
+  const ustPltDirect:    EntityMap = new Map()
+  const ustPltPrdDirect: EntityMap = new Map()
 
   for (const row of umsatzRows ?? []) {
     if (!row.leistungsdatum || !row.kategorie_id || !row.produkt_id) continue
@@ -190,20 +186,12 @@ export async function GET(request: Request) {
     if (row.gruppe_id)      addTo(ustGrpVals, row.gruppe_id, period, ust)
     if (row.untergruppe_id) addTo(ustUgrVals, row.untergruppe_id, period, ust)
 
+    const directLevelId = row.untergruppe_id ?? row.gruppe_id ?? row.kategorie_id
     if (row.sales_plattform_id) {
-      for (const levelId of [row.kategorie_id, row.gruppe_id, row.untergruppe_id]) {
-        if (!levelId) continue
-        addTo(ustPltVals, `${levelId}:${row.sales_plattform_id}`, period, ust)
-        addTo(ustPltPrdVals, `${levelId}:${row.sales_plattform_id}:${row.produkt_id}`, period, ust)
-      }
+      addTo(ustPltDirect, `${directLevelId}:${row.sales_plattform_id}`, period, ust)
+      addTo(ustPltPrdDirect, `${directLevelId}:${row.sales_plattform_id}:${row.produkt_id}`, period, ust)
     } else {
-      if (row.untergruppe_id) {
-        addTo(ustPrdInUgr, `${row.untergruppe_id}:${row.produkt_id}`, period, ust)
-      } else if (row.gruppe_id) {
-        addTo(ustPrdInGrp, `${row.gruppe_id}:${row.produkt_id}`, period, ust)
-      } else {
-        addTo(ustPrdInCat, `${row.kategorie_id}:${row.produkt_id}`, period, ust)
-      }
+      addTo(ustPrdDirect, `${directLevelId}:${row.produkt_id}`, period, ust)
     }
   }
 
@@ -212,13 +200,10 @@ export async function GET(request: Request) {
   const vsCatVals: EntityMap = new Map()
   const vsGrpVals: EntityMap = new Map()
   const vsUgrVals: EntityMap = new Map()
-  // Direkte Produkte (ohne Plattform)
-  const vsPrdInUgr: EntityMap = new Map()
-  const vsPrdInGrp: EntityMap = new Map()
-  const vsPrdInCat: EntityMap = new Map()
-  // Plattformen
-  const vsPltVals:    EntityMap = new Map()
-  const vsPltPrdVals: EntityMap = new Map()
+  // Direkte Produkte/Plattformen am tiefsten gesetzten Level: key = "${directLevelId}:..."
+  const vsPrdDirect:    EntityMap = new Map()
+  const vsPltDirect:    EntityMap = new Map()
+  const vsPltPrdDirect: EntityMap = new Map()
 
   for (const row of vsRows ?? []) {
     if (!row.leistungsdatum || !row.kategorie_id || !row.ust_betrag) continue
@@ -229,55 +214,47 @@ export async function GET(request: Request) {
     if (row.gruppe_id)      addTo(vsGrpVals, row.gruppe_id, period, betrag)
     if (row.untergruppe_id) addTo(vsUgrVals, row.untergruppe_id, period, betrag)
 
+    const directLevelId = row.untergruppe_id ?? row.gruppe_id ?? row.kategorie_id
     if (row.sales_plattform_id) {
-      for (const levelId of [row.kategorie_id, row.gruppe_id, row.untergruppe_id]) {
-        if (!levelId) continue
-        addTo(vsPltVals, `${levelId}:${row.sales_plattform_id}`, period, betrag)
-        if (row.produkt_id) addTo(vsPltPrdVals, `${levelId}:${row.sales_plattform_id}:${row.produkt_id}`, period, betrag)
-      }
+      addTo(vsPltDirect, `${directLevelId}:${row.sales_plattform_id}`, period, betrag)
+      if (row.produkt_id) addTo(vsPltPrdDirect, `${directLevelId}:${row.sales_plattform_id}:${row.produkt_id}`, period, betrag)
     } else if (row.produkt_id) {
-      if (row.untergruppe_id) {
-        addTo(vsPrdInUgr, `${row.untergruppe_id}:${row.produkt_id}`, period, betrag)
-      } else if (row.gruppe_id) {
-        addTo(vsPrdInGrp, `${row.gruppe_id}:${row.produkt_id}`, period, betrag)
-      } else {
-        addTo(vsPrdInCat, `${row.kategorie_id}:${row.produkt_id}`, period, betrag)
-      }
+      addTo(vsPrdDirect, `${directLevelId}:${row.produkt_id}`, period, betrag)
     }
   }
 
   // ── 5. Response aufbauen ──────────────────────────────────────────────────
 
   // Direkte Produkte (USt) für einen KPI-Knoten sammeln
-  function collectUstPrd(parentKey: string, prdMap: EntityMap) {
+  function collectUstPrd(parentKey: string) {
     const prefix = `${parentKey}:`
     const seen   = new Set<string>()
     const result: { id: string; name: string; ust_satz: number; values: Record<string, number> }[] = []
-    for (const key of prdMap.keys()) {
+    for (const key of ustPrdDirect.keys()) {
       if (!key.startsWith(prefix)) continue
       const prdId = key.slice(prefix.length)
       if (seen.has(prdId)) continue
       seen.add(prdId)
       const prd = produktById.get(prdId)
       if (!prd) continue
-      result.push({ id: prdId, name: prd.name, ust_satz: Number(prd.ust_satz), values: getValues(prdMap, key, perioden) })
+      result.push({ id: prdId, name: prd.name, ust_satz: Number(prd.ust_satz), values: getValues(ustPrdDirect, key, perioden) })
     }
     return result
   }
 
   // Direkte Produkte (VS) für einen KPI-Knoten sammeln
-  function collectVsPrd(parentKey: string, prdMap: EntityMap) {
+  function collectVsPrd(parentKey: string) {
     const prefix = `${parentKey}:`
     const seen   = new Set<string>()
     const result: { id: string; name: string; values: Record<string, number> }[] = []
-    for (const key of prdMap.keys()) {
+    for (const key of vsPrdDirect.keys()) {
       if (!key.startsWith(prefix)) continue
       const prdId = key.slice(prefix.length)
       if (seen.has(prdId)) continue
       seen.add(prdId)
       const prd = produktById.get(prdId)
       if (!prd) continue
-      result.push({ id: prdId, name: prd.name, values: getValues(prdMap, key, perioden) })
+      result.push({ id: prdId, name: prd.name, values: getValues(vsPrdDirect, key, perioden) })
     }
     return result
   }
@@ -287,7 +264,7 @@ export async function GET(request: Request) {
     const prefix  = `${parentId}:`
     const seenPlt = new Set<string>()
     const results: { id: string; name: string; values: Record<string, number>; produkte: { id: string; name: string; ust_satz: number; values: Record<string, number> }[] }[] = []
-    for (const key of ustPltVals.keys()) {
+    for (const key of ustPltDirect.keys()) {
       if (!key.startsWith(prefix)) continue
       const pltId = key.slice(prefix.length)
       if (seenPlt.has(pltId)) continue
@@ -297,16 +274,16 @@ export async function GET(request: Request) {
       const prdPrefix = `${parentId}:${pltId}:`
       const seenPrd   = new Set<string>()
       const produkte: { id: string; name: string; ust_satz: number; values: Record<string, number> }[] = []
-      for (const prdKey of ustPltPrdVals.keys()) {
+      for (const prdKey of ustPltPrdDirect.keys()) {
         if (!prdKey.startsWith(prdPrefix)) continue
         const prdId = prdKey.slice(prdPrefix.length)
         if (seenPrd.has(prdId)) continue
         seenPrd.add(prdId)
         const prd = produktById.get(prdId)
         if (!prd) continue
-        produkte.push({ id: prdId, name: prd.name, ust_satz: Number(prd.ust_satz ?? 0), values: getValues(ustPltPrdVals, prdKey, perioden) })
+        produkte.push({ id: prdId, name: prd.name, ust_satz: Number(prd.ust_satz ?? 0), values: getValues(ustPltPrdDirect, prdKey, perioden) })
       }
-      results.push({ id: pltId, name: plt.name, values: getValues(ustPltVals, key, perioden), produkte })
+      results.push({ id: pltId, name: plt.name, values: getValues(ustPltDirect, key, perioden), produkte })
     }
     return results
   }
@@ -316,7 +293,7 @@ export async function GET(request: Request) {
     const prefix  = `${parentId}:`
     const seenPlt = new Set<string>()
     const results: { id: string; name: string; values: Record<string, number>; produkte: { id: string; name: string; values: Record<string, number> }[] }[] = []
-    for (const key of vsPltVals.keys()) {
+    for (const key of vsPltDirect.keys()) {
       if (!key.startsWith(prefix)) continue
       const pltId = key.slice(prefix.length)
       if (seenPlt.has(pltId)) continue
@@ -326,16 +303,16 @@ export async function GET(request: Request) {
       const prdPrefix = `${parentId}:${pltId}:`
       const seenPrd   = new Set<string>()
       const produkte: { id: string; name: string; values: Record<string, number> }[] = []
-      for (const prdKey of vsPltPrdVals.keys()) {
+      for (const prdKey of vsPltPrdDirect.keys()) {
         if (!prdKey.startsWith(prdPrefix)) continue
         const prdId = prdKey.slice(prdPrefix.length)
         if (seenPrd.has(prdId)) continue
         seenPrd.add(prdId)
         const prd = produktById.get(prdId)
         if (!prd) continue
-        produkte.push({ id: prdId, name: prd.name, values: getValues(vsPltPrdVals, prdKey, perioden) })
+        produkte.push({ id: prdId, name: prd.name, values: getValues(vsPltPrdDirect, prdKey, perioden) })
       }
-      results.push({ id: pltId, name: plt.name, values: getValues(vsPltVals, key, perioden), produkte })
+      results.push({ id: pltId, name: plt.name, values: getValues(vsPltDirect, key, perioden), produkte })
     }
     return results
   }
@@ -349,7 +326,7 @@ export async function GET(request: Request) {
       id: ugrId,
       name: ugr.name,
       values: getValues(ustUgrVals, ugrId, perioden),
-      produkte: collectUstPrd(ugrId, ustPrdInUgr),
+      produkte: collectUstPrd(ugrId),
       plattformen: buildUstPlattformen(ugrId),
     }
   }
@@ -361,14 +338,13 @@ export async function GET(request: Request) {
       .filter(id => umsatzCatById.get(id)?.level === 3)
       .map(buildUstUntergruppe)
       .filter((x): x is NonNullable<typeof x> => x !== null)
-    const hasLeaf = untergruppen.length === 0
     return {
       id: grpId,
       name: grp.name,
       values: getValues(ustGrpVals, grpId, perioden),
       untergruppen,
-      produkte:    hasLeaf ? collectUstPrd(grpId, ustPrdInGrp) : [],
-      plattformen: hasLeaf ? buildUstPlattformen(grpId) : [],
+      produkte:    collectUstPrd(grpId),
+      plattformen: buildUstPlattformen(grpId),
     }
   }
 
@@ -379,14 +355,13 @@ export async function GET(request: Request) {
       .filter(id => umsatzCatById.get(id)?.level === 2)
       .map(buildUstGruppe)
       .filter((x): x is NonNullable<typeof x> => x !== null)
-    const hasLeaf = gruppen.length === 0
     return {
       id: katId,
       name: kat.name,
       values: getValues(ustCatVals, katId, perioden),
       gruppen,
-      produkte:    hasLeaf ? collectUstPrd(katId, ustPrdInCat) : [],
-      plattformen: hasLeaf ? buildUstPlattformen(katId) : [],
+      produkte:    collectUstPrd(katId),
+      plattformen: buildUstPlattformen(katId),
     }
   }
 
@@ -400,7 +375,7 @@ export async function GET(request: Request) {
       name: ugr.name,
       values: getValues(vsUgrVals, ugrId, perioden),
       plattformen: buildVsPlattformen(ugrId),
-      produkte: collectVsPrd(ugrId, vsPrdInUgr),
+      produkte: collectVsPrd(ugrId),
     }
   }
 
@@ -411,14 +386,13 @@ export async function GET(request: Request) {
       .filter(id => ausgabenCatById.get(id)?.level === 3)
       .map(buildVsUntergruppe)
       .filter((x): x is NonNullable<typeof x> => x !== null)
-    const hasLeaf = untergruppen.length === 0
     return {
       id: grpId,
       name: grp.name,
       values: getValues(vsGrpVals, grpId, perioden),
       untergruppen,
-      plattformen: hasLeaf ? buildVsPlattformen(grpId) : [],
-      produkte:    hasLeaf ? collectVsPrd(grpId, vsPrdInGrp) : [],
+      plattformen: buildVsPlattformen(grpId),
+      produkte:    collectVsPrd(grpId),
     }
   }
 
@@ -429,14 +403,13 @@ export async function GET(request: Request) {
       .filter(id => ausgabenCatById.get(id)?.level === 2)
       .map(buildVsGruppe)
       .filter((x): x is NonNullable<typeof x> => x !== null)
-    const hasLeaf = gruppen.length === 0
     return {
       id: katId,
       name: kat.name,
       values: getValues(vsCatVals, katId, perioden),
       gruppen,
-      plattformen: hasLeaf ? buildVsPlattformen(katId) : [],
-      produkte:    hasLeaf ? collectVsPrd(katId, vsPrdInCat) : [],
+      plattformen: buildVsPlattformen(katId),
+      produkte:    collectVsPrd(katId),
     }
   }
 

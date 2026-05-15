@@ -23,9 +23,11 @@ const GRP_UMSATZ_ID  = 'aaaa0000-0000-0000-0000-000000000002'
 const UGR_UMSATZ_ID  = 'aaaa0000-0000-0000-0000-000000000003'
 const KAT_KOSTEN_ID  = 'bbbb0000-0000-0000-0000-000000000001'
 const GRP_KOSTEN_ID  = 'bbbb0000-0000-0000-0000-000000000002'
+const UGR_KOSTEN_ID  = 'bbbb0000-0000-0000-0000-000000000003'
 const PRODUKT_ID_A   = 'cccc0000-0000-0000-0000-000000000001'  // 19 % USt
 const PRODUKT_ID_B   = 'cccc0000-0000-0000-0000-000000000002'  // 7 % USt
 const PRODUKT_ID_C   = 'cccc0000-0000-0000-0000-000000000003'  // kein ust_satz
+const PLATTFORM_ID_A = 'dddd0000-0000-0000-0000-000000000001'
 
 // ─── Mock-Builder ─────────────────────────────────────────────────────────────
 
@@ -339,6 +341,136 @@ describe('GET /api/reporting/umsatzsteuer', () => {
     expect(res.status).toBe(500)
     const body = await res.json()
     expect(body.error).toBe('DB connection error')
+  })
+
+  it('zeigt Plattform-Drill-Down auf Untergruppen-Ebene (sales_plattform_id gesetzt)', async () => {
+    setup({
+      umsatzCats: [
+        { id: KAT_UMSATZ_ID, name: 'Shop',   level: 1, parent_id: null,          sort_order: 1, ist_abzugsposten: false },
+        { id: GRP_UMSATZ_ID, name: 'Online',  level: 2, parent_id: KAT_UMSATZ_ID, sort_order: 1, ist_abzugsposten: false },
+        { id: UGR_UMSATZ_ID, name: 'Sommer',  level: 3, parent_id: GRP_UMSATZ_ID, sort_order: 1, ist_abzugsposten: false },
+      ],
+      ausgabenCats: [],
+      produkteCats:    [{ id: PRODUKT_ID_A, name: 'Produkt A', ust_satz: 19 }],
+      plattformenCats: [{ id: PLATTFORM_ID_A, name: 'Amazon' }],
+      umsatz: [
+        {
+          leistungsdatum: '2026-01-10', betrag: 200,
+          kategorie_id: KAT_UMSATZ_ID, gruppe_id: GRP_UMSATZ_ID, untergruppe_id: UGR_UMSATZ_ID,
+          sales_plattform_id: PLATTFORM_ID_A, produkt_id: PRODUKT_ID_A,
+        },
+      ],
+      vorsteuer: [],
+    })
+    const res = await GET(req(BASE_PARAMS))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    const ugr = body.abzufuehrendeUst.kategorien[0].gruppen[0].untergruppen[0]
+    // USt = 200 × 19/100 = 38.00
+    expect(ugr.values['2026-01']).toBe(38)
+    expect(ugr.plattformen).toHaveLength(1)
+    expect(ugr.plattformen[0].name).toBe('Amazon')
+    expect(ugr.plattformen[0].values['2026-01']).toBe(38)
+    expect(ugr.plattformen[0].produkte[0].name).toBe('Produkt A')
+    expect(ugr.plattformen[0].produkte[0].values['2026-01']).toBe(38)
+  })
+
+  it('zeigt Plattform-Drill-Down auf Gruppen-Ebene wenn KPI-Modell Untergruppen hat, Transaktion aber keine untergruppe_id setzt', async () => {
+    // Kernfall des Bugs: KPI-Modell hat Untergruppen, Transaktion hat aber nur gruppe_id
+    // Vorher: Plattform unsichtbar (hasLeaf=false). Jetzt: Plattform unter Gruppe sichtbar.
+    setup({
+      umsatzCats: [
+        { id: KAT_UMSATZ_ID, name: 'Shop',   level: 1, parent_id: null,          sort_order: 1, ist_abzugsposten: false },
+        { id: GRP_UMSATZ_ID, name: 'Online',  level: 2, parent_id: KAT_UMSATZ_ID, sort_order: 1, ist_abzugsposten: false },
+        { id: UGR_UMSATZ_ID, name: 'Sommer',  level: 3, parent_id: GRP_UMSATZ_ID, sort_order: 1, ist_abzugsposten: false },
+      ],
+      ausgabenCats: [],
+      produkteCats:    [{ id: PRODUKT_ID_A, name: 'Produkt A', ust_satz: 19 }],
+      plattformenCats: [{ id: PLATTFORM_ID_A, name: 'Amazon' }],
+      umsatz: [
+        {
+          leistungsdatum: '2026-01-10', betrag: 100,
+          kategorie_id: KAT_UMSATZ_ID, gruppe_id: GRP_UMSATZ_ID, untergruppe_id: null,
+          sales_plattform_id: PLATTFORM_ID_A, produkt_id: PRODUKT_ID_A,
+        },
+      ],
+      vorsteuer: [],
+    })
+    const res = await GET(req(BASE_PARAMS))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    const grp = body.abzufuehrendeUst.kategorien[0].gruppen[0]
+    // USt = 100 × 19/100 = 19.00
+    expect(grp.values['2026-01']).toBe(19)
+    // Plattform muss unter Gruppe erscheinen (nicht unter Untergruppe — Transaktion hat keine)
+    expect(grp.plattformen).toHaveLength(1)
+    expect(grp.plattformen[0].name).toBe('Amazon')
+    expect(grp.plattformen[0].values['2026-01']).toBe(19)
+    // Untergruppe bleibt leer (keine Transaktion)
+    expect(grp.untergruppen[0].plattformen).toHaveLength(0)
+  })
+
+  it('zeigt Vorsteuer-Plattform-Drill-Down auf Gruppen-Ebene wenn KPI-Modell Untergruppen hat', async () => {
+    setup({
+      umsatzCats:   [],
+      ausgabenCats: [
+        { id: KAT_KOSTEN_ID, name: 'Kosten',   level: 1, parent_id: null,          sort_order: 1 },
+        { id: GRP_KOSTEN_ID, name: 'Gruppe',   level: 2, parent_id: KAT_KOSTEN_ID, sort_order: 1 },
+        { id: UGR_KOSTEN_ID, name: 'Untergrp', level: 3, parent_id: GRP_KOSTEN_ID, sort_order: 1 },
+      ],
+      produkteCats:    [{ id: PRODUKT_ID_A, name: 'Produkt A', ust_satz: 19 }],
+      plattformenCats: [{ id: PLATTFORM_ID_A, name: 'Amazon' }],
+      umsatz: [],
+      vorsteuer: [
+        {
+          leistungsdatum: '2026-02-10', ust_betrag: 50,
+          kategorie_id: KAT_KOSTEN_ID, gruppe_id: GRP_KOSTEN_ID, untergruppe_id: null,
+          sales_plattform_id: PLATTFORM_ID_A, produkt_id: null,
+        },
+      ],
+    })
+    const res = await GET(req(BASE_PARAMS))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    const grp = body.abziehbareVorsteuer.kategorien[0].gruppen[0]
+    expect(grp.values['2026-02']).toBe(50)
+    expect(grp.plattformen).toHaveLength(1)
+    expect(grp.plattformen[0].name).toBe('Amazon')
+    expect(grp.plattformen[0].values['2026-02']).toBe(50)
+    // Untergruppe bleibt leer
+    expect(grp.untergruppen[0].plattformen).toHaveLength(0)
+  })
+
+  it('zeigt Produkt-Drill-Down ohne Plattform auf Gruppen-Ebene wenn KPI-Modell Untergruppen hat', async () => {
+    setup({
+      umsatzCats: [
+        { id: KAT_UMSATZ_ID, name: 'Shop',  level: 1, parent_id: null,          sort_order: 1, ist_abzugsposten: false },
+        { id: GRP_UMSATZ_ID, name: 'Online', level: 2, parent_id: KAT_UMSATZ_ID, sort_order: 1, ist_abzugsposten: false },
+        { id: UGR_UMSATZ_ID, name: 'Sommer', level: 3, parent_id: GRP_UMSATZ_ID, sort_order: 1, ist_abzugsposten: false },
+      ],
+      ausgabenCats: [],
+      produkteCats:    [{ id: PRODUKT_ID_A, name: 'Produkt A', ust_satz: 19 }],
+      plattformenCats: [],
+      umsatz: [
+        {
+          leistungsdatum: '2026-01-20', betrag: 200,
+          kategorie_id: KAT_UMSATZ_ID, gruppe_id: GRP_UMSATZ_ID, untergruppe_id: null,
+          sales_plattform_id: null, produkt_id: PRODUKT_ID_A,
+        },
+      ],
+      vorsteuer: [],
+    })
+    const res = await GET(req(BASE_PARAMS))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    const grp = body.abzufuehrendeUst.kategorien[0].gruppen[0]
+    // USt = 200 × 19/100 = 38.00
+    expect(grp.values['2026-01']).toBe(38)
+    expect(grp.produkte).toHaveLength(1)
+    expect(grp.produkte[0].name).toBe('Produkt A')
+    expect(grp.produkte[0].values['2026-01']).toBe(38)
+    // Untergruppe bleibt leer
+    expect(grp.untergruppen[0].produkte).toHaveLength(0)
   })
 
 })

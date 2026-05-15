@@ -112,22 +112,19 @@ function pushUstGruppe(
   const expandable = grp.untergruppen.length > 0 || grp.produkte.length > 0 || grp.plattformen.length > 0
   rows.push({ id: rowId, label: grp.name, indent: 1, kind: 'ust-grp', values: grp.values, expandable, expanded: expandedIds.has(rowId) })
   if (!expandable || !expandedIds.has(rowId)) return
-  if (grp.untergruppen.length > 0) {
-    for (const ugr of grp.untergruppen) pushUstUntergruppe(rows, ugr, grp.id, expandedIds)
-  } else {
-    for (const prd of grp.produkte) {
-      rows.push({
-        id: `ust-prd:${rowId}:${prd.id}`,
-        label: `${prd.name} (${prd.ust_satz} %)`,
-        indent: 2,
-        kind: 'ust-prd',
-        values: prd.values,
-        expandable: false,
-        expanded: false,
-      })
-    }
-    for (const plt of grp.plattformen) pushUstPlattform(rows, plt, rowId, 2, expandedIds)
+  for (const ugr of grp.untergruppen) pushUstUntergruppe(rows, ugr, grp.id, expandedIds)
+  for (const prd of grp.produkte) {
+    rows.push({
+      id: `ust-prd:${rowId}:${prd.id}`,
+      label: `${prd.name} (${prd.ust_satz} %)`,
+      indent: 2,
+      kind: 'ust-prd',
+      values: prd.values,
+      expandable: false,
+      expanded: false,
+    })
   }
+  for (const plt of grp.plattformen) pushUstPlattform(rows, plt, rowId, 2, expandedIds)
 }
 
 function pushUstKategorie(
@@ -139,22 +136,19 @@ function pushUstKategorie(
   const expandable = kat.gruppen.length > 0 || kat.produkte.length > 0 || kat.plattformen.length > 0
   rows.push({ id: rowId, label: kat.name, indent: 0, kind: 'ust-kat', values: kat.values, expandable, expanded: expandedIds.has(rowId) })
   if (!expandable || !expandedIds.has(rowId)) return
-  if (kat.gruppen.length > 0) {
-    for (const grp of kat.gruppen) pushUstGruppe(rows, grp, kat.id, expandedIds)
-  } else {
-    for (const prd of kat.produkte) {
-      rows.push({
-        id: `ust-prd:${rowId}:${prd.id}`,
-        label: `${prd.name} (${prd.ust_satz} %)`,
-        indent: 1,
-        kind: 'ust-prd',
-        values: prd.values,
-        expandable: false,
-        expanded: false,
-      })
-    }
-    for (const plt of kat.plattformen) pushUstPlattform(rows, plt, rowId, 1, expandedIds)
+  for (const grp of kat.gruppen) pushUstGruppe(rows, grp, kat.id, expandedIds)
+  for (const prd of kat.produkte) {
+    rows.push({
+      id: `ust-prd:${rowId}:${prd.id}`,
+      label: `${prd.name} (${prd.ust_satz} %)`,
+      indent: 1,
+      kind: 'ust-prd',
+      values: prd.values,
+      expandable: false,
+      expanded: false,
+    })
   }
+  for (const plt of kat.plattformen) pushUstPlattform(rows, plt, rowId, 1, expandedIds)
 }
 
 // ─── VS Push-Funktionen ───────────────────────────────────────────────────────
@@ -217,22 +211,19 @@ function pushVsGruppe(
   const expandable = grp.untergruppen.length > 0 || grp.plattformen.length > 0 || grp.produkte.length > 0
   rows.push({ id: rowId, label: grp.name, indent: 1, kind: 'vs-grp', values: grp.values, expandable, expanded: expandedIds.has(rowId) })
   if (!expandable || !expandedIds.has(rowId)) return
-  if (grp.untergruppen.length > 0) {
-    for (const ugr of grp.untergruppen) pushVsUntergruppe(rows, ugr, grp.id, expandedIds)
-  } else {
-    for (const prd of grp.produkte) {
-      rows.push({
-        id: `vs-prd:${rowId}:${prd.id}`,
-        label: prd.name,
-        indent: 2,
-        kind: 'vs-prd',
-        values: prd.values,
-        expandable: false,
-        expanded: false,
-      })
-    }
-    for (const plt of grp.plattformen) pushVsPlattform(rows, plt, rowId, 2, expandedIds)
+  for (const ugr of grp.untergruppen) pushVsUntergruppe(rows, ugr, grp.id, expandedIds)
+  for (const prd of grp.produkte) {
+    rows.push({
+      id: `vs-prd:${rowId}:${prd.id}`,
+      label: prd.name,
+      indent: 2,
+      kind: 'vs-prd',
+      values: prd.values,
+      expandable: false,
+      expanded: false,
+    })
   }
+  for (const plt of grp.plattformen) pushVsPlattform(rows, plt, rowId, 2, expandedIds)
 }
 
 function pushVsKategorie(
@@ -244,22 +235,19 @@ function pushVsKategorie(
   const expandable = kat.gruppen.length > 0 || kat.plattformen.length > 0 || kat.produkte.length > 0
   rows.push({ id: rowId, label: kat.name, indent: 0, kind: 'vs-kat', values: kat.values, expandable, expanded: expandedIds.has(rowId) })
   if (!expandable || !expandedIds.has(rowId)) return
-  if (kat.gruppen.length > 0) {
-    for (const grp of kat.gruppen) pushVsGruppe(rows, grp, kat.id, expandedIds)
-  } else {
-    for (const prd of kat.produkte) {
-      rows.push({
-        id: `vs-prd:${rowId}:${prd.id}`,
-        label: prd.name,
-        indent: 1,
-        kind: 'vs-prd',
-        values: prd.values,
-        expandable: false,
-        expanded: false,
-      })
-    }
-    for (const plt of kat.plattformen) pushVsPlattform(rows, plt, rowId, 1, expandedIds)
+  for (const grp of kat.gruppen) pushVsGruppe(rows, grp, kat.id, expandedIds)
+  for (const prd of kat.produkte) {
+    rows.push({
+      id: `vs-prd:${rowId}:${prd.id}`,
+      label: prd.name,
+      indent: 1,
+      kind: 'vs-prd',
+      values: prd.values,
+      expandable: false,
+      expanded: false,
+    })
   }
+  for (const plt of kat.plattformen) pushVsPlattform(rows, plt, rowId, 1, expandedIds)
 }
 
 // ─── FlatRows aufbauen ────────────────────────────────────────────────────────

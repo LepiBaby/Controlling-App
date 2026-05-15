@@ -51,6 +51,8 @@
 | PROJ-30 | Abziehbare Vorsteuer | In Progress | [PROJ-30-abziehbare-vorsteuer.md](PROJ-30-abziehbare-vorsteuer.md) | 2026-05-14 |
 | PROJ-31 | Umsatzsteuer-Reporting | Approved | [PROJ-31-umsatzsteuer-reporting.md](PROJ-31-umsatzsteuer-reporting.md) | 2026-05-14 |
 
+| PROJ-32 | Vermögenswerte-Verwaltung | Architected | [PROJ-32-vermoegenswerte.md](PROJ-32-vermoegenswerte.md) | 2026-05-15 |
+
 <!-- Add features above this line -->
 
-## Next Available ID: PROJ-32
+## Next Available ID: PROJ-33

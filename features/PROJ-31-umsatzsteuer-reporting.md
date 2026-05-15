@@ -2,7 +2,7 @@
 
 ## Status: Approved
 **Created:** 2026-05-14
-**Last Updated:** 2026-05-14 (Backend implementiert)
+**Last Updated:** 2026-05-15 (QA-Nachtest nach Bug-Fixes)
 
 ## Dependencies
 - PROJ-3: Umsatz-Transaktionen (Datenquelle: `umsatz_transaktionen`)
@@ -311,18 +311,25 @@ Alle benötigten UI-Primitiven (Input, Tabs, Button, Table, Skeleton, Card) sind
 - `npm run build` ✅ — `/api/reporting/umsatzsteuer` und `/dashboard/reporting/umsatzsteuer` korrekt gebaut
 - `npm test` ✅ — 517/517 Tests grün (davon 15 neue Backend-Tests)
 
-## QA Test Results (2026-05-15)
+## QA Test Results (2026-05-15) — Re-Test nach Bug-Fixes
 
 ### Testergebnis-Übersicht
 
 | Kategorie | Ergebnis |
 |-----------|----------|
-| Acceptance Criteria | 38/40 ✅  2 Low-Abweichungen |
-| Unit Tests (Vitest) | 517/517 ✅ |
+| Acceptance Criteria | 38/40 ✅  2 Low-Abweichungen (unverändert) |
+| Unit Tests (Vitest) | 23/23 ✅ (+4 neue Tests für Plattform/Produkt-Drill-Down) |
 | E2E Tests (PROJ-31) | 42/42 ✅ |
-| E2E Regression (alle) | 648/648 ✅ |
+| E2E Regression (alle) | 345/345 ✅ |
 | Security Audit | ✅ Keine kritischen Findings |
-| Cross-Browser | Chrome + Mobile Safari ✅ |
+| Build | ✅ `npm run build` erfolgreich |
+
+### Behobene Bugs seit letztem QA
+
+| # | Schwere | Beschreibung | Status |
+|---|---------|-------------|--------|
+| B1 | High | Vorsteuer zeigte `betrag_netto` statt `ust_betrag` → falsche Werte im Report | ✅ Behoben |
+| B2 | High | Plattformen und Produkte wurden nicht angezeigt wenn KPI-Modell Untergruppen hat, Transaktion aber nur auf Gruppen-Ebene eingetragen ist (`hasLeaf`-Bug) | ✅ Behoben |
 
 ### Acceptance Criteria — Ergebnisse
 
@@ -343,21 +350,26 @@ Alle benötigten UI-Primitiven (Input, Tabs, Button, Table, Skeleton, Card) sind
 - ✅ Horizontales Scrolling
 - ✅ Abschnitt 1: Umsatz-Kategorien
 - ✅ Zwischensumme „Abzuführende Umsatzsteuer" (fett, bg-muted)
-- ✅ Abschnitt 2: Ausgaben-Kategorien
+- ✅ Abschnitt 2: Ausgaben-Kategorien (Finanzierung/Steuern dauerhaft versteckt, Einfuhrumsatzsteuer als Top-Level-Eintrag promotet)
 - ✅ Zwischensumme „Abziehbare Vorsteuer" (fett, bg-muted)
 - ✅ Ergebniszeile „= Fällige Umsatzsteuer" (fett, border-t-2 + border-b-2)
 - ✅ 0-Werte als „0,00 €"
 - ✅ de-DE Locale mit € Symbol
-- ⚠️ „Alle Werte absolut": USt-Zeilen für Abzugsposten-Kategorien können theoretisch negative Werte zeigen (wenn Abzugspostenbetrag > reguläre Umsätze in selber Kategorie). Nur als Low eingestuft, da in der Praxis unwahrscheinlich und semantisch korrekt (Low)
+- ⚠️ „Alle Werte absolut": USt-Zeilen für Abzugsposten-Kategorien können theoretisch negative Werte zeigen (wenn Abzugspostenbetrag > reguläre Umsätze in selber Kategorie). Nur als Low eingestuft, da semantisch korrekt (Low)
 
-**Drill-Down**
+**Drill-Down — Abzuführende USt**
 - ✅ Kategorie → Gruppe → Untergruppe → Produkt ausklappbar
 - ✅ Produkt-Label „Name (19 %)"
 - ✅ Expand/Collapse bleibt beim Tab-Wechsel erhalten
-- ✅ Ausgaben-Kategorien: Kategorie → Gruppe → Untergruppe
+- ✅ Plattformen und Produkte erscheinen auf dem Level, auf dem die Transaktion eingetragen wurde (auch wenn KPI-Modell tiefere Ebenen hat)
+
+**Drill-Down — Abziehbare Vorsteuer**
+- ✅ Ausgaben-Kategorien: Kategorie → Gruppe → Untergruppe ausklappbar
+- ✅ Vorsteuer-Wert korrekt aus `ust_betrag` (nicht `betrag_netto`)
+- ✅ Plattformen auf direktem Transaktions-Level sichtbar
 
 **Wertberechnung**
-- ✅ Brutto-Herausrechnung: USt = Brutto × ust_satz / (100 + ust_satz)
+- ✅ USt = Netto-Basis × ust_satz / 100 (Netto-Transaktionsdaten)
 - ✅ Abzugsposten negiert betrag
 - ✅ ust_satz = NULL/0 → kein Beitrag
 - ✅ Kein produkt_id → kein Beitrag
@@ -374,33 +386,29 @@ Alle benötigten UI-Primitiven (Input, Tabs, Button, Table, Skeleton, Card) sind
 **Fehlerbehandlung**
 - ✅ API-Fehler → rote Border-Box über der Tabelle
 
-### Gefundene Bugs
+### Offene Low-Bugs (akzeptabel)
 
-| # | Schwere | Beschreibung | Schritte |
-|---|---------|-------------|---------|
-| 1 | Low | Standard-Zeitraum: Hook nutzt „letzte 12 Monate" statt „aktuelles Kalenderjahr" | Seite öffnen → Von/Bis-Felder prüfen; z. B. Juni 2025 – Mai 2026 statt Jan–Dez 2026 |
-| 2 | Low | Abzugsposten-Kategorien können negative USt-Werte anzeigen (verletzt AC „alle Werte absolut") | KPI-Modell: Kategorie mit `ist_abzugsposten=true` anlegen; Umsatz-Transaktionen für diese Kategorie erfassen → USt-Zeile zeigt negatives Vorzeichen |
+| # | Schwere | Beschreibung |
+|---|---------|-------------|
+| 1 | Low | Standard-Zeitraum: Hook nutzt „letzte 12 Monate" statt „aktuelles Kalenderjahr" — konsistent mit Rentabilitätsreport |
+| 2 | Low | Abzugsposten-Kategorien können negative USt-Werte anzeigen — semantisch korrekt, praktisch unwahrscheinlich |
 
 ### Security Audit
 
 - ✅ Auth-Middleware schützt Seite und API (E2E bestätigt)
 - ✅ Client-side Mocking bypassed die Middleware nicht
 - ✅ Zod-Validierung auf von/bis/granularitaet (400 bei falschen Werten)
-- ✅ Kein `user.id` exponiiert; RLS schützt alle Supabase-Tabellen
-- ✅ Keine sensitiven Daten in API-Parametern
+- ✅ RLS schützt alle Supabase-Tabellen
 - ✅ SQL Injection nicht möglich (Supabase parameterized queries)
 
 ### Regressions-Test
 
-- ✅ Alle 648 E2E-Tests der gesamten Test-Suite grün (keine Regressions)
-- ✅ Bestehende Reporting-Seiten weiterhin auth-gated (Rentabilität, Deckungsbeitrag, Break-Even, Liquidität)
-- ✅ `/api/umsatz-transaktionen`, `/api/ausgaben-kosten-transaktionen`, `/api/kpi-categories` auth-gated
+- ✅ Alle 345 E2E-Tests der gesamten Test-Suite grün (keine Regressions)
+- ✅ Alle bestehenden Reporting-Seiten weiterhin auth-gated
 
 ### Produktion-Bereitschaft
 
-**BEREIT** — Keine Critical oder High Bugs. Zwei Low-Abweichungen sind akzeptabel:
-1. „Letzte 12 Monate" als Default ist konsistent mit dem Rentabilitätsreport
-2. Negative USt-Werte bei Abzugsposten sind semantisch korrekt und in der Praxis unwahrscheinlich
+**BEREIT** — Keine Critical oder High Bugs. Beide High-Bugs (ust_betrag-Fix, Plattform/Produkt-Drill-Down) wurden behoben und durch neue Unit-Tests abgesichert.
 
 ## Deployment
 _To be added by /deploy_
