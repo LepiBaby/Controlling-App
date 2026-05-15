@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Receipt, ChevronRight, ChevronDown, ChevronsDownUp, ChevronsUpDown } from 'lucide-react'
+import { Receipt, ChevronRight, ChevronDown, ChevronsDownUp, ChevronsUpDown, EyeOff, Eye } from 'lucide-react'
 import type {
   ReportingUmsatzsteuerData,
   UstKategorie,
@@ -160,7 +160,11 @@ function pushVsKategorie(
   for (const grp of kat.gruppen) pushVsGruppe(rows, grp, kat.id, expandedIds)
 }
 
-function buildFlatRows(data: ReportingUmsatzsteuerData, expandedIds: Set<string>): FlatRow[] {
+function buildFlatRows(
+  data: ReportingUmsatzsteuerData,
+  expandedIds: Set<string>,
+  visibleVsKategorien: VorsteuerKategorie[],
+): FlatRow[] {
   const rows: FlatRow[] = []
 
   for (const kat of data.abzufuehrendeUst.kategorien) {
@@ -176,7 +180,7 @@ function buildFlatRows(data: ReportingUmsatzsteuerData, expandedIds: Set<string>
     expanded: false,
   })
 
-  for (const kat of data.abziehbareVorsteuer.kategorien) {
+  for (const kat of visibleVsKategorien) {
     pushVsKategorie(rows, kat, expandedIds)
   }
   rows.push({
@@ -202,7 +206,10 @@ function buildFlatRows(data: ReportingUmsatzsteuerData, expandedIds: Set<string>
   return rows
 }
 
-function collectAllExpandableIds(data: ReportingUmsatzsteuerData): Set<string> {
+function collectAllExpandableIds(
+  data: ReportingUmsatzsteuerData,
+  visibleVsKategorien: VorsteuerKategorie[],
+): Set<string> {
   const ids = new Set<string>()
 
   for (const kat of data.abzufuehrendeUst.kategorien) {
@@ -219,7 +226,7 @@ function collectAllExpandableIds(data: ReportingUmsatzsteuerData): Set<string> {
     }
   }
 
-  for (const kat of data.abziehbareVorsteuer.kategorien) {
+  for (const kat of visibleVsKategorien) {
     if (kat.gruppen.length === 0) continue
     ids.add(`vs-kat:${kat.id}`)
     for (const grp of kat.gruppen) {
@@ -248,11 +255,25 @@ function isSummaryRow(kind: RowKind): boolean {
   return kind === 'ust-summe' || kind === 'vs-summe' || kind === 'ergebnis'
 }
 
+function ustColorClass(value: number): string {
+  if (value === 0) return 'text-muted-foreground'
+  return 'text-red-600 dark:text-red-400'
+}
+
+function vsColorClass(value: number): string {
+  if (value === 0) return 'text-muted-foreground'
+  return 'text-green-600 dark:text-green-400'
+}
+
 function ergebnisColorClass(value: number): string {
-  if (value > 0) return 'text-foreground'
-  if (value < 0) return 'text-red-600 dark:text-red-400'
+  if (value > 0) return 'text-red-600 dark:text-red-400'
+  if (value < 0) return 'text-green-600 dark:text-green-400'
   return 'text-muted-foreground'
 }
+
+// ─── Hidden-VS-Kategorien ─────────────────────────────────────────────────────
+
+const HIDDEN_VS_NAMES = new Set(['Finanzierung', 'Steuern'])
 
 // ─── Hauptkomponente ──────────────────────────────────────────────────────────
 
@@ -264,17 +285,32 @@ interface Props {
 
 export function ReportingUmsatzsteuerMatrix({ data, loading, hasDateRange }: Props) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
+  const [showAllVsKats, setShowAllVsKats] = useState(false)
+
+  const visibleVsKategorien = useMemo(() => {
+    if (!data) return []
+    return showAllVsKats
+      ? data.abziehbareVorsteuer.kategorien
+      : data.abziehbareVorsteuer.kategorien.filter(k => !HIDDEN_VS_NAMES.has(k.name))
+  }, [data, showAllVsKats])
+
+  const hiddenVsNames = useMemo(() => {
+    if (!data) return []
+    return data.abziehbareVorsteuer.kategorien
+      .filter(k => HIDDEN_VS_NAMES.has(k.name))
+      .map(k => k.name)
+  }, [data])
 
   const allExpandableIds = useMemo(
-    () => (data ? collectAllExpandableIds(data) : new Set<string>()),
-    [data],
+    () => (data ? collectAllExpandableIds(data, visibleVsKategorien) : new Set<string>()),
+    [data, visibleVsKategorien],
   )
 
   const allExpanded = allExpandableIds.size > 0 && [...allExpandableIds].every(id => expandedIds.has(id))
 
   const rows = useMemo(
-    () => (data ? buildFlatRows(data, expandedIds) : []),
-    [data, expandedIds],
+    () => (data ? buildFlatRows(data, expandedIds, visibleVsKategorien) : []),
+    [data, expandedIds, visibleVsKategorien],
   )
 
   function toggleRow(id: string) {
@@ -337,22 +373,43 @@ export function ReportingUmsatzsteuerMatrix({ data, loading, hasDateRange }: Pro
   return (
     <div className="space-y-2">
       {/* Toolbar */}
-      {allExpandableIds.size > 0 && (
-        <div className="flex justify-end">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="gap-1.5 text-xs text-muted-foreground"
-            onClick={toggleAll}
-          >
-            {allExpanded
-              ? <ChevronsDownUp className="h-3.5 w-3.5" />
-              : <ChevronsUpDown className="h-3.5 w-3.5" />
-            }
-            {allExpanded ? 'Alle einklappen' : 'Alle ausklappen'}
-          </Button>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5">
+          {hiddenVsNames.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1.5 text-xs text-muted-foreground"
+              onClick={() => setShowAllVsKats(v => !v)}
+            >
+              {showAllVsKats
+                ? <EyeOff className="h-3.5 w-3.5" />
+                : <Eye className="h-3.5 w-3.5" />
+              }
+              {showAllVsKats
+                ? `${hiddenVsNames.join(', ')} ausblenden`
+                : `Ausgeblendet: ${hiddenVsNames.join(', ')}`
+              }
+            </Button>
+          )}
         </div>
-      )}
+        <div>
+          {allExpandableIds.size > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1.5 text-xs text-muted-foreground"
+              onClick={toggleAll}
+            >
+              {allExpanded
+                ? <ChevronsDownUp className="h-3.5 w-3.5" />
+                : <ChevronsUpDown className="h-3.5 w-3.5" />
+              }
+              {allExpanded ? 'Alle einklappen' : 'Alle ausklappen'}
+            </Button>
+          )}
+        </div>
+      </div>
 
       {/* Matrix */}
       <div className="overflow-x-auto rounded-md border">
@@ -428,6 +485,12 @@ export function ReportingUmsatzsteuerMatrix({ data, loading, hasDateRange }: Pro
                   {/* Wert-Zellen */}
                   {perioden.map(p => {
                     const value = row.values[p] ?? 0
+                    const isUst = row.kind === 'ust-kat' || row.kind === 'ust-grp' || row.kind === 'ust-ugr' || row.kind === 'ust-prd' || row.kind === 'ust-summe'
+                    const isVs  = row.kind === 'vs-kat'  || row.kind === 'vs-grp'  || row.kind === 'vs-ugr'  || row.kind === 'vs-summe'
+                    const colorClass = isErgebnis ? ergebnisColorClass(value)
+                      : isUst ? ustColorClass(value)
+                      : isVs  ? vsColorClass(value)
+                      : value === 0 ? 'text-muted-foreground' : 'text-foreground'
                     return (
                       <td
                         key={p}
@@ -436,8 +499,7 @@ export function ReportingUmsatzsteuerMatrix({ data, loading, hasDateRange }: Pro
                           isSummary ? 'font-semibold' : '',
                           isErgebnis ? 'font-bold' : '',
                           isLeaf ? 'text-xs' : '',
-                          isErgebnis ? ergebnisColorClass(value) : 'text-foreground',
-                          !isErgebnis && value === 0 ? 'text-muted-foreground' : '',
+                          colorClass,
                         ].filter(Boolean).join(' ')}
                       >
                         {formatBetrag(value)}

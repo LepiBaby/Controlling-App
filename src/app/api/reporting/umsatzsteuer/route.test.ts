@@ -103,7 +103,7 @@ describe('GET /api/reporting/umsatzsteuer', () => {
     expect(body.faelligeUst).toEqual({ '2026-01': 0, '2026-02': 0, '2026-03': 0 })
   })
 
-  it('berechnet USt korrekt für ein Produkt mit 19 % (Brutto-Herausrechnung)', async () => {
+  it('berechnet USt korrekt für ein Produkt mit 19 %', async () => {
     setup({
       umsatzCats:   [{ id: KAT_UMSATZ_ID, name: 'Online-Shop', level: 1, parent_id: null, sort_order: 1, ist_abzugsposten: false }],
       ausgabenCats: [],
@@ -116,10 +116,10 @@ describe('GET /api/reporting/umsatzsteuer', () => {
     const res = await GET(req(BASE_PARAMS))
     expect(res.status).toBe(200)
     const body = await res.json()
-    // USt = 119 × 19 / (100 + 19) = 119 × 19 / 119 = 19.00
-    expect(body.abzufuehrendeUst.kategorien[0].values['2026-01']).toBe(19)
-    expect(body.abzufuehrendeUst.summe['2026-01']).toBe(19)
-    expect(body.faelligeUst['2026-01']).toBe(19)
+    // USt = 119 × 19 / 100 = 22.61
+    expect(body.abzufuehrendeUst.kategorien[0].values['2026-01']).toBe(22.61)
+    expect(body.abzufuehrendeUst.summe['2026-01']).toBe(22.61)
+    expect(body.faelligeUst['2026-01']).toBe(22.61)
   })
 
   it('berechnet USt korrekt für Produkt mit 7 %', async () => {
@@ -134,8 +134,8 @@ describe('GET /api/reporting/umsatzsteuer', () => {
     })
     const res = await GET(req(BASE_PARAMS))
     const body = await res.json()
-    // USt = 107 × 7 / 107 = 7.00
-    expect(body.abzufuehrendeUst.kategorien[0].values['2026-01']).toBe(7)
+    // USt = 107 × 7 / 100 = 7.49
+    expect(body.abzufuehrendeUst.kategorien[0].values['2026-01']).toBe(7.49)
   })
 
   it('zieht Abzugsposten (ist_abzugsposten=true) von der USt-Basis ab', async () => {
@@ -154,7 +154,7 @@ describe('GET /api/reporting/umsatzsteuer', () => {
     })
     const res = await GET(req(BASE_PARAMS))
     const body = await res.json()
-    expect(body.abzufuehrendeUst.kategorien[0].values['2026-01']).toBe(-19)
+    expect(body.abzufuehrendeUst.kategorien[0].values['2026-01']).toBe(-22.61)
   })
 
   it('überspringt Transaktionen ohne produkt_id', async () => {
@@ -194,8 +194,8 @@ describe('GET /api/reporting/umsatzsteuer', () => {
       produkteCats: [],
       umsatz:       [],
       vorsteuer: [
-        { leistungsdatum: '2026-01-10', ust_betrag: 114, kategorie_id: KAT_KOSTEN_ID, gruppe_id: null, untergruppe_id: null },
-        { leistungsdatum: '2026-01-20', ust_betrag:  57, kategorie_id: KAT_KOSTEN_ID, gruppe_id: null, untergruppe_id: null },
+        { leistungsdatum: '2026-01-10', betrag_netto: 114, kategorie_id: KAT_KOSTEN_ID, gruppe_id: null, untergruppe_id: null },
+        { leistungsdatum: '2026-01-20', betrag_netto:  57, kategorie_id: KAT_KOSTEN_ID, gruppe_id: null, untergruppe_id: null },
       ],
     })
     const res = await GET(req(BASE_PARAMS))
@@ -213,15 +213,15 @@ describe('GET /api/reporting/umsatzsteuer', () => {
         { leistungsdatum: '2026-01-15', betrag: 119, kategorie_id: KAT_UMSATZ_ID, gruppe_id: null, untergruppe_id: null, produkt_id: PRODUKT_ID_A },
       ],
       vorsteuer: [
-        { leistungsdatum: '2026-01-10', ust_betrag: 9.5, kategorie_id: KAT_KOSTEN_ID, gruppe_id: null, untergruppe_id: null },
+        { leistungsdatum: '2026-01-10', betrag_netto: 9.5, kategorie_id: KAT_KOSTEN_ID, gruppe_id: null, untergruppe_id: null },
       ],
     })
     const res = await GET(req(BASE_PARAMS))
     const body = await res.json()
-    // USt = 19.00, Vorsteuer = 9.50, fällige USt = 9.50
-    expect(body.abzufuehrendeUst.summe['2026-01']).toBe(19)
+    // USt = 119 × 19 / 100 = 22.61, Vorsteuer = 9.50, fällige USt = 13.11
+    expect(body.abzufuehrendeUst.summe['2026-01']).toBe(22.61)
     expect(body.abziehbareVorsteuer.summe['2026-01']).toBe(9.5)
-    expect(body.faelligeUst['2026-01']).toBe(9.5)
+    expect(body.faelligeUst['2026-01']).toBe(13.11)
   })
 
   it('faelligeUst kann negativ sein (Vorsteuer-Überhang)', async () => {
@@ -231,7 +231,7 @@ describe('GET /api/reporting/umsatzsteuer', () => {
       produkteCats: [],
       umsatz:       [],
       vorsteuer: [
-        { leistungsdatum: '2026-01-10', ust_betrag: 500, kategorie_id: KAT_KOSTEN_ID, gruppe_id: null, untergruppe_id: null },
+        { leistungsdatum: '2026-01-10', betrag_netto: 500, kategorie_id: KAT_KOSTEN_ID, gruppe_id: null, untergruppe_id: null },
       ],
     })
     const res = await GET(req(BASE_PARAMS))
@@ -256,16 +256,16 @@ describe('GET /api/reporting/umsatzsteuer', () => {
     const res = await GET(req(BASE_PARAMS))
     const body = await res.json()
     const kat = body.abzufuehrendeUst.kategorien[0]
-    // USt = 238 × 19 / 119 = 38.00
-    expect(kat.values['2026-01']).toBe(38)
+    // USt = 238 × 19 / 100 = 45.22
+    expect(kat.values['2026-01']).toBe(45.22)
     const grp = kat.gruppen[0]
-    expect(grp.values['2026-01']).toBe(38)
+    expect(grp.values['2026-01']).toBe(45.22)
     const ugr = grp.untergruppen[0]
-    expect(ugr.values['2026-01']).toBe(38)
+    expect(ugr.values['2026-01']).toBe(45.22)
     // Produkt-Drill-Down auf Untergruppen-Ebene
     expect(ugr.produkte[0].id).toBe(PRODUKT_ID_A)
     expect(ugr.produkte[0].ust_satz).toBe(19)
-    expect(ugr.produkte[0].values['2026-01']).toBe(38)
+    expect(ugr.produkte[0].values['2026-01']).toBe(45.22)
   })
 
   it('aggregiert Vorsteuer auf Gruppen-Ebene', async () => {
@@ -278,7 +278,7 @@ describe('GET /api/reporting/umsatzsteuer', () => {
       produkteCats: [],
       umsatz:       [],
       vorsteuer: [
-        { leistungsdatum: '2026-02-10', ust_betrag: 57, kategorie_id: KAT_KOSTEN_ID, gruppe_id: GRP_KOSTEN_ID, untergruppe_id: null },
+        { leistungsdatum: '2026-02-10', betrag_netto: 57, kategorie_id: KAT_KOSTEN_ID, gruppe_id: GRP_KOSTEN_ID, untergruppe_id: null },
       ],
     })
     const res = await GET(req(BASE_PARAMS))
@@ -318,8 +318,8 @@ describe('GET /api/reporting/umsatzsteuer', () => {
     })
     const res = await GET(req(BASE_PARAMS))
     const body = await res.json()
-    // USt A = 19.00, USt B = 7.00 → gesamt = 26.00
-    expect(body.abzufuehrendeUst.summe['2026-01']).toBe(26)
+    // USt A = 119 × 19/100 = 22.61, USt B = 107 × 7/100 = 7.49 → gesamt = 30.10
+    expect(body.abzufuehrendeUst.summe['2026-01']).toBe(30.1)
     const kat = body.abzufuehrendeUst.kategorien[0]
     expect(kat.produkte).toHaveLength(2)
   })

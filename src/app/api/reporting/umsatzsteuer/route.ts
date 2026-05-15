@@ -118,8 +118,7 @@ export async function GET(request: Request) {
       .lte('leistungsdatum', bisDate),
     supabase
       .from('ausgaben_kosten_transaktionen')
-      .select('leistungsdatum, ust_betrag, kategorie_id, gruppe_id, untergruppe_id')
-      .gt('ust_betrag', 0)
+      .select('leistungsdatum, betrag_netto, kategorie_id, gruppe_id, untergruppe_id')
       .not('leistungsdatum', 'is', null)
       .gte('leistungsdatum', vonDate)
       .lte('leistungsdatum', bisDate),
@@ -172,8 +171,8 @@ export async function GET(request: Request) {
     const betrag  = isAbzug ? -Number(row.betrag) : Number(row.betrag)
     const period  = dateToPeriod(row.leistungsdatum, granularitaet)
     const ustSatz = Number(prd.ust_satz)
-    // Brutto → USt herausrechnen: USt = Brutto × ust_satz / (100 + ust_satz)
-    const ust = roundTo2(betrag * ustSatz / (100 + ustSatz))
+    // Nettoumsatz × USt-Satz / 100
+    const ust = roundTo2(betrag * ustSatz / 100)
 
     addTo(ustCatVals, row.kategorie_id, period, ust)
     if (row.gruppe_id)     addTo(ustGrpVals, row.gruppe_id, period, ust)
@@ -195,9 +194,9 @@ export async function GET(request: Request) {
   const vsUgrVals: EntityMap = new Map()
 
   for (const row of vsRows ?? []) {
-    if (!row.leistungsdatum || !row.kategorie_id || !row.ust_betrag) continue
+    if (!row.leistungsdatum || !row.kategorie_id || !row.betrag_netto) continue
     const period = dateToPeriod(row.leistungsdatum, granularitaet)
-    const betrag = Number(row.ust_betrag)
+    const betrag = Number(row.betrag_netto)
     addTo(vsCatVals, row.kategorie_id, period, betrag)
     if (row.gruppe_id)      addTo(vsGrpVals, row.gruppe_id, period, betrag)
     if (row.untergruppe_id) addTo(vsUgrVals, row.untergruppe_id, period, betrag)
