@@ -267,7 +267,153 @@ Alle abgeleiteten KPIs werden in der API-Route aus den Basisgrößen berechnet (
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Komponentenstruktur
+
+```
+/dashboard/reporting/vermoegen/page.tsx  (Client Component)
+├── NavSheet (bestehend)
+├── Header: „Vermögensbericht" + Stand-Datum (neuester Snapshot)
+│
+├── Leerzustand (wenn kein Snapshot vorhanden)
+│   └── Hinweistext + Link zu /dashboard/vermoegenswerte
+│
+└── Tabs (shadcn Tabs / TabsList / TabsTrigger / TabsContent)
+    │
+    ├── Tab 1: „Waren-KPIs"
+    │   └── ReportingVermoegenWaren (src/components/reporting-vermoegen-waren.tsx)
+    │       ├── KPI-Kacheln-Grid (shadcn Card, responsive 2–3 Spalten)
+    │       │   ├── KpiCard: Warenkapital  (+ Unterzeilen: Lager / Transit)
+    │       │   ├── KpiCard: Lager-Anteil
+    │       │   ├── KpiCard: Warenkapitalbindung  (rot wenn negativ)
+    │       │   ├── KpiCard: Warenbindungsquote
+    │       │   └── KpiCard: Lagerreichweite  (in „Monaten")
+    │       └── Zeitreihen-Sektion  (nur wenn ≥ 2 Snapshots)
+    │           ├── Chart: Warenkapital-Entwicklung
+    │           │         (3 Linien: Lager / Transit / Warenkapital; Y=€)
+    │           └── Chart: Warenbindungsquote-Entwicklung
+    │                     (1 Linie; Y=%)
+    │
+    ├── Tab 2: „Liquiditäts-KPIs"
+    │   └── ReportingVermoegenLiquiditaet (src/components/reporting-vermoegen-liquiditaet.tsx)
+    │       ├── KPI-Kacheln-Grid
+    │       │   ├── KpiCard: Working Capital  (rot wenn negativ)
+    │       │   ├── KpiCard: Cash Ratio  (+ Ampel-Badge + Richtwert-Unterzeile)
+    │       │   ├── KpiCard: Quick Ratio  (+ Ampel-Badge + Richtwert-Unterzeile)
+    │       │   └── KpiCard: Current Ratio  (+ Ampel-Badge + Richtwert-Unterzeile)
+    │       └── Zeitreihen-Sektion  (nur wenn ≥ 2 Snapshots)
+    │           ├── Chart: Liquiditätsgrade-Entwicklung
+    │           │         (3 Linien + gestrichelte Referenzlinien bei 0,20 / 1,00 / 2,00)
+    │           └── Chart: Working Capital-Entwicklung  (1 Linie; Y=€)
+    │
+    └── Tab 3: „Vermögens-KPIs"
+        └── ReportingVermoegenBilanzkennzahlen (src/components/reporting-vermoegen-bilanzkennzahlen.tsx)
+            ├── KPI-Kacheln-Grid
+            │   ├── KpiCard: Eigenkapital
+            │   ├── KpiCard: Fremdkapital
+            │   ├── KpiCard: Gesamtvermögen
+            │   ├── KpiCard: EK-Quote  (+ Ampel-Badge + Richtwert-Unterzeile)
+            │   ├── KpiCard: FK-Quote
+            │   └── KpiCard: Cash-Quote
+            ├── EK/FK Progress-Bar  (shadcn Progress; grün=EK / rot=FK)
+            │   └── Legende: „EK X% | FK Y%"
+            └── Zeitreihen-Sektion  (nur wenn ≥ 2 Snapshots)
+                ├── Chart: Vermögensentwicklung  (EK + FK; 2 Linien; Y=€)
+                └── Chart: EK-Quote-Entwicklung
+                          (1 Linie; gestrichelte Referenzlinie bei 30%; Y=%)
+```
+
+### Wiederverwendete Primitive: `KpiCard`
+
+Keine eigene Datei — jede Tab-Komponente verwendet intern eine lokale `KpiCard`-Hilfsfunktion/Komponente (shadcn `Card` + `CardHeader` + `CardContent` + `Badge`):
+- **Titel** (klein, muted)
+- **Hauptwert** (groß, formatiert — €, %, Ratio oder „—")
+- **Optional:** farbiger Ampel-Badge (`grün | gelb | rot`)
+- **Optional:** Richtwert-Unterzeile (z. B. „Richtwert: ≥ 1,00")
+- **Optional:** Unterzeilen (z. B. „Lager: X € | Transit: X €")
+
+### Datenfluss
+
+```
+Seite lädt
+    → useReportingVermoegen()
+        → GET /api/reporting/vermoegen
+              (einmaliger Fetch beim Mount, kein Polling)
+    ← { latest: VermoegenKPIs | null, series: VermoegenKPIs[] }
+
+API berechnet serverseitig (parallel via Promise.all):
+    1. Alle Snapshots aus vermoegenswarte_snapshots laden
+    2. Aggregationen pro Snapshot:
+       - Σ lagerwert  (vermoegenswarte_lagerwerte)
+       - Σ transitwert  (vermoegenswarte_transitwerte)
+       - Σ forderungen  (vermoegenswarte_forderungen)
+    3. Lagerreichweite-Daten (für alle Snapshots in einem Query):
+       - Sendungen je Produkt × 3-Monats-Fenster  (bestand_sendungen)
+       - Produktkosten zum Stichtag  (produktkosten_zeitraeume + _werte)
+    4. Alle KPI-Formeln anwenden → VermoegenKPIs-Objekte
+    5. Rückgabe: latest = erstes Element nach datum DESC,
+                 series = alle Elemente nach datum ASC
+
+Client rendert:
+    - KPI-Kacheln aus latest
+    - Recharts-Diagramme aus series
+```
+
+### API-Endpunkt
+
+```
+GET /api/reporting/vermoegen
+  → Auth: requireAuth() (identisch zu anderen Reporting-Routen)
+  → Keine Query-Parameter
+  → Rückgabe: { latest: VermoegenKPIs | null, series: VermoegenKPIs[] }
+  → Keine neue DB-Migration — rein lesend auf bestehende Tabellen
+```
+
+### Datenmodell (rein lesend)
+
+| Tabelle | Zweck im Report |
+|---------|----------------|
+| `vermoegenswarte_snapshots` | Datum, Cash, Verbindlichkeiten, Darlehen, Anlagevermögen |
+| `vermoegenswarte_lagerwerte` | Σ Lagerwert je Snapshot |
+| `vermoegenswarte_transitwerte` | Σ Transitwert je Snapshot |
+| `vermoegenswarte_forderungen` | Σ Forderungen je Snapshot |
+| `bestand_sendungen` | Sendungsmengen für Lagerreichweite |
+| `produktkosten_zeitraeume` + `produktkosten_werte` | Produktkosten für Lagerreichweite |
+
+Keine neuen Tabellen, keine Migrations.
+
+### Tech-Entscheidungen
+
+| Entscheidung | Gewählt | Warum |
+|---|---|---|
+| Chart-Library | Recharts (bereits installiert `^3.8.1`) | Bereits in `reporting-liquiditaet-chart.tsx` im Einsatz; kein neues Package nötig |
+| KPI-Layout | shadcn `Card` + `Badge` + `Progress` (bereits installiert) | Kein Custom-CSS; wiederverwendbare Primitiven; konsistent mit restlicher App |
+| Daten-Strategie | Einmaliger Fetch via `useReportingVermoegen()` Hook | ≤ 365 Snapshots/Jahr; kein Pagination nötig; API-Response bleibt klein |
+| KPI-Berechnung | Vollständig serverseitig in API-Route | Verhindert Float-Fehler im Browser; einfacheres Testen; konsistent mit anderen Reporting-Routen |
+| Lagerreichweite | Serverseitig, alle Snapshots in wenigen Queries | Nicht N+1 je Snapshot — alle Sendungsdaten eines Produkts in einem Query mit `IN (alle Stichtage)` |
+| Zeitreihen-Diagramme | Nur anzeigen wenn `series.length >= 2` | Sinnlose Punkt-Diagramme mit einem Datenpunkt vermeiden; Hinweis-Text stattdessen |
+| Navigation | `NAV_GROUPS`-Array in `nav-sheet.tsx` um einen Eintrag erweitern | Identisches Pattern zu den 5 bestehenden Reporting-Einträgen |
+
+### Neue Dateien
+
+| Datei | Zweck |
+|-------|-------|
+| `src/app/dashboard/reporting/vermoegen/page.tsx` | Hauptseite: NavSheet, Header, Tabs, Leerzustand |
+| `src/components/reporting-vermoegen-waren.tsx` | Tab 1: Waren-KPI-Kacheln + 2 Recharts-Diagramme |
+| `src/components/reporting-vermoegen-liquiditaet.tsx` | Tab 2: Liquiditäts-KPI-Kacheln + 2 Recharts-Diagramme |
+| `src/components/reporting-vermoegen-bilanzkennzahlen.tsx` | Tab 3: Vermögens-KPI-Kacheln + Progress-Bar + 2 Diagramme |
+| `src/hooks/use-reporting-vermoegen.ts` | Hook: GET /api/reporting/vermoegen, Loading/Error-State |
+| `src/app/api/reporting/vermoegen/route.ts` | API-Handler: Auth-Check, 6 parallele Queries, KPI-Berechnungen |
+| `src/app/api/reporting/vermoegen/route.test.ts` | Vitest Unit-Tests (Berechnungslogik + Edge Cases) |
+
+### Geänderte Dateien
+
+| Datei | Änderung |
+|-------|----------|
+| `src/components/nav-sheet.tsx` | Eintrag `{ href: '/dashboard/reporting/vermoegen', label: 'Vermögensbericht' }` in Reporting-Gruppe |
+
+### Keine neuen Packages
+Alle benötigten Primitiven bereits installiert: `recharts`, `Card`, `Badge`, `Progress`, `Tabs`, `Skeleton`, `Tooltip`, `Separator`.
 
 ## QA Test Results
 _To be added by /qa_
