@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Receipt, ChevronRight, ChevronDown, ChevronsDownUp, ChevronsUpDown, EyeOff, Eye } from 'lucide-react'
+import { Receipt, ChevronRight, ChevronDown, ChevronsDownUp, ChevronsUpDown } from 'lucide-react'
 import type {
   ReportingUmsatzsteuerData,
   UstKategorie,
@@ -274,6 +274,7 @@ function ergebnisColorClass(value: number): string {
 // ─── Hidden-VS-Kategorien ─────────────────────────────────────────────────────
 
 const HIDDEN_VS_NAMES = new Set(['Finanzierung', 'Steuern'])
+const PROMOTED_GROUP_NAMES = new Set(['Einfuhrumsatzsteuer'])
 
 // ─── Hauptkomponente ──────────────────────────────────────────────────────────
 
@@ -285,20 +286,31 @@ interface Props {
 
 export function ReportingUmsatzsteuerMatrix({ data, loading, hasDateRange }: Props) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
-  const [showAllVsKats, setShowAllVsKats] = useState(false)
 
-  const visibleVsKategorien = useMemo(() => {
+  const visibleVsKategorien = useMemo((): VorsteuerKategorie[] => {
     if (!data) return []
-    return showAllVsKats
-      ? data.abziehbareVorsteuer.kategorien
-      : data.abziehbareVorsteuer.kategorien.filter(k => !HIDDEN_VS_NAMES.has(k.name))
-  }, [data, showAllVsKats])
-
-  const hiddenVsNames = useMemo(() => {
-    if (!data) return []
-    return data.abziehbareVorsteuer.kategorien
-      .filter(k => HIDDEN_VS_NAMES.has(k.name))
-      .map(k => k.name)
+    const result: VorsteuerKategorie[] = []
+    for (const kat of data.abziehbareVorsteuer.kategorien) {
+      if (!HIDDEN_VS_NAMES.has(kat.name)) {
+        result.push(kat)
+      } else {
+        for (const grp of kat.gruppen) {
+          if (!PROMOTED_GROUP_NAMES.has(grp.name)) continue
+          result.push({
+            id: grp.id,
+            name: grp.name,
+            values: grp.values,
+            gruppen: grp.untergruppen.map(ugr => ({
+              id: ugr.id,
+              name: ugr.name,
+              values: ugr.values,
+              untergruppen: [],
+            })),
+          })
+        }
+      }
+    }
+    return result
   }, [data])
 
   const allExpandableIds = useMemo(
@@ -373,43 +385,22 @@ export function ReportingUmsatzsteuerMatrix({ data, loading, hasDateRange }: Pro
   return (
     <div className="space-y-2">
       {/* Toolbar */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5">
-          {hiddenVsNames.length > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-1.5 text-xs text-muted-foreground"
-              onClick={() => setShowAllVsKats(v => !v)}
-            >
-              {showAllVsKats
-                ? <EyeOff className="h-3.5 w-3.5" />
-                : <Eye className="h-3.5 w-3.5" />
-              }
-              {showAllVsKats
-                ? `${hiddenVsNames.join(', ')} ausblenden`
-                : `Ausgeblendet: ${hiddenVsNames.join(', ')}`
-              }
-            </Button>
-          )}
+      {allExpandableIds.size > 0 && (
+        <div className="flex justify-end">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1.5 text-xs text-muted-foreground"
+            onClick={toggleAll}
+          >
+            {allExpanded
+              ? <ChevronsDownUp className="h-3.5 w-3.5" />
+              : <ChevronsUpDown className="h-3.5 w-3.5" />
+            }
+            {allExpanded ? 'Alle einklappen' : 'Alle ausklappen'}
+          </Button>
         </div>
-        <div>
-          {allExpandableIds.size > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-1.5 text-xs text-muted-foreground"
-              onClick={toggleAll}
-            >
-              {allExpanded
-                ? <ChevronsDownUp className="h-3.5 w-3.5" />
-                : <ChevronsUpDown className="h-3.5 w-3.5" />
-              }
-              {allExpanded ? 'Alle einklappen' : 'Alle ausklappen'}
-            </Button>
-          )}
-        </div>
-      </div>
+      )}
 
       {/* Matrix */}
       <div className="overflow-x-auto rounded-md border">
