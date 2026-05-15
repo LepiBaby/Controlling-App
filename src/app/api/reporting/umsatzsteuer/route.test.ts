@@ -194,8 +194,8 @@ describe('GET /api/reporting/umsatzsteuer', () => {
       produkteCats: [],
       umsatz:       [],
       vorsteuer: [
-        { leistungsdatum: '2026-01-10', betrag_netto: 114, kategorie_id: KAT_KOSTEN_ID, gruppe_id: null, untergruppe_id: null },
-        { leistungsdatum: '2026-01-20', betrag_netto:  57, kategorie_id: KAT_KOSTEN_ID, gruppe_id: null, untergruppe_id: null },
+        { leistungsdatum: '2026-01-10', ust_betrag: 114, kategorie_id: KAT_KOSTEN_ID, gruppe_id: null, untergruppe_id: null },
+        { leistungsdatum: '2026-01-20', ust_betrag:  57, kategorie_id: KAT_KOSTEN_ID, gruppe_id: null, untergruppe_id: null },
       ],
     })
     const res = await GET(req(BASE_PARAMS))
@@ -213,7 +213,7 @@ describe('GET /api/reporting/umsatzsteuer', () => {
         { leistungsdatum: '2026-01-15', betrag: 119, kategorie_id: KAT_UMSATZ_ID, gruppe_id: null, untergruppe_id: null, produkt_id: PRODUKT_ID_A },
       ],
       vorsteuer: [
-        { leistungsdatum: '2026-01-10', betrag_netto: 9.5, kategorie_id: KAT_KOSTEN_ID, gruppe_id: null, untergruppe_id: null },
+        { leistungsdatum: '2026-01-10', ust_betrag: 9.5, kategorie_id: KAT_KOSTEN_ID, gruppe_id: null, untergruppe_id: null },
       ],
     })
     const res = await GET(req(BASE_PARAMS))
@@ -231,7 +231,7 @@ describe('GET /api/reporting/umsatzsteuer', () => {
       produkteCats: [],
       umsatz:       [],
       vorsteuer: [
-        { leistungsdatum: '2026-01-10', betrag_netto: 500, kategorie_id: KAT_KOSTEN_ID, gruppe_id: null, untergruppe_id: null },
+        { leistungsdatum: '2026-01-10', ust_betrag: 500, kategorie_id: KAT_KOSTEN_ID, gruppe_id: null, untergruppe_id: null },
       ],
     })
     const res = await GET(req(BASE_PARAMS))
@@ -278,7 +278,7 @@ describe('GET /api/reporting/umsatzsteuer', () => {
       produkteCats: [],
       umsatz:       [],
       vorsteuer: [
-        { leistungsdatum: '2026-02-10', betrag_netto: 57, kategorie_id: KAT_KOSTEN_ID, gruppe_id: GRP_KOSTEN_ID, untergruppe_id: null },
+        { leistungsdatum: '2026-02-10', ust_betrag: 57, kategorie_id: KAT_KOSTEN_ID, gruppe_id: GRP_KOSTEN_ID, untergruppe_id: null },
       ],
     })
     const res = await GET(req(BASE_PARAMS))

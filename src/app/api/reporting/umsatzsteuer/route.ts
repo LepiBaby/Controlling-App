@@ -118,8 +118,9 @@ export async function GET(request: Request) {
       .lte('leistungsdatum', bisDate),
     supabase
       .from('ausgaben_kosten_transaktionen')
-      .select('leistungsdatum, betrag_netto, kategorie_id, gruppe_id, untergruppe_id')
+      .select('leistungsdatum, ust_betrag, kategorie_id, gruppe_id, untergruppe_id')
       .not('leistungsdatum', 'is', null)
+      .gt('ust_betrag', 0)
       .gte('leistungsdatum', vonDate)
       .lte('leistungsdatum', bisDate),
   ])
@@ -194,9 +195,9 @@ export async function GET(request: Request) {
   const vsUgrVals: EntityMap = new Map()
 
   for (const row of vsRows ?? []) {
-    if (!row.leistungsdatum || !row.kategorie_id || !row.betrag_netto) continue
+    if (!row.leistungsdatum || !row.kategorie_id || !row.ust_betrag) continue
     const period = dateToPeriod(row.leistungsdatum, granularitaet)
-    const betrag = Number(row.betrag_netto)
+    const betrag = Number(row.ust_betrag)
     addTo(vsCatVals, row.kategorie_id, period, betrag)
     if (row.gruppe_id)      addTo(vsGrpVals, row.gruppe_id, period, betrag)
     if (row.untergruppe_id) addTo(vsUgrVals, row.untergruppe_id, period, betrag)
