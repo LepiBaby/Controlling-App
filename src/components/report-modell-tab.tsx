@@ -36,7 +36,8 @@ import { ReportPositionRow } from '@/components/report-position-row'
 export function ReportModellTab() {
   const {
     positions, loading, error,
-    addPosition, updateName, updateSortOrders, setKategorien, setSummePositionen, deletePosition,
+    addPosition, updateName, updateSortOrders, setKategorien, setSummePositionen,
+    deletePosition, updateInvestitionsbezogen, updateInDeckungsbeitragsreport, updateInBreakEvenReport,
   } = useReportPositionen()
 
   const { categories: umsatzCats } = useKpiCategories('umsatz')
@@ -142,6 +143,9 @@ export function ReportModellTab() {
                     onSetKategorien={setKategorien}
                     onSetSummePositionen={setSummePositionen}
                     onDelete={setPendingDelete}
+                    onUpdateInvestitionsbezogen={updateInvestitionsbezogen}
+                    onUpdateInDeckungsbeitragsreport={updateInDeckungsbeitragsreport}
+                    onUpdateInBreakEvenReport={updateInBreakEvenReport}
                   />
                 ))}
               </div>

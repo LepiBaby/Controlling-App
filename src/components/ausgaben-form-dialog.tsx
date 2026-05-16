@@ -14,6 +14,7 @@ import { AusgabenKostenTransaktion, AusgabenKostenTransaktionInput } from '@/hoo
 const TODAY = new Date().toISOString().split('T')[0]
 
 function computeUstBetrag(brutto: number, ustSatz: string, individuell: string): number {
+  if (ustSatz === '100') return brutto
   if (ustSatz === '19') return Math.round(brutto * 19 / 119 * 100) / 100
   if (ustSatz === '7') return Math.round(brutto * 7 / 107 * 100) / 100
   if (ustSatz === 'individuell') return Number(individuell) || 0
@@ -327,6 +328,7 @@ export function AusgabenFormDialog({
                 <SelectValue placeholder="USt-Satz wählen…" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="100">100 %</SelectItem>
                 <SelectItem value="19">19 %</SelectItem>
                 <SelectItem value="7">7 %</SelectItem>
                 <SelectItem value="0">0 %</SelectItem>

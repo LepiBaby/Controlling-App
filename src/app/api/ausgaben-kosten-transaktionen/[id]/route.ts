@@ -10,7 +10,7 @@ const patchSchema = z.object({
   leistungsdatum:              z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   zahlungsdatum:               z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   betrag_brutto:               z.number().positive().optional(),
-  ust_satz:                    z.enum(['19', '7', '0', 'individuell']).optional(),
+  ust_satz:                    z.enum(['100', '19', '7', '0', 'individuell']).optional(),
   ust_betrag:                  z.number().min(0).optional(),
   kategorie_id:                z.string().uuid().optional(),
   gruppe_id:                   z.string().uuid().nullable().optional(),
@@ -23,6 +23,7 @@ const patchSchema = z.object({
 })
 
 function computeUstBetrag(brutto: number, ustSatz: string, ustBetragManual: number): number {
+  if (ustSatz === '100') return brutto
   if (ustSatz === '19') return Math.round(brutto * 19 / 119 * 100) / 100
   if (ustSatz === '7')  return Math.round(brutto * 7  / 107 * 100) / 100
   if (ustSatz === '0')  return 0

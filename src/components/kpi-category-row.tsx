@@ -10,7 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { KpiAddCategoryForm } from '@/components/kpi-add-category-form'
 import {
   ChevronRight, ChevronDown, Plus, Pencil, Trash2,
-  ArrowUp, ArrowDown, Check, X, GripVertical, SlidersHorizontal, Tag, TrendingDown, Percent,
+  ArrowUp, ArrowDown, Check, X, GripVertical, SlidersHorizontal, Tag, TrendingDown, Percent, Ban,
 } from 'lucide-react'
 import type { KpiCategory } from '@/hooks/use-kpi-categories'
 import { cn } from '@/lib/utils'
@@ -54,6 +54,7 @@ interface KpiCategoryRowProps {
   onUpdateLabels?: (id: string, patch: { kosten_label?: string | null; ausgaben_label?: string | null }) => Promise<void>
   onUpdateAbzugsposten?: (id: string, ist_abzugsposten: boolean) => Promise<void>
   onUpdateUstSatz?: (id: string, ust_satz: number | null) => Promise<void>
+  onUpdateExcludeFromRentabilitaet?: (id: string, exclude: boolean) => Promise<void>
 }
 
 const INDENT: Record<number, string> = { 1: 'pl-0', 2: 'pl-6', 3: 'pl-12' }
@@ -73,6 +74,7 @@ export function KpiCategoryRow({
   onUpdateLabels,
   onUpdateAbzugsposten,
   onUpdateUstSatz,
+  onUpdateExcludeFromRentabilitaet,
 }: KpiCategoryRowProps) {
   const isSkuRow = category.type === 'produkte' && category.level === 2
   const isSkuParent = category.type === 'produkte' && category.level === 1
@@ -147,6 +149,7 @@ export function KpiCategoryRow({
   const hasActiveLabels = !!(category.kosten_label || category.ausgaben_label)
   const showAbzugsposten = category.level === 1 && !!onUpdateAbzugsposten
   const showUstSatz = isSkuParent && !!onUpdateUstSatz
+  const showExcludeFromRentabilitaet = !!onUpdateExcludeFromRentabilitaet
 
   // Drop indicator for this row
   const myIntent = dropIntent?.overId === category.id ? dropIntent : null
@@ -417,6 +420,34 @@ export function KpiCategoryRow({
                 </PopoverContent>
               </Popover>
             )}
+            {showExcludeFromRentabilitaet && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="ghost" size="icon"
+                    className={cn('h-6 w-6', category.exclude_from_rentabilitaet && 'text-orange-500')}
+                    title="Aus Rentabilitätsreport ausschließen"
+                  >
+                    <Ban className="h-3 w-3" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-72 p-3" align="end">
+                  <p className="text-xs font-medium text-muted-foreground mb-3">Rentabilitätsreport</p>
+                  <div className="flex items-start gap-2">
+                    <Checkbox
+                      id={`excl-${category.id}`}
+                      checked={category.exclude_from_rentabilitaet}
+                      onCheckedChange={(checked) =>
+                        onUpdateExcludeFromRentabilitaet!(category.id, checked === true)
+                      }
+                    />
+                    <Label htmlFor={`excl-${category.id}`} className="text-sm font-normal cursor-pointer leading-tight">
+                      Aus Rentabilitätsreport ausschließen (Transaktionen dieser Kategorie werden nicht eingerechnet)
+                    </Label>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
             <Button
               variant="ghost" size="icon"
               className="h-6 w-6 text-destructive hover:text-destructive"
@@ -469,6 +500,7 @@ export function KpiCategoryRow({
               onUpdateLabels={onUpdateLabels}
               onUpdateAbzugsposten={onUpdateAbzugsposten}
               onUpdateUstSatz={onUpdateUstSatz}
+              onUpdateExcludeFromRentabilitaet={onUpdateExcludeFromRentabilitaet}
             />
           ))}
         </div>

@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Separator } from '@/components/ui/separator'
+import { Switch } from '@/components/ui/switch'
 import { GripVertical, Check, X, Pencil, Trash2, Link2, Tags, Percent } from 'lucide-react'
 import type { ReportPosition } from '@/hooks/use-report-positionen'
 import { cn } from '@/lib/utils'
@@ -28,6 +29,9 @@ interface ReportPositionRowProps {
   onSetKategorien: (id: string, ids: string[]) => Promise<void>
   onSetSummePositionen: (id: string, ids: string[]) => Promise<void>
   onDelete: (position: ReportPosition) => void
+  onUpdateInvestitionsbezogen: (id: string, value: boolean) => Promise<void>
+  onUpdateInDeckungsbeitragsreport: (id: string, value: boolean) => Promise<void>
+  onUpdateInBreakEvenReport: (id: string, value: boolean) => Promise<void>
 }
 
 export function ReportPositionRow({
@@ -38,6 +42,9 @@ export function ReportPositionRow({
   onSetKategorien,
   onSetSummePositionen,
   onDelete,
+  onUpdateInvestitionsbezogen,
+  onUpdateInDeckungsbeitragsreport,
+  onUpdateInBreakEvenReport,
 }: ReportPositionRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: position.id })
   const style = { transform: CSS.Transform.toString(transform), transition }
@@ -297,6 +304,45 @@ export function ReportPositionRow({
           <Button variant="ghost" size="icon" className="h-6 w-6" onClick={startEdit} title="Umbenennen">
             <Pencil className="h-3 w-3" />
           </Button>
+
+          <div
+            className="flex items-center px-1"
+            title={position.in_deckungsbeitragsreport
+              ? "Im Deckungsbeitragsreport: Ja"
+              : "Im Deckungsbeitragsreport: Nein"}
+          >
+            <Switch
+              checked={position.in_deckungsbeitragsreport}
+              onCheckedChange={v => onUpdateInDeckungsbeitragsreport(position.id, v).catch(() => {})}
+              className="h-4 w-7 data-[state=checked]:bg-blue-500"
+            />
+          </div>
+
+          <div
+            className="flex items-center px-1"
+            title={position.in_break_even_report
+              ? "Im Break-Even-Report: Ja"
+              : "Im Break-Even-Report: Nein"}
+          >
+            <Switch
+              checked={position.in_break_even_report}
+              onCheckedChange={v => onUpdateInBreakEvenReport(position.id, v).catch(() => {})}
+              className="h-4 w-7 data-[state=checked]:bg-green-500"
+            />
+          </div>
+
+          <div
+            className="flex items-center px-1"
+            title={position.investitionsbezogen
+              ? "Investitionsbezogen: Ja — im 'Ohne Investitionen'-Filter ausgeblendet"
+              : "Investitionsbezogen: Nein — im 'Ohne Investitionen'-Filter sichtbar"}
+          >
+            <Switch
+              checked={position.investitionsbezogen}
+              onCheckedChange={v => onUpdateInvestitionsbezogen(position.id, v).catch(() => {})}
+              className="h-4 w-7 data-[state=checked]:bg-amber-500"
+            />
+          </div>
 
           <Button
             variant="ghost" size="icon"

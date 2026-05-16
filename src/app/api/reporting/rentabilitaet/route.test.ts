@@ -1240,8 +1240,8 @@ describe('GET /api/reporting/rentabilitaet', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
 
-    // 1000 × 19/119 = 159.66, negiert
-    expect(body.positionen[0].values['2026-01']).toBe(-159.66)
+    // 1000 × 19/100 = 190, negiert
+    expect(body.positionen[0].values['2026-01']).toBe(-190)
   })
 
   it('subtracts abzugsposten from netbase before applying ust_satz', async () => {
@@ -1263,8 +1263,8 @@ describe('GET /api/reporting/rentabilitaet', () => {
     const res = await GET(req({ von: '2026-01', bis: '2026-01', granularitaet: 'monat' }))
     const body = await res.json()
 
-    // netBase = 1000 - 200 = 800 → USt = 800 × 19/119 = 127.73, negiert
-    expect(body.positionen[0].values['2026-01']).toBe(-127.73)
+    // netBase = 1000 - 200 = 800 → USt = 800 × 19/100 = 152, negiert
+    expect(body.positionen[0].values['2026-01']).toBe(-152)
   })
 
   it('returns ust_produkte array with per-product ust values', async () => {
@@ -1285,7 +1285,7 @@ describe('GET /api/reporting/rentabilitaet', () => {
     expect(pos.ust_produkte[0].id).toBe(PRODUKT_ID)
     expect(pos.ust_produkte[0].name).toBe('Baby-Mütze')
     expect(pos.ust_produkte[0].ust_satz).toBe(19)
-    expect(pos.ust_produkte[0].values['2026-01']).toBe(-79.83)  // 500 × 19/119 = 79.83
+    expect(pos.ust_produkte[0].values['2026-01']).toBe(-95)  // 500 × 19/100 = 95
   })
 
   it('aggregates ust across multiple products with different rates', async () => {
@@ -1305,8 +1305,8 @@ describe('GET /api/reporting/rentabilitaet', () => {
     const res = await GET(req({ von: '2026-01', bis: '2026-01', granularitaet: 'monat' }))
     const body = await res.json()
 
-    // Produkt 1: 1000 × 19/119 = 159.66; Produkt 2: 2000 × 7/107 = 130.84 → gesamt -290.50
-    expect(body.positionen[0].values['2026-01']).toBe(-290.50)
+    // Produkt 1: 1000 × 19/100 = 190; Produkt 2: 2000 × 7/100 = 140 → gesamt -330
+    expect(body.positionen[0].values['2026-01']).toBe(-330)
     expect(body.positionen[0].ust_produkte).toHaveLength(2)
   })
 
@@ -1359,8 +1359,8 @@ describe('GET /api/reporting/rentabilitaet', () => {
     const res = await GET(req({ von: '2026-01', bis: '2026-03', granularitaet: 'quartal' }))
     const body = await res.json()
 
-    // 3 × 1000 × 19/119 = 478.99, negiert
-    expect(body.positionen[0].values['2026-Q1']).toBe(-478.99)
+    // 3 × 1000 × 19/100 = 570, negiert
+    expect(body.positionen[0].values['2026-Q1']).toBe(-570)
   })
 
   it('umsatzsteuer position can be referenced by a summe position', async () => {
@@ -1386,8 +1386,8 @@ describe('GET /api/reporting/rentabilitaet', () => {
     const body = await res.json()
 
     const summe = body.positionen.find((p: { id: string }) => p.id === SUMME_ID)
-    // 1000 (brutto) + (-159.66) (USt) = 840.34
-    expect(summe.values['2026-01']).toBe(840.34)
+    // 1000 (brutto) + (-190) (USt) = 810
+    expect(summe.values['2026-01']).toBe(810)
   })
 
   it('does not add bestand costs when the Produkt category is not assigned to any position', async () => {
@@ -1419,5 +1419,49 @@ describe('GET /api/reporting/rentabilitaet', () => {
 
     // KAT_PRODUKT_ID not in assigned cats → bestand costs not added
     expect(body.positionen[0].values['2026-01']).toBe(0)
+  })
+
+  // ── PROJ-25: investitionsbezogen & summe_refs ───────────────────────────────
+
+  it('includes investitionsbezogen field in position response', async () => {
+    setupMocks({
+      positions: [
+        { id: POS_ID,   name: 'Produktinvestitionen', type: 'position', sort_order: 0, investitionsbezogen: true },
+        { id: SUMME_ID, name: 'EBIT',                  type: 'position', sort_order: 1, investitionsbezogen: false },
+      ],
+      rpKategorien: [{ report_position_id: POS_ID, kpi_category_id: KAT_KOSTEN_ID }],
+      kpiCats: [{ id: KAT_KOSTEN_ID, name: 'Invest', type: 'ausgaben_kosten', level: 1, parent_id: null, sort_order: 0, sales_plattform_enabled: false, produkt_enabled: false }],
+    })
+
+    const res = await GET(req({ von: '2026-01', bis: '2026-01', granularitaet: 'monat' }))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+
+    const investPos = body.positionen.find((p: { id: string }) => p.id === POS_ID)
+    const ebitPos   = body.positionen.find((p: { id: string }) => p.id === SUMME_ID)
+    expect(investPos.investitionsbezogen).toBe(true)
+    expect(ebitPos.investitionsbezogen).toBe(false)
+  })
+
+  it('includes summe_refs array in summe position response', async () => {
+    setupMocks({
+      positions: [
+        { id: POS_ID,   name: 'Umsatz',      type: 'position', sort_order: 0, investitionsbezogen: false },
+        { id: SUMME_ID, name: 'Netto-Umsatz', type: 'summe',    sort_order: 1, investitionsbezogen: false },
+      ],
+      rpKategorien: [{ report_position_id: POS_ID, kpi_category_id: KAT_UMSATZ_ID }],
+      rpSummen:     [{ report_position_id: SUMME_ID, referenced_position_id: POS_ID }],
+      kpiCats: [{ id: KAT_UMSATZ_ID, name: 'Online', type: 'umsatz', level: 1, parent_id: null, sort_order: 0, sales_plattform_enabled: false, produkt_enabled: false }],
+      umsatz: [
+        { leistungsdatum: '2026-01-10', betrag: 1000, kategorie_id: KAT_UMSATZ_ID, gruppe_id: null, untergruppe_id: null, sales_plattform_id: null, produkt_id: null },
+      ],
+    })
+
+    const res = await GET(req({ von: '2026-01', bis: '2026-01', granularitaet: 'monat' }))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+
+    const summePos = body.positionen.find((p: { id: string }) => p.id === SUMME_ID)
+    expect(summePos.summe_refs).toEqual([POS_ID])
   })
 })

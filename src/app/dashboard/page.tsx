@@ -85,6 +85,20 @@ export default async function DashboardPage() {
               <p className="font-medium">Produktkosten</p>
               <p className="text-sm text-muted-foreground mt-1">Kostenstruktur je Produkt pflegen</p>
             </a>
+            <a
+              href="/dashboard/bestandsverwaltung"
+              className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+            >
+              <p className="font-medium">Bestandsverwaltung</p>
+              <p className="text-sm text-muted-foreground mt-1">Lager- und Transit-Bestände erfassen</p>
+            </a>
+            <a
+              href="/dashboard/vermoegenswerte"
+              className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+            >
+              <p className="font-medium">Vermögenswerte</p>
+              <p className="text-sm text-muted-foreground mt-1">Bilanzpositionen als Snapshot erfassen</p>
+            </a>
           </div>
           </div>
 
@@ -119,6 +133,13 @@ export default async function DashboardPage() {
                 <p className="font-medium">Investitionen</p>
                 <p className="text-sm text-muted-foreground mt-1">Produktinvestitionen auf 12 Monate verteilt</p>
               </a>
+              <a
+                href="/dashboard/vorsteuer"
+                className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+              >
+                <p className="font-medium">Abziehbare Vorsteuer</p>
+                <p className="text-sm text-muted-foreground mt-1">Vorsteuer aus Ausgaben &amp; Kosten</p>
+              </a>
             </div>
           </div>
 
@@ -131,6 +152,41 @@ export default async function DashboardPage() {
               >
                 <p className="font-medium">Rentabilitätsreport</p>
                 <p className="text-sm text-muted-foreground mt-1">GuV-Rechnung mit Monats-, Quartals- und Jahresansicht</p>
+              </a>
+              <a
+                href="/dashboard/reporting/deckungsbeitrag"
+                className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+              >
+                <p className="font-medium">Deckungsbeitragsreport</p>
+                <p className="text-sm text-muted-foreground mt-1">DB1–DB3 mit Produkt- und Plattform-Filter</p>
+              </a>
+              <a
+                href="/dashboard/reporting/break-even"
+                className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+              >
+                <p className="font-medium">Break-Even-Report</p>
+                <p className="text-sm text-muted-foreground mt-1">Kumulierter Umsatz vs. Kosten je Produkt</p>
+              </a>
+              <a
+                href="/dashboard/reporting/liquiditaet"
+                className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+              >
+                <p className="font-medium">Liquiditätsreport</p>
+                <p className="text-sm text-muted-foreground mt-1">Cashflow und Kontostand mit Monats-, Quartals- und Jahresansicht</p>
+              </a>
+              <a
+                href="/dashboard/reporting/umsatzsteuer"
+                className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+              >
+                <p className="font-medium">Umsatzsteuer-Report</p>
+                <p className="text-sm text-muted-foreground mt-1">Umsatzsteuer und Vorsteuer im Überblick</p>
+              </a>
+              <a
+                href="/dashboard/reporting/vermoegen"
+                className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+              >
+                <p className="font-medium">Vermögensbericht</p>
+                <p className="text-sm text-muted-foreground mt-1">Waren-, Liquiditäts- und Vermögens-KPIs auf Basis von Snapshots</p>
               </a>
             </div>
           </div>

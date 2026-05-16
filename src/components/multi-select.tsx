@@ -8,6 +8,7 @@ import { ChevronDown } from 'lucide-react'
 interface Option {
   id: string
   name: string
+  color?: string
 }
 
 interface MultiSelectProps {
@@ -57,6 +58,12 @@ export function MultiSelect({ options, selected, onChange, placeholder = 'Alle',
                     checked={selected.includes(opt.id)}
                     onCheckedChange={() => toggle(opt.id)}
                   />
+                  {opt.color && (
+                    <span
+                      className="h-2 w-2 rounded-full flex-shrink-0"
+                      style={{ background: opt.color }}
+                    />
+                  )}
                   <span className="text-sm leading-none">{opt.name}</span>
                 </label>
               </li>

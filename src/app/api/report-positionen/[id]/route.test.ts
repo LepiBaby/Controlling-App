@@ -16,7 +16,7 @@ function req(url: string, options?: RequestInit) {
 }
 
 const POS_ID = '11111111-1111-1111-1111-111111111111'
-const MOCK_POSITION = { id: POS_ID, name: 'Umsatz', type: 'position', sort_order: 0 }
+const MOCK_POSITION = { id: POS_ID, name: 'Umsatz', type: 'position', sort_order: 0, investitionsbezogen: false }
 const params = Promise.resolve({ id: POS_ID })
 
 beforeEach(() => {
@@ -55,6 +55,21 @@ describe('PATCH /api/report-positionen/[id]', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.sort_order).toBe(3)
+  })
+
+  it('returns 200 when updating investitionsbezogen', async () => {
+    mockFrom.mockReturnValueOnce({
+      update: () => ({ eq: () => ({ eq: () => ({ select: () => ({ single: () => ({ data: { ...MOCK_POSITION, investitionsbezogen: true }, error: null }) }) }) }) }),
+    })
+
+    const res = await PATCH(req('http://localhost/api/report-positionen/id', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ investitionsbezogen: true }),
+    }), { params })
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.investitionsbezogen).toBe(true)
   })
 
   it('returns 400 when body is empty', async () => {

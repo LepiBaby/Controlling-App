@@ -23,6 +23,8 @@ export interface ReportUntergruppe {
   name: string
   values: Record<string, number>
   sales_plattformen: ReportPlattform[]
+  produkte_pi?: ReportBlatt[]
+  produkte?: ReportBlatt[]
 }
 
 export interface ReportGruppe {
@@ -33,6 +35,8 @@ export interface ReportGruppe {
   sales_plattformen: ReportPlattform[]
   produkte_wertverlust?: ReportBlatt[]
   produkte_manuelle_sendungen?: ReportBlatt[]
+  produkte_pi?: ReportBlatt[]
+  produkte?: ReportBlatt[]
 }
 
 export interface ReportKategorie {
@@ -58,9 +62,11 @@ export interface ReportPosition {
   name: string
   type: 'position' | 'summe' | 'umsatzsteuer'
   sort_order: number
+  investitionsbezogen: boolean
   values: Record<string, number>
   kategorien: ReportKategorie[]
   ust_produkte?: ReportUstProdukt[]
+  summe_refs?: string[]
 }
 
 export interface ReportingRentabilitaetData {

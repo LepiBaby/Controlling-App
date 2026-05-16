@@ -18,6 +18,7 @@ export interface KpiCategory {
   ausgaben_label: string | null
   ist_abzugsposten: boolean
   ust_satz: number | null
+  exclude_from_rentabilitaet: boolean
   children?: KpiCategory[]
 }
 
@@ -329,10 +330,25 @@ export function useKpiCategories(type: CategoryType) {
     }
   }, [categories])
 
+  const updateExcludeFromRentabilitaet = useCallback(async (id: string, exclude_from_rentabilitaet: boolean) => {
+    const prev = categories.find(c => c.id === id)
+    if (!prev) return
+    setCategories(cats => cats.map(c => c.id === id ? { ...c, exclude_from_rentabilitaet } : c))
+    const res = await fetch(`/api/kpi-categories/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ exclude_from_rentabilitaet }),
+    })
+    if (!res.ok) {
+      setCategories(cats => cats.map(c => c.id === id ? { ...c, ...prev } : c))
+    }
+  }, [categories])
+
   return {
     tree, categories, loading, error,
     addCategory, renameCategory, updateSku, deleteCategory, moveCategory,
     reorderCategory, reparentCategory, updateDimensions, updateLabels, updateAbzugsposten, updateUstSatz,
+    updateExcludeFromRentabilitaet,
     getDescendantCount, getSubtreeDepthForId, isDescendantOfId,
   }
 }

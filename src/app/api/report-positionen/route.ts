@@ -10,7 +10,7 @@ const postSchema = z.object({
 async function assemblePositionen(supabase: Awaited<ReturnType<typeof import('@/lib/supabase-server').createSupabaseServerClient>>, userId: string) {
   const { data: positions, error: posErr } = await supabase
     .from('report_positionen')
-    .select('id, name, type, sort_order')
+    .select('id, name, type, sort_order, investitionsbezogen, in_deckungsbeitragsreport, in_break_even_report')
     .eq('user_id', userId)
     .order('sort_order', { ascending: true })
 
@@ -40,6 +40,9 @@ async function assemblePositionen(supabase: Awaited<ReturnType<typeof import('@/
     name: p.name,
     type: p.type,
     sort_order: p.sort_order,
+    investitionsbezogen: p.investitionsbezogen ?? false,
+    in_deckungsbeitragsreport: p.in_deckungsbeitragsreport ?? false,
+    in_break_even_report: p.in_break_even_report ?? false,
     kategorien: (kategorien ?? [])
       .filter(k => k.report_position_id === p.id)
       .map(k => ({
@@ -97,7 +100,7 @@ export async function POST(request: Request) {
   const { data: created, error: insErr } = await supabase
     .from('report_positionen')
     .insert({ name, type, sort_order, user_id: user!.id })
-    .select('id, name, type, sort_order')
+    .select('id, name, type, sort_order, investitionsbezogen, in_deckungsbeitragsreport, in_break_even_report')
     .single()
 
   if (insErr || !created) {
@@ -109,6 +112,9 @@ export async function POST(request: Request) {
     name: created.name,
     type: created.type,
     sort_order: created.sort_order,
+    investitionsbezogen: created.investitionsbezogen ?? false,
+    in_deckungsbeitragsreport: created.in_deckungsbeitragsreport ?? false,
+    in_break_even_report: created.in_break_even_report ?? false,
     kategorien: [],
     summe_positionen: [],
   })

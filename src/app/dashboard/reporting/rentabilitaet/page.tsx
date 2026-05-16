@@ -1,21 +1,45 @@
 'use client'
 
+import { useState, useEffect, useRef } from 'react'
 import { NavSheet } from '@/components/nav-sheet'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ReportingRentabilitaetMatrix } from '@/components/reporting-rentabilitaet-matrix'
+import { ReportingRentabilitaetChart } from '@/components/reporting-rentabilitaet-chart'
+import { AbsatzTable } from '@/components/absatz-table'
 import {
   useReportingRentabilitaet,
   type ReportGranularitaet,
   type ReportAnzeigemodus,
 } from '@/hooks/use-reporting-rentabilitaet'
+import { useReportingAbsatz } from '@/hooks/use-reporting-absatz'
+import { X } from 'lucide-react'
+import { cn } from '@/lib/utils'
+
+const STANDARD_POSITION_NAMEN = ['bruttoumsatz', 'nettoumsatz', 'db3', 'ebit', 'ebt']
 
 export default function ReportingRentabilitaetPage() {
   const {
     von, bis, granularitaet, anzeigemodus, data, displayPerioden, loading, error,
     setVon, setBis, setGranularitaet, setAnzeigemodus,
   } = useReportingRentabilitaet()
+
+  const { data: absatzData, loading: absatzLoading } = useReportingAbsatz({ von, bis, granularitaet })
+
+  const [ohneInvestitionen, setOhneInvestitionen] = useState(false)
+  const [selectedPositionIds, setSelectedPositionIds] = useState<string[]>([])
+  const initializedRef = useRef(false)
+
+  // Standard-Positionen beim ersten Laden vorauswählen
+  useEffect(() => {
+    if (!data || initializedRef.current) return
+    const ids = data.positionen
+      .filter(p => STANDARD_POSITION_NAMEN.includes(p.name.toLowerCase()))
+      .map(p => p.id)
+    setSelectedPositionIds(ids)
+    initializedRef.current = true
+  }, [data])
 
   const currentMonth = new Date().toISOString().slice(0, 7)
 
@@ -85,6 +109,21 @@ export default function ReportingRentabilitaetPage() {
                 </TabsList>
               </Tabs>
             </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Filter</Label>
+              <button
+                onClick={() => setOhneInvestitionen(v => !v)}
+                className={cn(
+                  'inline-flex h-8 items-center gap-2 rounded-md px-3 text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  ohneInvestitionen
+                    ? 'bg-amber-100 text-amber-800 ring-1 ring-amber-300 dark:bg-amber-950/50 dark:text-amber-200 dark:ring-amber-700'
+                    : 'border border-input bg-background text-muted-foreground hover:bg-accent hover:text-foreground'
+                )}
+              >
+                Ohne Investitionen
+                {ohneInvestitionen && <X className="h-3 w-3 opacity-60" />}
+              </button>
+            </div>
           </div>
 
           {/* Validierungsfehler */}
@@ -99,6 +138,26 @@ export default function ReportingRentabilitaetPage() {
             </div>
           )}
 
+          {/* Liniendiagramm */}
+          <ReportingRentabilitaetChart
+            data={hasValidDateRange ? data : null}
+            loading={loading}
+            hasDateRange={hasValidDateRange}
+            anzeigemodus={anzeigemodus}
+            displayPerioden={displayPerioden}
+            ohneInvestitionen={ohneInvestitionen}
+            selectedPositionIds={selectedPositionIds}
+            onSelectionChange={setSelectedPositionIds}
+          />
+
+          {/* Absatztabelle */}
+          <AbsatzTable
+            data={absatzData}
+            loading={absatzLoading}
+            hasDateRange={hasValidDateRange}
+            displayPerioden={displayPerioden}
+          />
+
           {/* Matrix */}
           <ReportingRentabilitaetMatrix
             data={hasValidDateRange ? data : null}
@@ -106,6 +165,7 @@ export default function ReportingRentabilitaetPage() {
             hasDateRange={hasValidDateRange}
             anzeigemodus={anzeigemodus}
             displayPerioden={displayPerioden}
+            ohneInvestitionen={ohneInvestitionen}
           />
 
         </div>

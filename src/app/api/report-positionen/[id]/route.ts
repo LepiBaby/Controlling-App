@@ -5,7 +5,10 @@ import { requireAuth } from '@/lib/supabase-server'
 const patchSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   sort_order: z.number().int().min(0).optional(),
-}).refine(d => d.name !== undefined || d.sort_order !== undefined, {
+  investitionsbezogen: z.boolean().optional(),
+  in_deckungsbeitragsreport: z.boolean().optional(),
+  in_break_even_report: z.boolean().optional(),
+}).refine(d => d.name !== undefined || d.sort_order !== undefined || d.investitionsbezogen !== undefined || d.in_deckungsbeitragsreport !== undefined || d.in_break_even_report !== undefined, {
   message: 'At least one field required',
 })
 
@@ -29,7 +32,7 @@ export async function PATCH(
     .update(parsed.data)
     .eq('id', id)
     .eq('user_id', user!.id)
-    .select('id, name, type, sort_order')
+    .select('id, name, type, sort_order, investitionsbezogen, in_deckungsbeitragsreport, in_break_even_report')
     .single()
 
   if (updErr || !updated) {

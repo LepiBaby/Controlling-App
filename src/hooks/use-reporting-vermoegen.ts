@@ -18,23 +18,40 @@ export interface VermoegenKPIs {
   warenkapitalbindung: number
   warenbindungsquote: number | null
   lagerreichweite: number | null
+  avg_monatssendungen: number
+  steuerforderung: number
   // Liquiditäts-KPIs
   working_capital: number
   cash_ratio: number | null
   quick_ratio: number | null
   current_ratio: number | null
   // Vermögens-KPIs
+  umlaufvermoegen: number
+  steuerschulden: number
   eigenkapital: number
   fremdkapital: number
   gesamtvermoegen: number
   ek_quote: number | null
   fk_quote: number | null
   cash_quote: number | null
+  uv_quote: number | null
+}
+
+export interface ProduktDetail {
+  id: string
+  name: string
+  lager: number
+  transit: number
+  warenkapital: number
+  avg_monatssendungen: number
+  produktkosten: number
+  lagerreichweite: number | null
 }
 
 export interface ReportingVermoegenData {
   latest: VermoegenKPIs | null
   series: VermoegenKPIs[]
+  produkt_details: ProduktDetail[]
 }
 
 export function useReportingVermoegen() {

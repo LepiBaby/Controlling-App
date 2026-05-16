@@ -126,7 +126,9 @@ function pushUntergruppe(
   expandedIds: Set<string>,
   indent: number,
 ) {
-  const expandable = ugr.sales_plattformen.length > 0
+  const hasPi  = (ugr.produkte_pi?.length ?? 0) > 0
+  const hasPrd = (ugr.produkte?.length ?? 0) > 0
+  const expandable = ugr.sales_plattformen.length > 0 || hasPi || hasPrd
   rows.push({
     id: ugr.id,
     label: ugr.name,
@@ -137,8 +139,34 @@ function pushUntergruppe(
     expanded: expandedIds.has(ugr.id),
   })
   if (!expandable || !expandedIds.has(ugr.id)) return
-  for (const plt of ugr.sales_plattformen) {
-    pushPlattform(rows, plt, ugr.id, expandedIds, indent + 1)
+  if (ugr.sales_plattformen.length > 0) {
+    for (const plt of ugr.sales_plattformen) {
+      pushPlattform(rows, plt, ugr.id, expandedIds, indent + 1)
+    }
+  } else if (hasPi) {
+    for (const prd of ugr.produkte_pi!) {
+      rows.push({
+        id: `piprd:${ugr.id}:${prd.id}`,
+        label: prd.name,
+        indent: indent + 1,
+        kind: 'produkt',
+        values: prd.values,
+        expandable: false,
+        expanded: false,
+      })
+    }
+  } else if (hasPrd) {
+    for (const prd of ugr.produkte!) {
+      rows.push({
+        id: `prd:${ugr.id}:${prd.id}`,
+        label: prd.name,
+        indent: indent + 1,
+        kind: 'produkt',
+        values: prd.values,
+        expandable: false,
+        expanded: false,
+      })
+    }
   }
 }
 
@@ -148,9 +176,11 @@ function pushGruppe(
   expandedIds: Set<string>,
   indent: number,
 ) {
-  const hasWv = (grp.produkte_wertverlust?.length ?? 0) > 0
-  const hasMs = (grp.produkte_manuelle_sendungen?.length ?? 0) > 0
-  const expandable = grp.untergruppen.length > 0 || grp.sales_plattformen.length > 0 || hasWv || hasMs
+  const hasWv  = (grp.produkte_wertverlust?.length ?? 0) > 0
+  const hasMs  = (grp.produkte_manuelle_sendungen?.length ?? 0) > 0
+  const hasPi  = (grp.produkte_pi?.length ?? 0) > 0
+  const hasPrd = (grp.produkte?.length ?? 0) > 0
+  const expandable = grp.untergruppen.length > 0 || grp.sales_plattformen.length > 0 || hasWv || hasMs || hasPi || hasPrd
   rows.push({
     id: grp.id,
     label: grp.name,
@@ -181,6 +211,30 @@ function pushGruppe(
     for (const prd of grp.produkte_manuelle_sendungen!) {
       rows.push({
         id: `msprd:${grp.id}:${prd.id}`,
+        label: prd.name,
+        indent: indent + 1,
+        kind: 'produkt',
+        values: prd.values,
+        expandable: false,
+        expanded: false,
+      })
+    }
+  } else if (hasPi) {
+    for (const prd of grp.produkte_pi!) {
+      rows.push({
+        id: `piprd:${grp.id}:${prd.id}`,
+        label: prd.name,
+        indent: indent + 1,
+        kind: 'produkt',
+        values: prd.values,
+        expandable: false,
+        expanded: false,
+      })
+    }
+  } else if (hasPrd) {
+    for (const prd of grp.produkte!) {
+      rows.push({
+        id: `prd:${grp.id}:${prd.id}`,
         label: prd.name,
         indent: indent + 1,
         kind: 'produkt',
@@ -337,7 +391,8 @@ function collectAllExpandableIds(data: ReportingRentabilitaetData): Set<string> 
   }
 
   function addUntergruppe(ugr: ReportUntergruppe) {
-    if (ugr.sales_plattformen.length > 0) {
+    const hasPi = (ugr.produkte_pi?.length ?? 0) > 0
+    if (ugr.sales_plattformen.length > 0 || hasPi) {
       ids.add(ugr.id)
       addPlattformen(ugr.sales_plattformen, ugr.id)
     }
@@ -346,7 +401,8 @@ function collectAllExpandableIds(data: ReportingRentabilitaetData): Set<string> 
   function addGruppe(grp: ReportGruppe) {
     const hasWv = (grp.produkte_wertverlust?.length ?? 0) > 0
     const hasMs = (grp.produkte_manuelle_sendungen?.length ?? 0) > 0
-    if (grp.untergruppen.length > 0 || grp.sales_plattformen.length > 0 || hasWv || hasMs) {
+    const hasPi = (grp.produkte_pi?.length ?? 0) > 0
+    if (grp.untergruppen.length > 0 || grp.sales_plattformen.length > 0 || hasWv || hasMs || hasPi) {
       ids.add(grp.id)
       for (const ugr of grp.untergruppen) addUntergruppe(ugr)
       addPlattformen(grp.sales_plattformen, grp.id)
@@ -391,6 +447,42 @@ function stickyBgClass(kind: RowKind): string {
   return 'bg-background'
 }
 
+// ─── Ohne-Investitionen-Filter ────────────────────────────────────────────────
+
+export function applyOhneInvestitionenFilter(data: ReportingRentabilitaetData): ReportingRentabilitaetData {
+  const perioden = data.perioden
+
+  // Step 1: Werte aller investitionsbezogenen regulären Positionen auf 0 setzen
+  const modValues = new Map<string, Record<string, number>>()
+  for (const pos of data.positionen) {
+    if (pos.investitionsbezogen && pos.type === 'position') {
+      const zeroed: Record<string, number> = {}
+      for (const p of perioden) zeroed[p] = 0
+      modValues.set(pos.id, zeroed)
+    } else {
+      modValues.set(pos.id, { ...pos.values })
+    }
+  }
+
+  // Step 2: Summen-Positionen in sort_order neu berechnen (inkl. investitionsbezogene)
+  for (const pos of data.positionen) {
+    if (pos.type !== 'summe') continue
+    if (!pos.summe_refs || pos.summe_refs.length === 0) continue
+    const newValues: Record<string, number> = {}
+    for (const p of perioden) {
+      newValues[p] = pos.summe_refs.reduce((sum, refId) => sum + (modValues.get(refId)?.[p] ?? 0), 0)
+    }
+    modValues.set(pos.id, newValues)
+  }
+
+  // Step 3: Investitionsbezogene Positionen aus Anzeige entfernen; angepasste Werte verwenden
+  const filteredPositionen = data.positionen
+    .filter(pos => !pos.investitionsbezogen)
+    .map(pos => ({ ...pos, values: modValues.get(pos.id) ?? pos.values }))
+
+  return { ...data, positionen: filteredPositionen }
+}
+
 // ─── Hauptkomponente ──────────────────────────────────────────────────────────
 
 interface Props {
@@ -399,6 +491,7 @@ interface Props {
   hasDateRange: boolean
   anzeigemodus: ReportAnzeigemodus
   displayPerioden: string[]
+  ohneInvestitionen: boolean
 }
 
 export function ReportingRentabilitaetMatrix({
@@ -407,35 +500,43 @@ export function ReportingRentabilitaetMatrix({
   hasDateRange,
   anzeigemodus,
   displayPerioden,
+  ohneInvestitionen,
 }: Props) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
 
+  // Gefilterte Daten: bei aktivem Filter investitionsbezogene Positionen ausblenden und Summen neu berechnen
+  const effectiveData = useMemo(() => {
+    if (!data) return null
+    if (!ohneInvestitionen) return data
+    return applyOhneInvestitionenFilter(data)
+  }, [data, ohneInvestitionen])
+
   const allExpandableIds = useMemo(
-    () => (data ? collectAllExpandableIds(data) : new Set<string>()),
-    [data],
+    () => (effectiveData ? collectAllExpandableIds(effectiveData) : new Set<string>()),
+    [effectiveData],
   )
 
   const allExpanded = allExpandableIds.size > 0 && [...allExpandableIds].every(id => expandedIds.has(id))
 
   const rows = useMemo(
-    () => (data ? buildFlatRows(data, expandedIds) : []),
-    [data, expandedIds],
+    () => (effectiveData ? buildFlatRows(effectiveData, expandedIds) : []),
+    [effectiveData, expandedIds],
   )
 
   // Bruttoumsatz-Basis für Prozentual-Modus: Summe aller reinen Umsatz-Positionen
   const bruttoumsatzByPeriode = useMemo(() => {
-    if (!data || anzeigemodus !== 'prozentual') return null
+    if (!effectiveData || anzeigemodus !== 'prozentual') return null
     const result: Record<string, number> = {}
-    for (const pos of data.positionen) {
+    for (const pos of effectiveData.positionen) {
       if (pos.type !== 'position') continue
       if (!pos.kategorien.every(k => k.kpi_type === 'umsatz')) continue
-      for (const p of data.perioden) {
+      for (const p of effectiveData.perioden) {
         // Nur positive Beiträge zählen → Abzugsposten (z.B. Retouren) werden ausgeschlossen
         result[p] = (result[p] ?? 0) + Math.max(0, pos.values[p] ?? 0)
       }
     }
     return result
-  }, [data, anzeigemodus])
+  }, [effectiveData, anzeigemodus])
 
   const allesBruttoumsatzNull = useMemo(() => {
     if (!bruttoumsatzByPeriode) return false
@@ -457,10 +558,10 @@ export function ReportingRentabilitaetMatrix({
 
   // Gibt den Vorperioden-Schlüssel für eine angezeigte Periode zurück
   function vorperiodOf(p: string): string | undefined {
-    if (!data) return undefined
-    const idx = data.perioden.indexOf(p)
+    if (!effectiveData) return undefined
+    const idx = effectiveData.perioden.indexOf(p)
     if (idx <= 0) return undefined
-    return data.perioden[idx - 1]
+    return effectiveData.perioden[idx - 1]
   }
 
   // ── Leerzustände ──────────────────────────────────────────────────────────
@@ -484,9 +585,9 @@ export function ReportingRentabilitaetMatrix({
     )
   }
 
-  if (!data) return null
+  if (!effectiveData) return null
 
-  if (data.positionen.length === 0) {
+  if (effectiveData.positionen.length === 0) {
     return (
       <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed py-16 text-center text-muted-foreground">
         <BarChart2 className="h-8 w-8" />
@@ -505,7 +606,7 @@ export function ReportingRentabilitaetMatrix({
     )
   }
 
-  const perioden = displayPerioden.length > 0 ? displayPerioden : data.perioden
+  const perioden = displayPerioden.length > 0 ? displayPerioden : effectiveData.perioden
 
   return (
     <div className="space-y-2">

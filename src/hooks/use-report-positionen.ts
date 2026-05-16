@@ -28,6 +28,9 @@ export interface ReportPosition {
   name: string
   type: ReportPositionType
   sort_order: number
+  investitionsbezogen: boolean
+  in_deckungsbeitragsreport: boolean
+  in_break_even_report: boolean
   kategorien: ReportPositionKategorie[]
   summe_positionen: ReportSummeRef[]
 }
@@ -124,8 +127,51 @@ export function useReportPositionen() {
     await fetch(`/api/report-positionen/${id}`, { method: 'DELETE' })
   }, [])
 
+  const updateInvestitionsbezogen = useCallback(async (id: string, investitionsbezogen: boolean) => {
+    const prev = positions.find(p => p.id === id)
+    if (!prev) return
+    setPositions(ps => ps.map(p => p.id === id ? { ...p, investitionsbezogen } : p))
+    const res = await fetch(`/api/report-positionen/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ investitionsbezogen }),
+    })
+    if (!res.ok) {
+      setPositions(ps => ps.map(p => p.id === id ? prev : p))
+    }
+  }, [positions])
+
+  const updateInDeckungsbeitragsreport = useCallback(async (id: string, in_deckungsbeitragsreport: boolean) => {
+    const prev = positions.find(p => p.id === id)
+    if (!prev) return
+    setPositions(ps => ps.map(p => p.id === id ? { ...p, in_deckungsbeitragsreport } : p))
+    const res = await fetch(`/api/report-positionen/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ in_deckungsbeitragsreport }),
+    })
+    if (!res.ok) {
+      setPositions(ps => ps.map(p => p.id === id ? prev : p))
+    }
+  }, [positions])
+
+  const updateInBreakEvenReport = useCallback(async (id: string, in_break_even_report: boolean) => {
+    const prev = positions.find(p => p.id === id)
+    if (!prev) return
+    setPositions(ps => ps.map(p => p.id === id ? { ...p, in_break_even_report } : p))
+    const res = await fetch(`/api/report-positionen/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ in_break_even_report }),
+    })
+    if (!res.ok) {
+      setPositions(ps => ps.map(p => p.id === id ? prev : p))
+    }
+  }, [positions])
+
   return {
     positions, loading, error,
-    addPosition, updateName, updateSortOrders, setKategorien, setSummePositionen, deletePosition,
+    addPosition, updateName, updateSortOrders, setKategorien, setSummePositionen,
+    deletePosition, updateInvestitionsbezogen, updateInDeckungsbeitragsreport, updateInBreakEvenReport,
   }
 }

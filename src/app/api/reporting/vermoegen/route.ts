@@ -34,6 +34,8 @@ type Snapshot = {
   darlehensvb: number
   cash_bestand: number
   anlagevermoegen: number
+  steuersaldo_typ: string | null
+  steuersaldo: number | null
   lagerwerte: { produkt_id: string | null; lagerwert: number }[]
   transitwerte: { produkt_id: string | null; transitwert: number }[]
   forderungen: { plattform_id: string | null; betrag: number }[]
@@ -59,6 +61,7 @@ export async function GET() {
         id, datum,
         verbindlichkeiten_llv, verbindlichkeiten_sonstige,
         darlehensvb, cash_bestand, anlagevermoegen,
+        steuersaldo_typ, steuersaldo,
         lagerwerte:vermoegenswarte_lagerwerte(produkt_id, lagerwert),
         transitwerte:vermoegenswarte_transitwerte(produkt_id, transitwert),
         forderungen:vermoegenswarte_forderungen(plattform_id, betrag)
@@ -68,7 +71,7 @@ export async function GET() {
 
     supabase
       .from('kpi_categories')
-      .select('id')
+      .select('id, name')
       .eq('type', 'produkte')
       .eq('level', 1)
       .limit(200),
@@ -110,6 +113,7 @@ export async function GET() {
   // ── SKU → Produkt mapping ────────────────────────────────────────────────────
 
   const produktIds = new Set((produkte ?? []).map((p) => p.id))
+  const produktNameMap = new Map((produkte ?? []).map((p) => [p.id, (p as { id: string; name: string }).name]))
   const skuById = new Map((skus ?? []).map((s) => [s.id, s]))
 
   function findProduktId(skuId: string): string | null {
@@ -175,7 +179,9 @@ export async function GET() {
     const lager = r2((snap.lagerwerte ?? []).reduce((s, lw) => s + Number(lw.lagerwert), 0))
     const transit = r2((snap.transitwerte ?? []).reduce((s, tw) => s + Number(tw.transitwert), 0))
     const warenkapital = r2(lager + transit)
-    const gesamt_forderungen = r2((snap.forderungen ?? []).reduce((s, f) => s + Number(f.betrag), 0))
+    const plattform_forderungen = r2((snap.forderungen ?? []).reduce((s, f) => s + Number(f.betrag), 0))
+    const steuerforderung = snap.steuersaldo_typ === 'forderung' ? r2(Number(snap.steuersaldo ?? 0)) : 0
+    const gesamt_forderungen = r2(plattform_forderungen + steuerforderung)
     const verb_ll = Number(snap.verbindlichkeiten_llv)
     const verb_sonstige = Number(snap.verbindlichkeiten_sonstige)
     const darlehen = Number(snap.darlehensvb)
@@ -184,12 +190,15 @@ export async function GET() {
 
     // Lagerreichweite: Warenkapital / Σ(Ø-Monatssendungen × Produktkosten)
     let lrNenner = 0
+    let avg_monatssendungen = 0
     for (const produktId of produktIds) {
       const kosten = getProduktkosten(produktId, snap.datum)
       if (kosten <= 0) continue
       const avgSendungen = getAvgMonatssendungen(produktId, snap.datum)
       lrNenner = r2(lrNenner + avgSendungen * kosten)
+      avg_monatssendungen += avgSendungen
     }
+    avg_monatssendungen = r2(avg_monatssendungen)
 
     // Waren-KPIs
     const lager_anteil = warenkapital === 0 ? null : safeDiv(lager, warenkapital)
@@ -205,21 +214,25 @@ export async function GET() {
     const quick_ratio = safeDiv(r2(cash + gesamt_forderungen), liqNenner)
     const current_ratio = safeDiv(r2(cash + gesamt_forderungen + warenkapital), liqNenner)
 
-    // Vermögens-KPIs
-    const eigenkapital = r2(warenkapital + gesamt_forderungen + cash + anlagevermoegen)
-    const fremdkapital = r2(verb_ll + verb_sonstige + darlehen)
-    const gesamtvermoegen = r2(eigenkapital + fremdkapital)
-    const ek_quote = safeDiv(eigenkapital, gesamtvermoegen)
-    const fk_quote = safeDiv(fremdkapital, gesamtvermoegen)
+    // Vermögens-KPIs — korrekte Bilanzlogik (Aktiva = UV + AV = GV; EK = GV − FK)
+    const steuerschulden  = snap.steuersaldo_typ === 'verbindlichkeit' ? r2(Number(snap.steuersaldo ?? 0)) : 0
+    const umlaufvermoegen = r2(warenkapital + gesamt_forderungen + cash)
+    const gesamtvermoegen = r2(umlaufvermoegen + anlagevermoegen)
+    const fremdkapital    = r2(verb_ll + verb_sonstige + darlehen + steuerschulden)
+    const eigenkapital    = r2(gesamtvermoegen - fremdkapital)
+    const ek_quote   = safeDiv(eigenkapital, gesamtvermoegen)
+    const fk_quote   = safeDiv(fremdkapital, gesamtvermoegen)
     const cash_quote = safeDiv(cash, gesamtvermoegen)
+    const uv_quote   = safeDiv(umlaufvermoegen, gesamtvermoegen)
 
     return {
       datum: snap.datum,
       lager, transit, warenkapital, gesamt_forderungen,
       verb_ll, verb_sonstige, darlehen, cash, anlagevermoegen,
-      lager_anteil, warenkapitalbindung, warenbindungsquote, lagerreichweite,
+      lager_anteil, warenkapitalbindung, warenbindungsquote, lagerreichweite, avg_monatssendungen,
+      steuerforderung,
       working_capital, cash_ratio, quick_ratio, current_ratio,
-      eigenkapital, fremdkapital, gesamtvermoegen, ek_quote, fk_quote, cash_quote,
+      umlaufvermoegen, steuerschulden, eigenkapital, fremdkapital, gesamtvermoegen, ek_quote, fk_quote, cash_quote, uv_quote,
     }
   })
 
@@ -227,5 +240,20 @@ export async function GET() {
   const seriesAsc = [...series].sort((a, b) => a.datum.localeCompare(b.datum))
   const latest = seriesAsc.length > 0 ? seriesAsc[seriesAsc.length - 1] : null
 
-  return NextResponse.json({ latest, series: seriesAsc })
+  // Per-Produkt-Details für den neuesten Snapshot (für Drill-Down in der UI)
+  const latestSnap = (snapshots as Snapshot[])[0] // DESC-sortiert → erster = neuester
+  const produkt_details = latestSnap ? Array.from(produktIds).map((produktId) => {
+    const name = produktNameMap.get(produktId) ?? produktId
+    const lager   = r2((latestSnap.lagerwerte  ?? []).filter(lw => lw.produkt_id === produktId).reduce((s, lw) => s + Number(lw.lagerwert),  0))
+    const transit  = r2((latestSnap.transitwerte ?? []).filter(tw => tw.produkt_id === produktId).reduce((s, tw) => s + Number(tw.transitwert), 0))
+    const warenkapital = r2(lager + transit)
+    const avgSendungen = getAvgMonatssendungen(produktId, latestSnap.datum)
+    const produktkosten = getProduktkosten(produktId, latestSnap.datum)
+    const lagerreichweite = avgSendungen > 0 && produktkosten > 0
+      ? safeDiv(warenkapital, avgSendungen * produktkosten)
+      : null
+    return { id: produktId, name, lager, transit, warenkapital, avg_monatssendungen: r2(avgSendungen), produktkosten, lagerreichweite }
+  }).filter(p => p.warenkapital > 0 || p.avg_monatssendungen > 0) : []
+
+  return NextResponse.json({ latest, series: seriesAsc, produkt_details })
 }

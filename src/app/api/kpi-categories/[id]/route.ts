@@ -14,6 +14,7 @@ const patchSchema = z.object({
   ausgaben_label: z.string().max(100).nullable().optional(),
   ist_abzugsposten: z.boolean().optional(),
   ust_satz: z.number().min(0).max(100).nullable().optional(),
+  exclude_from_rentabilitaet: z.boolean().optional(),
 })
 
 interface RouteContext {

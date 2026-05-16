@@ -91,7 +91,7 @@ export async function GET(request: Request) {
 
   const { data: rpRows, error: rpErr } = await supabase
     .from('report_positionen')
-    .select('id, name, type, sort_order')
+    .select('id, name, type, sort_order, investitionsbezogen')
     .eq('user_id', user!.id)
     .order('sort_order', { ascending: true })
 
@@ -137,7 +137,7 @@ export async function GET(request: Request) {
   ] = await Promise.all([
     supabase
       .from('kpi_categories')
-      .select('id, name, type, level, parent_id, sort_order, sales_plattform_enabled, produkt_enabled, ist_abzugsposten')
+      .select('id, name, type, level, parent_id, sort_order, sales_plattform_enabled, produkt_enabled, ist_abzugsposten, exclude_from_rentabilitaet')
       .in('type', ['umsatz', 'ausgaben_kosten']),
     supabase
       .from('kpi_categories')
@@ -202,12 +202,13 @@ export async function GET(request: Request) {
     kategorie_id: string
     gruppe_id: string | null
     untergruppe_id: string | null
+    produkt_id: string | null
   }> = []
 
   if (produktinvestitionenCatId && assignedCatIds.has(produktinvestitionenCatId)) {
     const { data: piData, error: piErr2 } = await supabase
       .from('ausgaben_kosten_transaktionen')
-      .select('leistungsdatum, betrag_netto, kategorie_id, gruppe_id, untergruppe_id')
+      .select('leistungsdatum, betrag_netto, kategorie_id, gruppe_id, untergruppe_id, produkt_id')
       .eq('kategorie_id', produktinvestitionenCatId)
       .is('abschreibung', null)
       .not('leistungsdatum', 'is', null)
@@ -220,6 +221,10 @@ export async function GET(request: Request) {
   const catById = new Map((allCats ?? []).map(c => [c.id, c]))
   const plattformById = new Map((plattformenCats ?? []).map(c => [c.id, c]))
   const produktById = new Map((produkteCats ?? []).map(c => [c.id, c]))
+
+  const excludedFromRentabilitaet = new Set<string>(
+    (allCats ?? []).filter(c => c.exclude_from_rentabilitaet).map(c => c.id)
+  )
 
   const catChildren = new Map<string, string[]>()
   for (const c of (allCats ?? []).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))) {
@@ -248,6 +253,11 @@ export async function GET(request: Request) {
     date: string,
     amount: number,
   ) {
+    if (
+      (katId && excludedFromRentabilitaet.has(katId)) ||
+      (grpId && excludedFromRentabilitaet.has(grpId)) ||
+      (ugrId && excludedFromRentabilitaet.has(ugrId))
+    ) return
     const period = dateToPeriod(date, granularitaet)
     if (katId) addTo(catVals, katId, period, amount)
     if (grpId) addTo(grpVals, grpId, period, amount)
@@ -411,6 +421,8 @@ export async function GET(request: Request) {
     : null
 
   const msPrdVals: EntityMap = new Map()
+  const piGrpPrdVals: EntityMap = new Map()
+  const piUgrPrdVals: EntityMap = new Map()
 
   if (msGrpId && msTopCatId && assignedCatIds.has(msTopCatId)) {
     const zeitraumMsByProdukt = new Map<string, Array<{ von: string; bis: string | null; sumWert: number }>>()
@@ -455,11 +467,18 @@ export async function GET(request: Request) {
     for (let i = 0; i < PI_MONATE; i++) {
       const rateDatum = addMonthsWithClamp(row.leistungsdatum, i)
       if (rateDatum < vonDate || rateDatum > bisDate) continue
+      const rate = -(i === PI_MONATE - 1 ? lastRate : baseRate)
       processTransaction(
         row.kategorie_id, row.gruppe_id, row.untergruppe_id,
-        null, null, rateDatum,
-        -(i === PI_MONATE - 1 ? lastRate : baseRate),
+        null, null, rateDatum, rate,
       )
+      if (row.gruppe_id && row.produkt_id) {
+        const p = dateToPeriod(rateDatum, granularitaet)
+        addTo(piGrpPrdVals, `${row.gruppe_id}:${row.produkt_id}`, p, rate)
+        if (row.untergruppe_id) {
+          addTo(piUgrPrdVals, `${row.untergruppe_id}:${row.produkt_id}`, p, rate)
+        }
+      }
     }
   }
 
@@ -481,8 +500,8 @@ export async function GET(request: Request) {
     if (!prd || prd.ust_satz == null || Number(prd.ust_satz) <= 0) continue
     const ustSatz = Number(prd.ust_satz)
     for (const [period, netBase] of periodMap) {
-      // Brutto-Herausrechnung: USt = Brutto × (USt-Satz / (100 + USt-Satz))
-      const ust = roundTo2(netBase * ustSatz / (100 + ustSatz))
+      // Nettoumsatz × USt-Satz / 100
+      const ust = roundTo2(netBase * ustSatz / 100)
       if (ust === 0) continue
       addTo(ustPrdVals, prdId, period, -ust)
     }
@@ -574,11 +593,24 @@ export async function GET(request: Request) {
   function buildUntergruppe(ugrId: string, spEnabled: boolean) {
     const ugr = catById.get(ugrId)
     if (!ugr) return null
+    const piUgrPrefix = `${ugrId}:`
+    const piUgrPrdKeys = [...piUgrPrdVals.keys()].filter(k => k.startsWith(piUgrPrefix))
+    const produktePi = piUgrPrdKeys.length > 0
+      ? piUgrPrdKeys
+          .map(k => {
+            const prdId = k.slice(piUgrPrefix.length)
+            const prd = produktById.get(prdId)
+            if (!prd) return null
+            return { id: prdId, name: prd.name, values: getValues(piUgrPrdVals, k, perioden) }
+          })
+          .filter((x): x is NonNullable<typeof x> => x !== null)
+      : undefined
     return {
       id: ugrId,
       name: ugr.name,
       values: getValues(ugrVals, ugrId, perioden),
       sales_plattformen: spEnabled ? buildPlattformen(ugrId) : [],
+      ...(produktePi !== undefined ? { produkte_pi: produktePi } : {}),
     }
   }
 
@@ -587,6 +619,7 @@ export async function GET(request: Request) {
     if (!grp) return null
     const untergruppen = (catChildren.get(grpId) ?? [])
       .filter(id => catById.get(id)?.level === 3)
+      .filter(id => !excludedFromRentabilitaet.has(id))
       .map(id => buildUntergruppe(id, spEnabled))
       .filter(Boolean)
     const hasPlt = isProduktGruppe && [...pltVals.keys()].some(k => k.startsWith(`${grpId}:`))
@@ -615,6 +648,20 @@ export async function GET(request: Request) {
           .filter((x): x is NonNullable<typeof x> => x !== null)
       : undefined
 
+    // PI auf Ebene 2: Produkte als Drill-Down dieser Gruppe
+    const piGrpPrefix = `${grpId}:`
+    const piPrdKeys = [...piGrpPrdVals.keys()].filter(k => k.startsWith(piGrpPrefix))
+    const produktePi = piPrdKeys.length > 0
+      ? piPrdKeys
+          .map(k => {
+            const prdId = k.slice(piGrpPrefix.length)
+            const prd = produktById.get(prdId)
+            if (!prd) return null
+            return { id: prdId, name: prd.name, values: getValues(piGrpPrdVals, k, perioden) }
+          })
+          .filter((x): x is NonNullable<typeof x> => x !== null)
+      : undefined
+
     return {
       id: grpId,
       name: grp.name,
@@ -623,6 +670,7 @@ export async function GET(request: Request) {
       sales_plattformen: (spEnabled || hasPlt) && untergruppen.length === 0 ? buildPlattformen(grpId) : [],
       ...(produkteWertverlust !== undefined ? { produkte_wertverlust: produkteWertverlust } : {}),
       ...(produkteManuelleSendungen !== undefined ? { produkte_manuelle_sendungen: produkteManuelleSendungen } : {}),
+      ...(produktePi !== undefined ? { produkte_pi: produktePi } : {}),
     }
   }
 
@@ -634,6 +682,7 @@ export async function GET(request: Request) {
       cat.type === 'ausgaben_kosten' && cat.level === 1 && cat.name?.toLowerCase() === 'produkt'
     const gruppen = (catChildren.get(katId) ?? [])
       .filter(id => catById.get(id)?.level === 2)
+      .filter(id => !excludedFromRentabilitaet.has(id))
       .map(id => buildGruppe(id, spEnabled, isProduktKat))
       .filter(Boolean)
 
@@ -692,6 +741,7 @@ export async function GET(request: Request) {
         name: pos.name,
         type: pos.type,
         sort_order: pos.sort_order,
+        investitionsbezogen: pos.investitionsbezogen ?? false,
         values: positionValues.get(pos.id) ?? zeroValues(perioden),
         kategorien: [],
         ust_produkte,
@@ -702,10 +752,12 @@ export async function GET(request: Request) {
       name: pos.name,
       type: pos.type,
       sort_order: pos.sort_order,
+      investitionsbezogen: pos.investitionsbezogen ?? false,
       values: positionValues.get(pos.id) ?? zeroValues(perioden),
       kategorien: pos.type === 'position'
         ? (katsByPosition.get(pos.id) ?? []).map(buildKategorie).filter(Boolean)
         : [],
+      ...(pos.type === 'summe' ? { summe_refs: summeRefsByPosition.get(pos.id) ?? [] } : {}),
     }
   })
 

@@ -19,6 +19,7 @@ export default function VermoegenReportPage() {
 
   const latest = data?.latest ?? null
   const series = data?.series ?? []
+  const produkt_details = data?.produkt_details ?? []
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -77,7 +78,7 @@ export default function VermoegenReportPage() {
               </TabsList>
 
               <TabsContent value="waren">
-                <ReportingVermoegenWaren latest={latest} series={series} />
+                <ReportingVermoegenWaren latest={latest} series={series} produkt_details={produkt_details} />
               </TabsContent>
 
               <TabsContent value="liquiditaet">

@@ -4,7 +4,7 @@ import { requireAuth } from '@/lib/supabase-server'
 
 const PAGE_SIZE = 50
 
-const UST_SAETZE = ['19', '7', '0', 'individuell'] as const
+const UST_SAETZE = ['100', '19', '7', '0', 'individuell'] as const
 
 const createSchema = z.object({
   leistungsdatum:              z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Ungültiges Datumsformat (YYYY-MM-DD)'),
@@ -23,6 +23,7 @@ const createSchema = z.object({
 })
 
 function computeNetto(brutto: number, ustSatz: string, ustBetrag: number): number {
+  if (ustSatz === '100') return 0
   if (ustSatz === '19') return Math.round((brutto - Math.round(brutto * 19 / 119 * 100) / 100) * 100) / 100
   if (ustSatz === '7')  return Math.round((brutto - Math.round(brutto * 7  / 107 * 100) / 100) * 100) / 100
   if (ustSatz === '0')  return brutto
@@ -30,6 +31,7 @@ function computeNetto(brutto: number, ustSatz: string, ustBetrag: number): numbe
 }
 
 function computeUstBetrag(brutto: number, ustSatz: string, ustBetragManual: number): number {
+  if (ustSatz === '100') return brutto
   if (ustSatz === '19') return Math.round(brutto * 19 / 119 * 100) / 100
   if (ustSatz === '7')  return Math.round(brutto * 7  / 107 * 100) / 100
   if (ustSatz === '0')  return 0

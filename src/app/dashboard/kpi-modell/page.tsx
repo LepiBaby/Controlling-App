@@ -30,6 +30,7 @@ function CategoryTab({ type, maxLevel = 3 }: { type: CategoryType; maxLevel?: 1 
     tree, categories, loading, error,
     addCategory, renameCategory, updateSku, deleteCategory, moveCategory,
     reorderCategory, reparentCategory, updateDimensions, updateLabels, updateAbzugsposten, updateUstSatz,
+    updateExcludeFromRentabilitaet,
     getDescendantCount,
   } = useKpiCategories(type)
   const [pendingDelete, setPendingDelete] = useState<KpiCategory | null>(null)
@@ -63,6 +64,7 @@ function CategoryTab({ type, maxLevel = 3 }: { type: CategoryType; maxLevel?: 1 
         onUpdateLabels={type === 'ausgaben_kosten' ? updateLabels : undefined}
         onUpdateAbzugsposten={type === 'umsatz' ? updateAbzugsposten : undefined}
         onUpdateUstSatz={type === 'produkte' ? updateUstSatz : undefined}
+        onUpdateExcludeFromRentabilitaet={type === 'ausgaben_kosten' ? updateExcludeFromRentabilitaet : undefined}
       />
 
       <AlertDialog open={!!pendingDelete} onOpenChange={open => { if (!open) setPendingDelete(null) }}>
