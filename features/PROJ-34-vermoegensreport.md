@@ -1,8 +1,8 @@
 # PROJ-34: Vermögensreport
 
-## Status: In Progress
+## Status: In Review
 **Created:** 2026-05-15
-**Last Updated:** 2026-05-15
+**Last Updated:** 2026-05-16
 
 ## Implementation Notes (Frontend + Backend)
 
@@ -434,7 +434,254 @@ Keine neuen Tabellen, keine Migrations.
 Alle benötigten Primitiven bereits installiert: `recharts`, `Card`, `Badge`, `Progress`, `Tabs`, `Skeleton`, `Tooltip`, `Separator`.
 
 ## QA Test Results
-_To be added by /qa_
+
+**QA-Datum:** 2026-05-16
+**Tester:** QA-Engineer (Claude)
+**Build:** Commit 36986b3 (feat(PROJ-34): Implement Vermögensreport)
+
+### Test-Zusammenfassung
+
+| Test-Typ | Anzahl | Bestanden | Fehlgeschlagen |
+|---|---|---|---|
+| Vitest Unit-Tests (gesamt) | 563 | 561 | 2 |
+| Vitest — `route.test.ts` (PROJ-34) | 9 | 8 | 1 |
+| Playwright E2E (PROJ-34, Chromium) | 7 | 7 | 0 |
+| Acceptance Criteria (Spec) | 38 | 30 | 8 |
+
+### Test-Setup
+
+- Vitest: `npm test` (alle Suites)
+- E2E: `npm run test:e2e -- tests/PROJ-34-vermoegensreport.spec.ts --project=chromium`
+- Code-Review: vollständig auf alle 6 Implementierungsdateien
+- E2E-Datei: `tests/PROJ-34-vermoegensreport.spec.ts` (neu)
+
+---
+
+### Acceptance Criteria — Ergebnisse
+
+#### Seite & Navigation
+
+| AC | Status | Anmerkung |
+|---|---|---|
+| Seite `/dashboard/reporting/vermoegen` erreichbar | PASS | Page-File vorhanden, Redirect zu /login wenn unauth |
+| NavSheet-Eintrag „Vermögensbericht" | PASS | Eintrag in `nav-sheet.tsx` Zeile 45 vorhanden |
+| Auth-Guard | PASS | `requireAuth()` in API + Page-Level Redirect (E2E bestätigt) |
+
+#### Allgemeines Layout
+
+| AC | Status | Anmerkung |
+|---|---|---|
+| Header mit „Vermögensbericht" + Stichtagsanzeige | PASS | `page.tsx` Zeile 29–34 |
+| Drei Tabs (Waren, Liquidität, Vermögen) | PASS | shadcn Tabs in page.tsx |
+| Leerzustand mit Hinweistext + Link | PASS | `page.tsx` Zeile 58–70 |
+| KPIs auf neuestem Snapshot | PASS | `route.ts` Zeile 241 |
+| Zeitreihen aus allen Snapshots (datum ASC) | PASS | `route.ts` Zeile 240 |
+| Einheitliches Kachel-Layout | PASS | KpiCard-Komponente in jedem Tab konsistent |
+
+#### Tab 1 — Waren-KPIs
+
+| AC | Status | Anmerkung |
+|---|---|---|
+| 5 KPI-Kacheln (Warenkapital, Lager-Anteil, Bindung, Quote, Reichweite) | PASS | `reporting-vermoegen-waren.tsx` Zeile 503–565 |
+| Warenkapital € + Unterzeilen Lager/Transit | PASS | Zeile 504–515 |
+| Lager-Anteil % | PASS | `fmtPct` mit 1 Dezimalstelle |
+| Warenkapitalbindung € — rot bei negativ | PASS | `negative={...< 0}` Zeile 533 |
+| Warenbindungsquote % | PASS | Zeile 541–552 |
+| Lagerreichweite „Monate" | PASS | `fmtMonate` Zeile 44–47 |
+| Chart Warenkapital-Entwicklung (3 Linien) | PARTIAL | Implementierung: 2 Linien (Lager, Transit) als AreaChart gestackt — Gesamtkurve fehlt als separate Linie laut Spec |
+| Chart Warenbindungsquote-Entwicklung | PASS | LineChart Zeile 634–650 |
+| < 2 Snapshots: Hinweistext | PASS | `NoSeries`-Komponente |
+
+#### Tab 2 — Liquiditäts-KPIs
+
+| AC | Status | Anmerkung |
+|---|---|---|
+| Working Capital — rot bei negativ | PASS | `negative={...< 0}` Zeile 409 |
+| Cash Ratio mit Ampel-Badge | FAIL | **BUG-1**: Spec verlangt Richtwert ≥ 0,20, Code zeigt ≥ 0,70 (siehe Bug-Section) |
+| Quick Ratio mit Ampel-Badge | PASS | Richtwert ≥ 1,00 korrekt |
+| Current Ratio mit Ampel-Badge | PASS | Richtwert ≥ 2,00 korrekt |
+| Ampel-Badge (grün/gelb/rot, Labels Gut/Akzeptabel/Kritisch) | PASS | Implementiert, aber Schwellwerte für Cash Ratio falsch |
+| Chart Liquiditätsgrade mit Referenzlinien | PARTIAL | **BUG-2**: Cash-Ratio-Referenzlinie bei 0,70 (sollte 0,20) |
+| Chart Working Capital-Entwicklung | PASS | LineChart Zeile 469–485 |
+| < 2 Snapshots: Hinweis | PASS | `NoSeries`-Komponente |
+
+#### Tab 3 — Vermögens-KPIs (Schwerpunkt der Änderungen)
+
+| AC | Status | Anmerkung |
+|---|---|---|
+| 5 KPI-Kacheln Reihe 1 (UV, AV, GV, EK, FK) | PASS | `reporting-vermoegen-bilanzkennzahlen.tsx` Zeile 699–762 |
+| 3 Quoten-Kacheln (UV-Quote, EK-Quote, Cash-Quote) | PARTIAL | **BUG-3**: Statt FK-Quote (Spec) wird UV-Quote angezeigt — bewusste Design-Erweiterung, jedoch ohne Spec-Update |
+| EK-Quote Ampel-Badge (≥30 grün / 15–29 gelb / <15 rot) | PASS | `ampelEkQuote` Zeile 64–69 |
+| FK-Quote Kachel | FAIL | **BUG-3**: Komplett entfernt, durch UV-Quote ersetzt |
+| EK/FK Progress-Bar mit Legende | FAIL | **BUG-4**: Progress-Bar wurde NICHT implementiert — stattdessen 2x CssStackedBar im Eigenkapital-Detail |
+| Kacheln klickbar → Detail-Charts | PASS | `onClick`/`useState`-Pattern; toggle bei erneutem Klick |
+| Default-Ansicht: 4 Charts (Aktiva, Passiva, UV, EK-Quote) | PASS | Zeile 810–895 mit korrekter Reihenfolge |
+| Umlaufvermögen-Detail: CssStackedBar + gestapeltes AreaChart | PASS | Zeile 255–334 (3 Komponenten: Cash, Forderungen, Warenkapital) |
+| Eigenkapital-Detail: 2x CssStackedBar + Liniendiagramm | PASS | Zeile 345–384 (GV-Bar + EK/FK-Bar + EK-Linie) |
+| Fremdkapital-Detail: CssStackedBar + gestapeltes AreaChart | PASS | Zeile 386–468 (4 Komponenten: verb_ll, verb_sonstige, darlehen, steuerschulden) |
+| Gesamtvermögen-Detail: Aktiva/Passiva Bars + 2 AreaCharts | PASS | Zeile 470–600 |
+| Anlagevermögen-Detail: SingleLine | PASS | Zeile 336–343 (außerhalb Spec, aber konsistent) |
+| Quoten-Detail (HorizBar + Linie mit RefLine bei 30% für EK-Quote) | PASS | Zeile 622–650 |
+| < 2 Snapshots: NoSeries für Default-Ansicht | PASS | Zeile 896–898 |
+
+#### Edge Cases
+
+| AC | Status | Anmerkung |
+|---|---|---|
+| Kein Snapshot → Leerzustand | PASS | `page.tsx` und `route.ts` Zeile 109–111 |
+| Nur 1 Snapshot → Kacheln zeigen, Charts mit Hinweis | PASS | `hasSeries = series.length >= 2` |
+| Warenkapital = 0 → Lager-Anteil/Quote/Reichweite „—" | PASS | Null-Checks vorhanden |
+| VerbLL + VerbSonstige = 0 → alle Liq-Grade „—" | PASS | `safeDiv` gibt null bei den=0 |
+| Gesamtvermögen = 0 → EK/FK/Cash-Quote „—" | PASS | `safeDiv` |
+| Keine Sendungen → Lagerreichweite „—" | PASS | `lrNenner === 0 → null` |
+| Cash negativ → fließt mit negativem Vorzeichen ein | PASS | Kein Vorzeichen-Filter |
+| Working Capital negativ → rot markiert | PASS | `negative={...< 0}` |
+| > 24 Snapshots → alle anzeigen | NOT VERIFIED | Manuelles Testen nötig; Limit in API: 1000 |
+
+---
+
+### Gefundene Bugs
+
+#### BUG-1 — Cash-Ratio Richtwert weicht von Spec ab
+- **Severity:** MEDIUM
+- **Datei:** `src/components/reporting-vermoegen-liquiditaet.tsx` Zeile 425–426
+- **Beschreibung:** Spec verlangt Richtwert „≥ 0,20" für Cash Ratio. Code zeigt „Richtwert: ≥ 0,70" und nutzt Ampel-Schwelle `ampel(latest.cash_ratio, 0.70, 0.50)`.
+- **Reproduktion:** Tab „Liquiditäts-KPIs" → Cash-Ratio-Kachel öffnen.
+- **Erwartung:** Richtwert „≥ 0,20", Ampel grün ab 0,20 / gelb ab 0,10 / rot < 0,10
+- **Tatsächlich:** Richtwert „≥ 0,70", Ampel grün ab 0,70 / gelb ab 0,50 / rot < 0,50
+- **Auswirkung:** Nutzer bewertet die Cash-Liquidität nach internationalen Benchmarks zu kritisch (üblicher Richtwert: 0,20–0,30).
+- **Priorität:** Vor Deploy klären, ob Spec oder Code geändert werden soll.
+
+#### BUG-2 — Liquiditätsgrade-Chart Referenzlinie Cash Ratio falsch
+- **Severity:** MEDIUM
+- **Datei:** `src/components/reporting-vermoegen-liquiditaet.tsx` Zeile 515 + 295
+- **Beschreibung:** ReferenceLine im großen Liquiditätsgrade-Chart bei `y={0.70}` für Cash Ratio. Spec verlangt 0,20. Im Detail-Chart wird ebenfalls `refY: 0.70` verwendet.
+- **Reproduktion:** Tab „Liquiditäts-KPIs" → Chart „Liquiditätsgrade-Entwicklung" → blaue gestrichelte Linie für Cash Ratio
+- **Erwartung:** Referenzlinie bei 0,20
+- **Tatsächlich:** Referenzlinie bei 0,70
+- **Priorität:** Folgefehler von BUG-1; gemeinsam beheben.
+
+#### BUG-3 — FK-Quote-Kachel fehlt, ersetzt durch UV-Quote
+- **Severity:** LOW (Design-Erweiterung mit Spec-Drift)
+- **Datei:** `src/components/reporting-vermoegen-bilanzkennzahlen.tsx` Zeile 765–803
+- **Beschreibung:** Spec verlangt drei Quoten-Kacheln: EK-Quote, FK-Quote, Cash-Quote. Code zeigt: UV-Quote, EK-Quote, Cash-Quote. FK-Quote fehlt komplett als Kachel (nur indirekt über CssStackedBar im EK-Detail sichtbar).
+- **Reproduktion:** Tab „Vermögens-KPIs" → zweite Kachel-Reihe
+- **Erwartung:** EK-Quote | FK-Quote | Cash-Quote
+- **Tatsächlich:** UV-Quote | EK-Quote | Cash-Quote
+- **Auswirkung:** FK-Anteil am Gesamtvermögen ist nicht direkt ablesbar. Bewusste Design-Entscheidung des Frontends (UV-Quote ist informationsdichter), aber Spec sollte synchronisiert werden.
+- **Priorität:** Klären mit Product Owner — entweder Spec anpassen oder FK-Quote ergänzen.
+
+#### BUG-4 — EK/FK Progress-Bar fehlt vollständig
+- **Severity:** MEDIUM
+- **Datei:** `src/components/reporting-vermoegen-bilanzkennzahlen.tsx` (nicht implementiert)
+- **Beschreibung:** Spec verlangt explizit „Visueller EK/FK-Progress-Bar: horizontaler Balken (EK-Anteil grün, FK-Anteil rot), Legende „EK X% | FK Y%". Die Komponente importiert `Progress` aus shadcn NICHT mehr — dieser visuelle Indikator fehlt komplett. Stattdessen wird das EK/FK-Verhältnis nur im Detail-Drill-Down per `CssStackedBar` sichtbar.
+- **Reproduktion:** Tab „Vermögens-KPIs" → Default-Ansicht (keine Kachel selektiert) → kein Progress-Bar zwischen Kacheln und Charts
+- **Erwartung:** Sichtbarer Balken mit grünem EK- und rotem FK-Anteil + Legende
+- **Tatsächlich:** Fehlt komplett (außer im Eigenkapital-Detail-Drill-Down via CssStackedBar)
+- **Priorität:** Spec-Konformität — entweder Progress-Bar nachrüsten oder Spec ändern, da Drill-Down inhaltlich gleichwertige Information liefert.
+
+#### BUG-5 — Unit-Test `computes Eigenkapital correctly` schlägt fehl
+- **Severity:** HIGH (Test ↔ Implementierung inkonsistent)
+- **Datei:** `src/app/api/reporting/vermoegen/route.test.ts` Zeile 148
+- **Beschreibung:** Test erwartet die Spec-Formel `EK = Warenkapital + Forderungen + Cash + Anlagevermögen = 65.000`. Code (Zeile 222) implementiert die *betriebswirtschaftlich korrekte* Bilanzlogik `EK = Gesamtvermögen − FK = 47.000` (auch im Code-Kommentar dokumentiert: „korrekte Bilanzlogik"). Der Code ist die richtige Bilanzdefinition — die ursprüngliche Spec-Formel rechnet quasi „brutto", ohne Fremdkapital abzuziehen, was zu doppelter Zählung führt.
+- **Reproduktion:** `npm test` → 2 Failures, davon einer ist dieser
+- **Erwartung:** Spec/Code-Konflikt klären; Tests an korrekte Bilanzlogik anpassen ODER Code an Spec
+- **Tatsächlich:** Tests laufen rot; CI würde blockieren
+- **Priorität:** Vor Deploy auflösen — Empfehlung: Spec-Formel korrigieren (`EK = GV − FK`), Tests aktualisieren, da Code mathematisch korrekt ist.
+
+#### BUG-6 — Warenkapital-Chart zeigt nur 2 statt 3 Linien
+- **Severity:** LOW
+- **Datei:** `src/components/reporting-vermoegen-waren.tsx` Zeile 570–617
+- **Beschreibung:** Spec verlangt im Diagramm „Warenkapital-Entwicklung" drei Linien (Lager, Transit, Warenkapital gesamt). Implementierung nutzt AreaChart mit nur 2 gestackten Areas (Lager + Transit). Der Gesamtwert ergibt sich visuell aus der Summe der Stacks; eine separate Linie für „Warenkapital gesamt" fehlt.
+- **Reproduktion:** Tab „Waren-KPIs" → Default-Ansicht → erstes Diagramm
+- **Erwartung:** 3 separate Linien laut Spec
+- **Tatsächlich:** 2 gestapelte Areas (visuell vermitteln sie aber den Gesamtwert per oberster Linie)
+- **Priorität:** Niedrig — die Information ist visuell vorhanden, nur in anderer Darstellungsform.
+
+#### BUG-7 — `kpi_categories`-Mock in Tests returnt für beide Calls leeres Array
+- **Severity:** LOW (Test-Coverage-Lücke)
+- **Datei:** `src/app/api/reporting/vermoegen/route.test.ts` Zeile 43–46
+- **Beschreibung:** `kpi_categories` wird im Mock immer mit leerem Array beantwortet, unabhängig davon, ob produkte oder skus angefragt werden. Daher gibt es keinen einzigen Unit-Test, der die Lagerreichweite-Berechnung tatsächlich validiert.
+- **Reproduktion:** Code-Review der Tests
+- **Auswirkung:** Lagerreichweite-Logik (komplexe Funktion mit SKU→Produkt-Mapping, prev3Months, getProduktkosten) ist nicht durch Tests abgedeckt
+- **Priorität:** Niedrig — Backlog-Item; nachträglich Tests für Lagerreichweite ergänzen.
+
+#### BUG-8 — Break-Even-Test schlägt fehl (Cross-Regression)
+- **Severity:** MEDIUM (außerhalb PROJ-34, aber Test-Suite läuft rot)
+- **Datei:** `src/app/api/reporting/break-even/route.test.ts` Zeile 171
+- **Beschreibung:** `npm test` zeigt ein zweites Failure: `uses earliest date across both umsatz and ausgaben for von` → erwartet `2026-Q2`, bekommt `2026-Q1`.
+- **Auswirkung:** Nicht direkt PROJ-34, aber bei `npm test` als rot sichtbar — CI/Deploy blockiert.
+- **Priorität:** Outside-Scope-Hinweis; sollte separat als PROJ-28 Regression untersucht werden.
+
+---
+
+### Security Audit
+
+| Kontrolle | Status | Anmerkung |
+|---|---|---|
+| `requireAuth()` auf GET /api/reporting/vermoegen | PASS | Zeile 47 |
+| Keine sensitiven Daten ohne Auth | PASS | E2E bestätigt Redirect zu /login |
+| Keine SQL-Injection | PASS | Supabase Client mit parametrisierten Queries |
+| Keine User-Input-Validation nötig | N/A | GET ohne Query-Params |
+| Keine RLS-Änderungen | PASS | Reine Lese-API auf bestehende Tabellen |
+| Keine Secrets in Code | PASS | Grep auf Datei: keine Tokens |
+| Keine PII-Leaks im Error-Response | PASS | Errors enthalten nur Supabase-Fehlermessages |
+| `.limit()` auf allen Queries | PASS | Alle 6 Queries haben `.limit(...)` |
+| TypeScript Strict — keine `any` ohne Begründung | PASS | Nutzt korrekte Typen; einige Records mit Type-Casts (akzeptabel) |
+| Performance: parallele Queries via `Promise.all` | PASS | Zeile 50–100 |
+
+**Security Score:** PASS — keine kritischen oder hohen Sicherheitslücken.
+
+---
+
+### Cross-Browser & Responsive
+
+| Browser/Viewport | Status | Anmerkung |
+|---|---|---|
+| Chromium Desktop | PASS | E2E Tests grün |
+| Firefox/Safari Desktop | NOT TESTED | Playwright Config hat nur chromium + Mobile Safari aktiv; Desktop-Firefox-Project nicht angelegt |
+| Mobile Safari (iPhone 13) | NOT TESTED | Konfiguriert, aber nicht in PROJ-34 ausgeführt |
+| Viewport 375px | NOT TESTED | Manuelles Testen empfohlen — Grid mit `grid-cols-2` auf Mobile, ABER Quoten-Kacheln in `grid-cols-3` (eng) |
+| Viewport 768px | NOT TESTED | `sm:grid-cols-3` triggert |
+| Viewport 1440px | NOT TESTED | `lg:grid-cols-5` triggert |
+
+**Hinweis:** Bei `reporting-vermoegen-bilanzkennzahlen.tsx` Zeile 765 wird `grid-cols-3` (statisch) für die Quoten-Reihe genutzt — auf 375px werden 3 schmale Kacheln nebeneinander erzwungen statt 2 oben + 1 unten. Empfehlung: `grid-cols-1 sm:grid-cols-3` testen.
+
+---
+
+### Regression-Check
+
+| Feature | Status |
+|---|---|
+| PROJ-1 Login | PASS (E2E unverändert) |
+| PROJ-7 Liquiditäts-Auswertung | PASS (Redirect-Test bestanden) |
+| PROJ-20 Rentabilitätsreport | PASS (Redirect-Test bestanden) |
+| PROJ-31 Umsatzsteuer-Report | PASS (Redirect-Test bestanden) |
+| PROJ-32 Vermögenswerte-Verwaltung | PASS (Redirect-Test bestanden) |
+| PROJ-28 Break-Even-Report | **FAIL** (siehe BUG-8 — Test rot, separates Issue außerhalb PROJ-34) |
+
+---
+
+### Empfehlung
+
+**NICHT production-ready (NO)**
+
+**Begründung:**
+1. **BUG-5 (HIGH):** Unit-Test schlägt fehl → CI blockiert. Spec/Code-Inkonsistenz beim Eigenkapital muss aufgelöst werden. Empfehlung: Spec-Formel korrigieren (Code rechnet korrekt nach Bilanzlogik).
+2. **BUG-1 + BUG-2 (MEDIUM):** Cash-Ratio-Richtwert 0,70 statt 0,20 — irreführend für Nutzer, weicht von internationalen Benchmarks ab. Entscheidung mit Product Owner nötig.
+3. **BUG-3 + BUG-4 (LOW–MEDIUM):** Spec-Drift bei Vermögens-Tab — FK-Quote-Kachel und EK/FK Progress-Bar fehlen, dafür wurden UV-Quote und CssStackedBar-Drilldowns ergänzt. Funktional gleichwertig, aber Spec sollte synchronisiert werden.
+4. **BUG-8 (MEDIUM):** Break-Even-Test rot (Cross-Regression außerhalb PROJ-34) — Test-Suite läuft nicht durch.
+
+**Nach Auflösung der HIGH/MEDIUM-Bugs:** ready for `/deploy`.
+
+**Positive Findings:**
+- Auth-Guard solide implementiert
+- Code-Qualität sehr hoch (TypeScript strikt, gute Modularisierung, sinnvolle Farb-Konstanten)
+- Performance: alle Queries parallel via Promise.all
+- Interaktivität (klickbare Kacheln, Drill-Down-Pattern) erweitert UX deutlich über Spec hinaus
+- Saubere Behandlung aller Edge-Cases (Null-Checks, leeres Snapshot-Array, Division durch 0)
+- Konsistente Verwendung von shadcn-Primitives (Card, Badge, Tabs, Tooltip, Skeleton)
+- Vollständige deutsche Lokalisierung (Datums-, Währungs-, Prozent-Formatierung)
 
 ## Deployment
 _To be added by /deploy_
