@@ -1,8 +1,10 @@
 # PROJ-34: Vermögensreport
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-05-15
 **Last Updated:** 2026-05-16
+**Deployed:** 2026-05-16
+**Tag:** v1.34.0-PROJ-34
 
 ## Implementation Notes (Frontend + Backend)
 
