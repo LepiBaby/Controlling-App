@@ -24,6 +24,10 @@ import {
 import { AusgabenTable } from '@/components/ausgaben-table'
 import { AusgabenFormDialog } from '@/components/ausgaben-form-dialog'
 import { NavSheet } from '@/components/nav-sheet'
+import { ExcelUploadDialog } from '@/components/excel-upload-dialog'
+import { AusgabenImportReviewDialog, ImportRow } from '@/components/ausgaben-import-review-dialog'
+import { ParseResult } from '@/lib/excel-parser'
+import { useToast } from '@/hooks/use-toast'
 
 export default function AusgabenPage() {
   const { categories: ausgabenKategorien, loading: kpiLoading } = useKpiCategories('ausgaben_kosten')
@@ -38,10 +42,17 @@ export default function AusgabenPage() {
     addTransaktion, updateTransaktion, deleteTransaktion,
   } = useAusgabenKostenTransaktionen()
 
+  const { toast } = useToast()
+
   const [formOpen, setFormOpen] = useState(false)
   const [editingTransaktion, setEditingTransaktion] = useState<AusgabenKostenTransaktion | null>(null)
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
+
+  // Excel import state
+  const [uploadOpen, setUploadOpen] = useState(false)
+  const [reviewOpen, setReviewOpen] = useState(false)
+  const [parseResult, setParseResult] = useState<ParseResult | null>(null)
 
   const columnVisibility = useMemo<ColumnVisibility>(() => ({
     showGruppe: ausgabenKategorien.some(c => c.level === 2),
@@ -103,6 +114,61 @@ export default function AusgabenPage() {
     }
   }
 
+  const handleParsed = (result: ParseResult) => {
+    setParseResult(result)
+    setUploadOpen(false)
+    setReviewOpen(true)
+  }
+
+  const handleImport = async (rows: ImportRow[]) => {
+    const res = await fetch('/api/ausgaben-kosten-transaktionen/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(rows.map(r => ({
+        leistungsdatum: r.leistungsdatum,
+        zahlungsdatum: r.zahlungsdatum || null,
+        betrag_brutto: r.betrag_brutto,
+        ust_satz: 'individuell',
+        ust_betrag: r.ust_betrag,
+        kategorie_id: r.kategorieId,
+        gruppe_id: r.gruppeId || null,
+        untergruppe_id: r.untergruppeId || null,
+        sales_plattform_id: r.salesPlattformId || null,
+        produkt_id: r.produktId || null,
+        beschreibung: r.beschreibung || null,
+        relevanz: r.relevanz,
+        abschreibung: r.abschreibung || null,
+      }))),
+    })
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.error ?? `Fehler beim Importieren (HTTP ${res.status})`)
+    }
+
+    const data = await res.json()
+    const successCount: number = data.successCount ?? rows.length
+    const errorCount: number = data.errorCount ?? 0
+
+    setReviewOpen(false)
+    setParseResult(null)
+    setPage(1)
+    setFilter({})
+
+    if (errorCount > 0) {
+      toast({
+        title: 'Import teilweise erfolgreich',
+        description: `${successCount} von ${rows.length} Transaktionen importiert — ${errorCount} Fehler aufgetreten.`,
+        variant: 'destructive',
+      })
+    } else {
+      toast({
+        title: 'Import erfolgreich',
+        description: `${successCount} Transaktion${successCount !== 1 ? 'en' : ''} erfolgreich importiert.`,
+      })
+    }
+  }
+
   const handleSort = (column: typeof sortColumn) => {
     if (column === sortColumn) {
       setSort(column, sortDirection === 'asc' ? 'desc' : 'asc')
@@ -122,9 +188,14 @@ export default function AusgabenPage() {
             <h1 className="text-lg font-semibold">Ausgaben & Kosten</h1>
           </div>
           {!noKpiModel && (
-            <Button onClick={handleNewClick} size="sm">
-              + Neue Transaktion
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setUploadOpen(true)}>
+                Excel importieren
+              </Button>
+              <Button onClick={handleNewClick} size="sm">
+                + Neue Transaktion
+              </Button>
+            </div>
           )}
         </div>
       </header>
@@ -279,6 +350,23 @@ export default function AusgabenPage() {
         salesPlattformen={salesPlattformen}
         produkte={produkte}
         onSave={handleSave}
+      />
+
+      <ExcelUploadDialog
+        open={uploadOpen}
+        onOpenChange={setUploadOpen}
+        onParsed={handleParsed}
+      />
+
+      <AusgabenImportReviewDialog
+        open={reviewOpen}
+        onOpenChange={setReviewOpen}
+        parseResult={parseResult}
+        ausgabenKategorien={ausgabenKategorien}
+        salesPlattformen={salesPlattformen}
+        produkte={produkte}
+        columnVisibility={columnVisibility}
+        onImport={handleImport}
       />
 
       <AlertDialog open={deleteTargetId !== null} onOpenChange={open => { if (!open) setDeleteTargetId(null) }}>

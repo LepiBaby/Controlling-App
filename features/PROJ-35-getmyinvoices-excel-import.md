@@ -1,6 +1,6 @@
 # PROJ-35: GetMyInvoices Excel-Import für Ausgaben & Kosten
 
-## Status: Planned
+## Status: In Progress
 **Created:** 2026-05-16
 **Last Updated:** 2026-05-16
 
@@ -262,6 +262,20 @@ Zwei legitime Rechnungen an denselben Lieferanten am selben Tag über denselben 
 | Paket | Zweck |
 |-------|-------|
 | `xlsx` (SheetJS) | Client-seitiges Parsen von `.xlsx`-Dateien im Browser |
+
+## Implementation Notes
+
+### Frontend (2026-05-16)
+- Installed `xlsx` (SheetJS) for client-side Excel parsing
+- Created `src/lib/excel-parser.ts` — parses GetMyInvoices `.xlsx` format; handles German number format (`556,73` → `556.73`), `DD.MM.YYYY` → ISO dates, `cellDates: true` for SheetJS date cells, skips rows with missing date/brutto
+- Created `src/components/excel-upload-dialog.tsx` — small modal with Drag & Drop zone and file input; calls parser, shows spinner/error
+- Created `src/components/ausgaben-import-review-dialog.tsx` — full-screen dialog with horizontally scrollable table; per-row inline editing of Kategorie/Gruppe/Untergruppe/SalesPlattform/Produkt/Relevanz; Fremdwährungs-`!`-Icon; delete rows; completion counter; import button
+- Added `Toaster` to `src/app/layout.tsx`
+- Updated `src/app/dashboard/ausgaben/page.tsx` — added "Excel importieren" button, import state, `handleParsed`/`handleImport` callbacks; import calls `POST /api/ausgaben-kosten-transaktionen/batch`
+- Build: clean, no TypeScript errors
+
+### Backend (pending)
+- `POST /api/ausgaben-kosten-transaktionen/batch` — not yet built; needed for import to function
 
 ## QA Test Results
 _To be added by /qa_
