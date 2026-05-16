@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { Pencil, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -38,6 +39,7 @@ export default function UmsatzPage() {
   const [editingTransaktion, setEditingTransaktion] = useState<UmsatzTransaktion | null>(null)
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [editMode, setEditMode] = useState(false)
 
   // Compute dynamic column visibility from KPI model
   const columnVisibility = useMemo<ColumnVisibility>(() => ({
@@ -119,9 +121,19 @@ export default function UmsatzPage() {
             <h1 className="text-lg font-semibold">Umsatz</h1>
           </div>
           {!noKpiModel && (
-            <Button onClick={handleNewClick} size="sm">
-              + Neue Transaktion
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant={editMode ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setEditMode(m => !m)}
+              >
+                {editMode ? <Check className="h-3.5 w-3.5 mr-1.5" /> : <Pencil className="h-3.5 w-3.5 mr-1.5" />}
+                {editMode ? 'Bearbeiten beenden' : 'Bearbeiten'}
+              </Button>
+              <Button onClick={handleNewClick} size="sm">
+                + Neue Transaktion
+              </Button>
+            </div>
           )}
         </div>
       </header>
@@ -266,6 +278,8 @@ export default function UmsatzPage() {
               onSort={handleSort}
               onEdit={handleEditClick}
               onDelete={id => setDeleteTargetId(id)}
+              editMode={editMode}
+              onInlineUpdate={updateTransaktion}
             />
           )}
         </div>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { Pencil, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -48,6 +49,7 @@ export default function AusgabenPage() {
   const [editingTransaktion, setEditingTransaktion] = useState<AusgabenKostenTransaktion | null>(null)
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [editMode, setEditMode] = useState(false)
 
   // Excel import state
   const [uploadOpen, setUploadOpen] = useState(false)
@@ -189,7 +191,15 @@ export default function AusgabenPage() {
           </div>
           {!noKpiModel && (
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => setUploadOpen(true)}>
+              <Button
+                variant={editMode ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setEditMode(m => !m)}
+              >
+                {editMode ? <Check className="h-3.5 w-3.5 mr-1.5" /> : <Pencil className="h-3.5 w-3.5 mr-1.5" />}
+                {editMode ? 'Bearbeiten beenden' : 'Bearbeiten'}
+              </Button>
+              <Button size="sm" onClick={() => setUploadOpen(true)}>
                 Excel importieren
               </Button>
               <Button onClick={handleNewClick} size="sm">
@@ -337,6 +347,8 @@ export default function AusgabenPage() {
               onSort={handleSort}
               onEdit={handleEditClick}
               onDelete={id => setDeleteTargetId(id)}
+              editMode={editMode}
+              onInlineUpdate={updateTransaktion}
             />
           )}
         </div>

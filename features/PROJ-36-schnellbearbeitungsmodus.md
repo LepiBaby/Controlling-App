@@ -1,6 +1,6 @@
 # PROJ-36: Schnellbearbeitungsmodus für Transaktionstabellen
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-05-16
 **Last Updated:** 2026-05-16
 
