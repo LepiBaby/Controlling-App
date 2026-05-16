@@ -157,7 +157,111 @@ Alle anderen Spalten der Excel werden ignoriert.
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Komponenten-Struktur
+
+```
+/dashboard/ausgaben (bestehende Seite — leicht erweitert)
++-- Button-Zeile (bestehend + neu)
+|   +-- "Neue Transaktion"-Button (unverändert)
+|   +-- "Excel importieren"-Button (NEU)
++-- ExcelUploadDialog (NEU — kleines Modal zum Datei-Wählen)
+|   +-- Drag & Drop Zone (Drop-Bereich mit gestricheltem Rahmen)
+|   +-- "Datei auswählen"-Link (verstecktes <input type="file">)
+|   +-- Dateiname-Anzeige (wenn Datei gewählt)
+|   +-- Lade-Spinner + Text "Datei wird verarbeitet..."
+|   +-- Fehlermeldung (falscher Typ / fehlende Spalte / leere Datei)
+|   +-- "Abbrechen"-Button
++-- AusgabenImportReviewDialog (NEU — Vollbild-Modal)
+    +-- Header: "X Transaktionen aus Excel importieren"
+    +-- Fortschritts-Counter: "X von Y vollständig ausgefüllt"
+    +-- Scrollbare Tabelle mit einer Zeile pro Transaktion
+    |   Spalten (horizontal scrollbar):
+    |   +-- Leistungsdatum (Date-Picker, vorausgefüllt, editierbar)
+    |   +-- Beschreibung (Text-Input, vorausgefüllt aus Firma/Portal, editierbar)
+    |   +-- Bruttobetrag (read-only, + "!"-Icon mit Tooltip bei Fremdwährung)
+    |   +-- USt-Betrag (read-only)
+    |   +-- Netto (read-only, berechnet)
+    |   +-- Kategorie (Select-Dropdown, Pflicht)
+    |   +-- Gruppe (Select-Dropdown, Pflicht wenn KPI-Ebene 2 existiert)
+    |   +-- Untergruppe (Select-Dropdown, Pflicht wenn KPI-Ebene 3 existiert)
+    |   +-- Sales Plattform (Select-Dropdown, Pflicht wenn Kategorie-Flag gesetzt)
+    |   +-- Produkt (Select-Dropdown, Pflicht wenn Kategorie-Flag gesetzt)
+    |   +-- Relevanz (Select-Dropdown, Pflicht)
+    |   +-- Löschen-Icon (entfernt Zeile sofort)
+    +-- Footer
+        +-- "Abbrechen"-Button (Dialog schließen, nichts importieren)
+        +-- "Alle importieren"-Button (aktiv nur wenn Zähler = Y/Y)
+```
+
+### Datenmodell (Zwischenspeicher im Review-Dialog)
+
+Nur im Browser — wird nicht direkt in der DB gespeichert:
+
+```
+Jede geparste Zeile hat:
+- Temporäre ID (für React-Rendering)
+- Leistungsdatum (aus Excel, editierbar)
+- Beschreibung (aus Excel Firma/Portal, editierbar, kann leer sein)
+- Bruttobetrag in € (aus Excel, unveränderlich)
+- USt-Betrag in € (aus Excel Steuerbetrag, unveränderlich)
+- Netto (berechnet = Brutto − USt, nur Anzeige)
+- Währung (aus Excel — für Fremdwährungs-Warnung)
+- istFremdwaehrung (true wenn Währung ≠ 'EUR')
+- Kategorie-ID (manuell, Pflicht)
+- Gruppe-ID (manuell, Pflicht wenn angezeigt)
+- Untergruppe-ID (manuell, Pflicht wenn angezeigt)
+- Sales Plattform-ID (manuell, Pflicht wenn angezeigt)
+- Produkt-ID (manuell, Pflicht wenn angezeigt)
+- Relevanz (manuell, Pflicht: 'rentabilitaet' / 'liquiditaet' / 'beides')
+- istVollstaendig (alle sichtbaren Pflichtfelder ausgefüllt?)
+- hatFehler (Brutto ≤ 0 oder USt > Brutto)
+
+Gespeichert in: nur Browser-State (React useState)
+```
+
+**Was in der Datenbank gespeichert wird:**
+Identisch zu manuell erstellten Transaktionen (PROJ-5-Tabelle `ausgaben_kosten_transaktionen`).
+Kein neues Feld, keine neue Tabelle. `ust_satz = 'individuell'`, `betrag_netto` serverseitig berechnet.
+
+### Was neu gebaut wird
+
+| Neu | Beschreibung |
+|-----|-------------|
+| `excel-upload-dialog.tsx` | Kleines Modal mit Drag & Drop Zone und Datei-Auswahl; löst Excel-Parsing aus |
+| `ausgaben-import-review-dialog.tsx` | Vollbild-Modal mit bearbeitbarer Tabelle aller geparsten Zeilen |
+| `use-excel-parser.ts` | Client-seitiger Hook: Excel einlesen → `ParsedRow[]`; Datumsformat DD.MM.YYYY → ISO, deutsches Zahlenformat → Float |
+| `POST /api/ausgaben-kosten-transaktionen/batch` | Neuer Endpunkt: Array von Transaktionen validieren, alle speichern, Erfolgs-/Fehler-Array zurückgeben |
+
+### Was wiederverwendet wird (keine Änderung nötig)
+
+| Bestehend | Wiederverwendung |
+|-----------|-----------------|
+| `useKpiCategories('ausgaben_kosten')` | Kategorie-Dropdowns im Review-Dialog |
+| Kaskadierungs-Logik aus `ausgaben-form-dialog.tsx` | Gruppe/Untergruppe/SalesPlattform/Produkt reset bei Kategoriewechsel |
+| Zod-Schema aus `POST /api/ausgaben-kosten-transaktionen` | Batch-Endpunkt validiert jede Zeile mit demselben Schema |
+| `shadcn/ui`: Dialog, Select, Tooltip, Button, Input, Toast | Alle bereits installiert |
+| `ausgaben/page.tsx` | Erhält zwei neue Buttons und zwei neue Dialog-Komponenten |
+
+### Tech-Entscheidungen
+
+**Client-seitiges Excel-Parsing (SheetJS `xlsx`-Paket):**
+Die `.xlsx`-Datei wird im Browser geparst — kein Server-Upload nötig. Kein File-Upload-Handling, keine temporäre Datei-Speicherung, kein Sicherheitsrisiko durch fremde Binärdateien auf dem Server. SheetJS ist die Standard-Library für Excel in JavaScript/Browser.
+
+**Neuer Batch-Endpunkt statt N einzelner API-Calls:**
+Bei 50 Zeilen würden 50 einzelne POST-Anfragen 50 Netzwerk-Round-Trips erzeugen. Ein einziger `POST /batch`-Endpunkt sendet alle Daten in einer Anfrage und gibt ein strukturiertes Ergebnis zurück (welche Zeilen OK, welche fehlgeschlagen). Saubere Teil-Fehler-Behandlung möglich.
+
+**Vollbild-Dialog statt eigener Route:**
+Der Review-Schritt ist temporär — er existiert nur zwischen Upload und Import. Ein Vollbild-Modal ist einfacher als eine eigene Route und hält den State im Speicher, ohne URL-Parameter-Management.
+
+**Kein automatischer Duplikat-Check:**
+Zwei legitime Rechnungen an denselben Lieferanten am selben Tag über denselben Betrag sind denkbar. Ein automatischer Check wäre fehleranfällig. Der Nutzer kontrolliert im Review-Dialog manuell.
+
+### Neue Abhängigkeiten
+
+| Paket | Zweck |
+|-------|-------|
+| `xlsx` (SheetJS) | Client-seitiges Parsen von `.xlsx`-Dateien im Browser |
 
 ## QA Test Results
 _To be added by /qa_
