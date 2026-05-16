@@ -274,8 +274,10 @@ Zwei legitime Rechnungen an denselben Lieferanten am selben Tag über denselben 
 - Updated `src/app/dashboard/ausgaben/page.tsx` — added "Excel importieren" button, import state, `handleParsed`/`handleImport` callbacks; import calls `POST /api/ausgaben-kosten-transaktionen/batch`
 - Build: clean, no TypeScript errors
 
-### Backend (pending)
-- `POST /api/ausgaben-kosten-transaktionen/batch` — not yet built; needed for import to function
+### Backend (2026-05-16)
+- Created `POST /api/ausgaben-kosten-transaktionen/batch` — validates array (max 500), Zod-validates each item with same schema as single POST, inserts concurrently via `Promise.allSettled` for partial success support, returns `{ successCount, errorCount, errors }`
+- HTTP 201 = all success, 207 = partial success, 400 = validation error, 500 = all failed
+- 15 unit tests: all passing
 
 ## QA Test Results
 _To be added by /qa_
