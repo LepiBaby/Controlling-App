@@ -55,7 +55,7 @@
 | PROJ-33 | Absatztabelle in Rentabilitäts- und Deckungsbeitragsreport | Approved | [PROJ-33-absatztabelle-in-reports.md](PROJ-33-absatztabelle-in-reports.md) | 2026-05-15 |
 | PROJ-34 | Vermögensreport | Deployed | [PROJ-34-vermoegensreport.md](PROJ-34-vermoegensreport.md) | 2026-05-15 |
 | PROJ-35 | GetMyInvoices Excel-Import für Ausgaben & Kosten | In Progress | [PROJ-35-getmyinvoices-excel-import.md](PROJ-35-getmyinvoices-excel-import.md) | 2026-05-16 |
-| PROJ-36 | Schnellbearbeitungsmodus für Transaktionstabellen | Planned | [PROJ-36-schnellbearbeitungsmodus.md](PROJ-36-schnellbearbeitungsmodus.md) | 2026-05-16 |
+| PROJ-36 | Schnellbearbeitungsmodus für Transaktionstabellen | Architected | [PROJ-36-schnellbearbeitungsmodus.md](PROJ-36-schnellbearbeitungsmodus.md) | 2026-05-16 |
 
 <!-- Add features above this line -->
 

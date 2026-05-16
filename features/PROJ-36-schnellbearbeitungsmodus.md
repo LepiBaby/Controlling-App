@@ -1,6 +1,6 @@
 # PROJ-36: Schnellbearbeitungsmodus für Transaktionstabellen
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-05-16
 **Last Updated:** 2026-05-16
 
@@ -79,7 +79,116 @@ Ein Schnellbearbeitungsmodus, der es dem Nutzer ermöglicht, Transaktionen direk
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Überblick
+Rein frontend-seitiges Feature — kein neues Backend nötig. Die bestehenden PATCH-Endpoints (`/api/ausgaben-kosten-transaktionen/[id]`, `/api/umsatz-transaktionen/[id]`, `/api/einnahmen-transaktionen/[id]`) werden direkt wiederverwendet. Die Implementierung besteht aus drei Teilen: einem geteilten Hook für die Bearbeitungslogik, erweiterten Tabellen-Komponenten für Inline-Inputs, und einem Edit-Mode-Toggle-Button in den Seiten-Headern.
+
+---
+
+### Komponenten-Struktur
+
+```
+Ausgaben-/Umsatz-/Einnahmen-Seite (page.tsx — bestehend, leicht erweitert)
+├── Header
+│   ├── [bestehende Buttons: + Neue Transaktion, Excel importieren]
+│   └── EditModeToggleButton (NEU)
+│       ├── Zustand: inaktiv → Label "Bearbeiten", Icon Pencil
+│       └── Zustand: aktiv  → Label "Bearbeiten beenden", Icon Check, andere Farbe
+│
+├── Filter-Bereich (unverändert)
+│
+└── Tabellen-Komponente (ausgaben-table.tsx etc. — erweitert)
+    ├── Props: + editMode: boolean, onInlineUpdate: (id, fields) => Promise<void>
+    ├── TableHeader (unverändert)
+    └── TableBody → pro Zeile:
+        ├── View-Modus (editMode=false): bestehende statische Zellenanzeige
+        └── Edit-Modus (editMode=true): Inline-Eingabezeile
+            ├── Datums-Felder → <input type="date">
+            ├── Betrag-Felder → <input type="number" min="0">
+            ├── Text-Felder → <input type="text">
+            ├── Dropdown-Felder → <select> (Kategorie, Gruppe, Untergruppe,
+            │   Sales Plattform, Produkt, USt-Satz, Relevanz, Abschreibung)
+            └── Aktionen: Trash2-Button bleibt, Pencil-Button ausgeblendet
+```
+
+---
+
+### Geteilter Hook: `useInlineEdit<T>`
+
+Ein generischer React-Hook, der die gesamte Inline-Bearbeitungslogik kapselt und von allen drei Tabellen genutzt wird:
+
+**Was der Hook verwaltet:**
+- **Draft-Zustand** — für jede Zeile (identifiziert per ID) wird eine Kopie der aktuellen Feldwerte gehalten, solange der Nutzer sie bearbeitet
+- **Validierungsfehler** — pro Zeile eine Map von Feldname → Fehlermeldung
+- **Speicher-Status** — pro Zeile ein Zustand (idle / saving / error), der den Lade-Spinner steuert
+- **Blur-Handler** — beim Verlassen eines Feldes: validieren → wenn gültig, API-PATCH auslösen; wenn ungültig, Feld rot markieren
+
+**Ablauf eines Auto-Save:**
+```
+Nutzer verlässt Feld (Blur)
+  → Validierung prüfen
+  ├── Ungültig: Feld rot markieren, kein API-Call
+  └── Gültig: PATCH-Request senden
+        ├── Während Speichern: Zeile halbtransparent + Spinner
+        ├── Erfolg: Draft-Zustand zurücksetzen, Tabelle aktualisiert
+        └── Fehler: Toast-Fehlermeldung, Feldwert auf letzten gespeicherten Wert zurücksetzen
+```
+
+---
+
+### Validierungsregeln (identisch mit Formular-Dialog)
+
+| Feld | Regel |
+|------|-------|
+| Leistungsdatum / Zahlungsdatum | Pflichtfeld (je nach Seite), gültiges Datum |
+| Betrag / Bruttobetrag | Pflichtfeld, > 0 |
+| USt-Betrag | ≥ 0, nur sichtbar wenn USt-Satz = „individuell" |
+| Kategorie | Pflichtfeld, muss aus Liste stammen |
+| Relevanz (Ausgaben) | Pflichtfeld, einer der drei Werte |
+| Beschreibung | Optional, max. 1000 Zeichen |
+| Gruppe/Untergruppe | Bedingt — nur wenn übergeordnetes Feld gesetzt |
+
+---
+
+### Kategorie-Abhängigkeiten im Edit-Modus
+Bei einer Änderung des Kategorie-Dropdowns werden Gruppe, Untergruppe, Sales Plattform und Produkt automatisch zurückgesetzt (auf `null`). Das gleiche gilt für Gruppe → Untergruppe. Dies spiegelt das Verhalten des bestehenden Formular-Dialogs wider und verhindert inkonsistente Datenkombinationen.
+
+---
+
+### Datenfluss (kein neues Backend)
+
+```
+Seite (page.tsx)
+  editMode: boolean (lokaler useState)
+  updateTransaktion(id, fields) ← bestehende Hook-Funktion
+    ↓ ruft auf
+  PATCH /api/ausgaben-kosten-transaktionen/[id]  (bestehend)
+  PATCH /api/umsatz-transaktionen/[id]           (bestehend)
+  PATCH /api/einnahmen-transaktionen/[id]        (bestehend)
+```
+
+Die `updateTransaktion`-Funktion existiert bereits in allen drei Hooks (`useAusgabenKostenTransaktionen`, `useUmsatzTransaktionen`, `useEinnahmenTransaktionen`) und wird unverändert wiederverwendet.
+
+---
+
+### Dateien, die geändert werden
+
+| Datei | Änderung |
+|-------|----------|
+| `src/hooks/use-inline-edit.ts` | NEU — geteilter Hook für Inline-Bearbeitungslogik |
+| `src/components/ausgaben-table.tsx` | Erweitert um `editMode`-Prop + Inline-Inputs pro Zeile |
+| `src/components/umsatz-table.tsx` | Erweitert um `editMode`-Prop + Inline-Inputs pro Zeile |
+| `src/components/einnahmen-table.tsx` | Erweitert um `editMode`-Prop + Inline-Inputs pro Zeile |
+| `src/app/dashboard/ausgaben/page.tsx` | Toggle-Button + `editMode`-State + Props an Tabelle |
+| `src/app/dashboard/umsatz/page.tsx` | Toggle-Button + `editMode`-State + Props an Tabelle |
+| `src/app/dashboard/einnahmen/page.tsx` | Toggle-Button + `editMode`-State + Props an Tabelle |
+
+**Keine Änderungen an:** Form-Dialogs, API-Routes, Datenbankschema, RLS-Policies.
+
+---
+
+### Pakete / Dependencies
+Keine neuen Pakete nötig — alle benötigten UI-Primitiven (Input, Select, Button, Toast) sind bereits installiert.
 
 ## QA Test Results
 _To be added by /qa_
