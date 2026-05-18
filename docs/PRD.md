@@ -48,6 +48,7 @@ Eine interne Controlling-Plattform für das Finanzreporting eines E-Commerce Unt
 | P1 | PROJ-34: Vermögensreport | Planned |
 | P1 | PROJ-35: GetMyInvoices Excel-Import für Ausgaben & Kosten | Planned |
 | P1 | PROJ-36: Schnellbearbeitungsmodus für Transaktionstabellen | Planned |
+| P1 | PROJ-37: Sellerboard Excel-Import für Umsatz & Ausgaben | Planned |
 
 ## Success Metrics
 - Alle Finanzdaten werden in einer zentralen Plattform erfasst (kein Excel-Chaos)
