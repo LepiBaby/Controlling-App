@@ -71,7 +71,7 @@ export async function GET(request: Request) {
   if (untergruppeIds.length)    query = query.in('untergruppe_id', untergruppeIds)
   if (salesPlattformIds.length) query = query.in('sales_plattform_id', salesPlattformIds)
   if (produktIds.length)        query = query.in('produkt_id', produktIds)
-  if (excludeImportSource)      query = query.neq('import_source', excludeImportSource)
+  if (excludeImportSource)      query = query.or(`import_source.is.null,import_source.neq.${excludeImportSource}`)
 
   const { data, error: dbError, count } = await query
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 })
@@ -88,7 +88,7 @@ export async function GET(request: Request) {
   if (untergruppeIds.length)    sumQuery = sumQuery.in('untergruppe_id', untergruppeIds)
   if (salesPlattformIds.length) sumQuery = sumQuery.in('sales_plattform_id', salesPlattformIds)
   if (produktIds.length)        sumQuery = sumQuery.in('produkt_id', produktIds)
-  if (excludeImportSource)      sumQuery = sumQuery.neq('import_source', excludeImportSource)
+  if (excludeImportSource)      sumQuery = sumQuery.or(`import_source.is.null,import_source.neq.${excludeImportSource}`)
 
   const { data: sumData, error: sumError } = await sumQuery
   if (sumError) return NextResponse.json({ error: sumError.message }, { status: 500 })
