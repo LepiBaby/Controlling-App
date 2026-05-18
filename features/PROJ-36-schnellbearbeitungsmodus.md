@@ -1,6 +1,6 @@
 # PROJ-36: Schnellbearbeitungsmodus für Transaktionstabellen
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-05-16
 **Last Updated:** 2026-05-16
 
@@ -299,4 +299,13 @@ Keine Bugs mit Severity Critical oder High gefunden.
 - **Recommendation:** Bereit für Deployment
 
 ## Deployment
-_To be added by /deploy_
+
+**Deployed:** 2026-05-18
+**Production URL:** https://lepibaby.vercel.app (Vercel, auto-deploy via GitHub push)
+**Git Tag:** v1.36.0-PROJ-36
+**Commits deployed:** e76faa1 (feat + test, 9 commits ahead of previous main)
+
+### Deployment Notes
+- Rein frontend-seitiges Feature — kein neues Backend, keine DB-Migration nötig
+- Vercel Auto-Deploy via Push auf main-Branch ausgelöst
+- Build: ✓ Next.js 16.1.1 Turbopack, alle 46 Seiten generiert
