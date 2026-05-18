@@ -18,6 +18,7 @@ export interface AusgabenKostenTransaktion {
   beschreibung: string | null
   relevanz: 'rentabilitaet' | 'liquiditaet' | 'beides'
   abschreibung: string | null
+  import_source: string | null
   created_at: string
 }
 
@@ -45,6 +46,7 @@ export interface AusgabenFilter {
   untergruppe_ids?: string[]
   sales_plattform_ids?: string[]
   produkt_ids?: string[]
+  excludeSellerboard?: boolean
 }
 
 export type SortColumn = 'leistungsdatum' | 'betrag_brutto'
@@ -66,6 +68,7 @@ export function useAusgabenKostenTransaktionen() {
   const [total, setTotal] = useState(0)
   const [totalBrutto, setTotalBrutto] = useState(0)
   const [totalNetto, setTotalNetto] = useState(0)
+  const [sellerboardCount, setSellerboardCount] = useState(0)
   const [page, setPageState] = useState(1)
   const [filter, setFilterState] = useState<AusgabenFilter>({})
   const [sortColumn, setSortColumn] = useState<SortColumn>('leistungsdatum')
@@ -86,6 +89,7 @@ export function useAusgabenKostenTransaktionen() {
       if (filter.untergruppe_ids?.length) params.set('untergruppe_ids', filter.untergruppe_ids.join(','))
       if (filter.sales_plattform_ids?.length) params.set('sales_plattform_ids', filter.sales_plattform_ids.join(','))
       if (filter.produkt_ids?.length) params.set('produkt_ids', filter.produkt_ids.join(','))
+      if (filter.excludeSellerboard) params.set('excludeImportSource', 'sellerboard')
 
       const res = await fetch(`/api/ausgaben-kosten-transaktionen?${params}`)
       if (!res.ok) throw new Error((await res.json()).error ?? 'Fehler beim Laden')
@@ -94,6 +98,7 @@ export function useAusgabenKostenTransaktionen() {
       setTotal(json.total)
       setTotalBrutto(json.totalBrutto)
       setTotalNetto(json.totalNetto)
+      setSellerboardCount(json.sellerboardCount ?? 0)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Fehler beim Laden')
     } finally {
@@ -144,7 +149,7 @@ export function useAusgabenKostenTransaktionen() {
 
   return {
     transaktionen, loading, error,
-    total, totalBrutto, totalNetto, page, filter, sortColumn, sortDirection,
+    total, totalBrutto, totalNetto, sellerboardCount, page, filter, sortColumn, sortDirection,
     setPage, setFilter, setSort,
     addTransaktion, updateTransaktion, deleteTransaktion,
   }

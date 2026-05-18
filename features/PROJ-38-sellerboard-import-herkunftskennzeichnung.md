@@ -1,6 +1,6 @@
 # PROJ-38: Sellerboard-Import-Herkunftskennzeichnung & Filter in Ausgaben-Tabelle
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-05-18
 **Last Updated:** 2026-05-18
 

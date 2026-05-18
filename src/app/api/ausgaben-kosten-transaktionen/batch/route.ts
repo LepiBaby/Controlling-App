@@ -20,6 +20,7 @@ const itemSchema = z.object({
   beschreibung:       z.string().max(1000).nullable().optional(),
   relevanz:           z.enum(['rentabilitaet', 'liquiditaet', 'beides'], { message: 'Ungültige Relevanz' }),
   abschreibung:       z.enum(['3_jahre', '5_jahre', '7_jahre', '10_jahre']).nullable().optional(),
+  import_source:      z.string().nullable().optional(),
 })
 
 function computeUstBetrag(brutto: number, ustSatz: string, ustBetragManual: number): number {
@@ -110,6 +111,7 @@ export async function POST(request: Request) {
           beschreibung:       d.beschreibung ?? null,
           relevanz:           d.relevanz,
           abschreibung:       d.abschreibung ?? null,
+          import_source:      d.import_source ?? null,
         })
         .select()
         .single()

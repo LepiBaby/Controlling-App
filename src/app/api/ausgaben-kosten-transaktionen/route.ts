@@ -43,16 +43,17 @@ export async function GET(request: Request) {
   if (error) return error
 
   const { searchParams } = new URL(request.url)
-  const page              = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10))
-  const sortColumn        = searchParams.get('sortColumn') === 'betrag_brutto' ? 'betrag_brutto' : 'leistungsdatum'
-  const sortAsc           = searchParams.get('sortDirection') === 'asc'
-  const von               = searchParams.get('von')
-  const bis               = searchParams.get('bis')
-  const kategorieIds      = searchParams.get('kategorie_ids')?.split(',').filter(Boolean) ?? []
-  const gruppeIds         = searchParams.get('gruppe_ids')?.split(',').filter(Boolean) ?? []
-  const untergruppeIds    = searchParams.get('untergruppe_ids')?.split(',').filter(Boolean) ?? []
-  const salesPlattformIds = searchParams.get('sales_plattform_ids')?.split(',').filter(Boolean) ?? []
-  const produktIds        = searchParams.get('produkt_ids')?.split(',').filter(Boolean) ?? []
+  const page                = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10))
+  const sortColumn          = searchParams.get('sortColumn') === 'betrag_brutto' ? 'betrag_brutto' : 'leistungsdatum'
+  const sortAsc             = searchParams.get('sortDirection') === 'asc'
+  const von                 = searchParams.get('von')
+  const bis                 = searchParams.get('bis')
+  const kategorieIds        = searchParams.get('kategorie_ids')?.split(',').filter(Boolean) ?? []
+  const gruppeIds           = searchParams.get('gruppe_ids')?.split(',').filter(Boolean) ?? []
+  const untergruppeIds      = searchParams.get('untergruppe_ids')?.split(',').filter(Boolean) ?? []
+  const salesPlattformIds   = searchParams.get('sales_plattform_ids')?.split(',').filter(Boolean) ?? []
+  const produktIds          = searchParams.get('produkt_ids')?.split(',').filter(Boolean) ?? []
+  const excludeImportSource = searchParams.get('excludeImportSource')
 
   const from = (page - 1) * PAGE_SIZE
   const to   = from + PAGE_SIZE - 1
@@ -70,11 +71,12 @@ export async function GET(request: Request) {
   if (untergruppeIds.length)    query = query.in('untergruppe_id', untergruppeIds)
   if (salesPlattformIds.length) query = query.in('sales_plattform_id', salesPlattformIds)
   if (produktIds.length)        query = query.in('produkt_id', produktIds)
+  if (excludeImportSource)      query = query.neq('import_source', excludeImportSource)
 
   const { data, error: dbError, count } = await query
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 })
 
-  // Separate query for totals over all filtered rows (not just current page)
+  // Totals over all filtered rows (not just current page)
   let sumQuery = supabase
     .from('ausgaben_kosten_transaktionen')
     .select('betrag_brutto, betrag_netto')
@@ -86,18 +88,37 @@ export async function GET(request: Request) {
   if (untergruppeIds.length)    sumQuery = sumQuery.in('untergruppe_id', untergruppeIds)
   if (salesPlattformIds.length) sumQuery = sumQuery.in('sales_plattform_id', salesPlattformIds)
   if (produktIds.length)        sumQuery = sumQuery.in('produkt_id', produktIds)
+  if (excludeImportSource)      sumQuery = sumQuery.neq('import_source', excludeImportSource)
 
   const { data: sumData, error: sumError } = await sumQuery
   if (sumError) return NextResponse.json({ error: sumError.message }, { status: 500 })
+
+  // Count of Sellerboard transactions under current filters (for toggle visibility + hint text)
+  let sellerboardCountQuery = supabase
+    .from('ausgaben_kosten_transaktionen')
+    .select('*', { count: 'exact', head: true })
+    .eq('import_source', 'sellerboard')
+
+  if (von)                      sellerboardCountQuery = sellerboardCountQuery.gte('leistungsdatum', von)
+  if (bis)                      sellerboardCountQuery = sellerboardCountQuery.lte('leistungsdatum', bis)
+  if (kategorieIds.length)      sellerboardCountQuery = sellerboardCountQuery.in('kategorie_id', kategorieIds)
+  if (gruppeIds.length)         sellerboardCountQuery = sellerboardCountQuery.in('gruppe_id', gruppeIds)
+  if (untergruppeIds.length)    sellerboardCountQuery = sellerboardCountQuery.in('untergruppe_id', untergruppeIds)
+  if (salesPlattformIds.length) sellerboardCountQuery = sellerboardCountQuery.in('sales_plattform_id', salesPlattformIds)
+  if (produktIds.length)        sellerboardCountQuery = sellerboardCountQuery.in('produkt_id', produktIds)
+
+  const { count: sellerboardCount, error: sellerboardError } = await sellerboardCountQuery
+  if (sellerboardError) return NextResponse.json({ error: sellerboardError.message }, { status: 500 })
 
   const totalBrutto = Math.round((sumData ?? []).reduce((acc, r) => acc + Number(r.betrag_brutto), 0) * 100) / 100
   const totalNetto  = Math.round((sumData ?? []).reduce((acc, r) => acc + Number(r.betrag_netto), 0) * 100) / 100
 
   return NextResponse.json({
-    data:         data ?? [],
-    total:        count ?? 0,
+    data:            data ?? [],
+    total:           count ?? 0,
     totalBrutto,
     totalNetto,
+    sellerboardCount: sellerboardCount ?? 0,
   })
 }
 
