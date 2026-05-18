@@ -1,6 +1,6 @@
 # PROJ-38: Sellerboard-Import-Herkunftskennzeichnung & Filter in Ausgaben-Tabelle
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-05-18
 **Last Updated:** 2026-05-18
 
@@ -216,7 +216,57 @@ Das Zod-Validierungsschema in `POST /api/ausgaben-kosten-transaktionen/batch` er
 6. ausgaben/page.tsx: Toggle-Button + Hinweistext
 
 ## QA Test Results
-_To be added by /qa_
+
+**Datum:** 2026-05-18
+**Tester:** QA Engineer (Claude)
+**Status: APPROVED — Produktionsbereit**
+
+### Acceptance Criteria
+
+| Kriterium | Ergebnis | Anmerkung |
+|-----------|----------|-----------|
+| AC-1: `import_source`-Feld in DB (nullable, default null) | ✅ PASS | Migration erfolgreich ausgeführt |
+| AC-1: Bestehende Transaktionen haben `import_source = null` | ✅ PASS | Bestätigt durch Nutzer |
+| AC-1: Feld in Response vorhanden, aber nicht in Tabellenspalte | ✅ PASS | Feld im JSON, kein UI-Element |
+| AC-2: Sellerboard-Wizard setzt `import_source = 'sellerboard'` | ✅ PASS | Code-Review + Unit-Test |
+| AC-2: Batch-API akzeptiert und speichert das Feld | ✅ PASS | Unit-Test bestätigt |
+| AC-2: GMI-Import und manuell → `import_source = null` | ✅ PASS | Kein Breaking Change an GMI-API |
+| AC-3: Toggle-Button erscheint bei `sellerboardCount > 0` | ✅ PASS | Vom Nutzer manuell bestätigt |
+| AC-3: Button inaktiv beim Seitenaufruf | ✅ PASS | Default-State korrekt |
+| AC-3: Filter blendet Sellerboard-Transaktionen aus | ✅ PASS | Nach NULL-Fix bestätigt |
+| AC-3: URL-Persistenz | ⚠️ NOT IMPLEMENTED | Per Architekturentscheidung bewusst weggelassen (konsistent mit anderen Filtern) |
+| AC-3: Hinweis "X ausgeblendet" im Button-Label | ✅ PASS | Label wechselt zu "Sellerboard ausgeblendet (X)" |
+| AC-3: Button unsichtbar wenn keine Sellerboard-Transaktionen | ✅ PASS | `sellerboardCount > 0` Guard |
+| AC-4: `excludeImportSource`-Parameter unterstützt | ✅ PASS | Unit-Test + Code-Review |
+| AC-4: `total` und Summen ohne Sellerboard-Einträge | ✅ PASS | Beide Queries gefiltert |
+| AC-4: Kombination mit anderen Filtern funktioniert | ✅ PASS | AND-Verknüpfung korrekt |
+
+### Bugs gefunden
+
+| # | Schwere | Beschreibung | Status |
+|---|---------|--------------|--------|
+| 1 | **Critical (behoben)** | `neq()` filterte auch Zeilen mit `import_source = NULL` aus → manuelle Transaktionen verschwanden beim aktiven Filter | ✅ Behoben in `fix(PROJ-38)` |
+
+### Edge Cases
+
+| Edge Case | Ergebnis |
+|-----------|----------|
+| Keine Sellerboard-Transaktionen → Toggle unsichtbar | ✅ PASS |
+| Filter aktiv + alle Sellerboard gelöscht → Toggle zeigt 0 | ✅ PASS (sellerboardCount fällt auf 0) |
+| Kombination Datum-Filter + Sellerboard-Filter | ✅ PASS |
+| Manuell bearbeitete Sellerboard-Transaktion behält `import_source` | ✅ PASS (PATCH-Schema kennt das Feld nicht → unberührt) |
+
+### Security Audit
+
+- **Auth:** `excludeImportSource`-Parameter erfordert gültige Session — bestätigt durch E2E-Tests (Redirect zu /login)
+- **Injection:** Parameter wird nur als String-Vergleich verwendet; Supabase parametrisiert alle Queries → kein SQL-Injection-Risiko
+- **Datenleck:** `import_source`-Feld in API-Response ist für authentifizierte Nutzer gedacht — keine sensiblen Daten enthalten
+
+### Automatisierte Tests
+
+- **Vitest Unit-Tests:** 46/46 ✅ (inkl. 4 neue PROJ-38-Tests)
+- **Playwright E2E:** 14/14 ✅ (in `tests/PROJ-38-sellerboard-import-herkunftskennzeichnung.spec.ts`)
+- **Pre-existing failures (unrelated):** 4 Tests in break-even + vermoegen (datumsbezogen, nicht PROJ-38)
 
 ## Deployment
 _To be added by /deploy_

@@ -237,4 +237,38 @@ describe('POST /api/ausgaben-kosten-transaktionen/batch', () => {
     const res = await POST(req([VALID_ITEM]))
     expect(res.status).toBe(500)
   })
+
+  it('accepts import_source field and stores it (PROJ-38)', async () => {
+    let capturedInsert: Record<string, unknown> | null = null
+    mockFrom.mockReturnValue({
+      insert: (data: Record<string, unknown>) => {
+        capturedInsert = data
+        return {
+          select: () => ({
+            single: () => Promise.resolve({ data: MOCK_ROW, error: null }),
+          }),
+        }
+      },
+    })
+    const res = await POST(req([{ ...VALID_ITEM, import_source: 'sellerboard' }]))
+    expect(res.status).toBe(201)
+    expect(capturedInsert).toHaveProperty('import_source', 'sellerboard')
+  })
+
+  it('stores import_source as null when not provided (PROJ-38)', async () => {
+    let capturedInsert: Record<string, unknown> | null = null
+    mockFrom.mockReturnValue({
+      insert: (data: Record<string, unknown>) => {
+        capturedInsert = data
+        return {
+          select: () => ({
+            single: () => Promise.resolve({ data: MOCK_ROW, error: null }),
+          }),
+        }
+      },
+    })
+    const res = await POST(req([VALID_ITEM]))
+    expect(res.status).toBe(201)
+    expect(capturedInsert).toHaveProperty('import_source', null)
+  })
 })

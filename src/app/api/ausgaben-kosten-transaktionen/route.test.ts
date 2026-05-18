@@ -59,6 +59,10 @@ describe('GET /api/ausgaben-kosten-transaktionen', () => {
     })
   })
 
+  function mockSellerboardCount(n: number) {
+    return { select: () => ({ eq: () => ({ count: n, error: null }) }) }
+  }
+
   it('returns 200 with data/total/totalBrutto/totalNetto shape', async () => {
     mockFrom
       .mockReturnValueOnce({
@@ -71,6 +75,7 @@ describe('GET /api/ausgaben-kosten-transaktionen', () => {
       .mockReturnValueOnce({
         select: () => ({ data: [{ betrag_brutto: 1190, betrag_netto: 1000 }], error: null }),
       })
+      .mockReturnValueOnce(mockSellerboardCount(0))
 
     const res = await GET(req('http://localhost/api/ausgaben-kosten-transaktionen'))
     expect(res.status).toBe(200)
@@ -94,6 +99,7 @@ describe('GET /api/ausgaben-kosten-transaktionen', () => {
       .mockReturnValueOnce({
         select: () => ({ data: [], error: null }),
       })
+      .mockReturnValueOnce(mockSellerboardCount(0))
 
     const res = await GET(req('http://localhost/api/ausgaben-kosten-transaktionen'))
     expect(res.status).toBe(200)
@@ -101,6 +107,55 @@ describe('GET /api/ausgaben-kosten-transaktionen', () => {
     expect(body.total).toBe(0)
     expect(body.totalBrutto).toBe(0)
     expect(body.totalNetto).toBe(0)
+  })
+
+  it('includes sellerboardCount in response (PROJ-38)', async () => {
+    mockFrom
+      .mockReturnValueOnce({
+        select: () => ({
+          order: () => ({
+            range: () => ({ data: [MOCK_ROW], error: null, count: 1 }),
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        select: () => ({ data: [{ betrag_brutto: 1190, betrag_netto: 1000 }], error: null }),
+      })
+      .mockReturnValueOnce(mockSellerboardCount(5))
+
+    const res = await GET(req('http://localhost/api/ausgaben-kosten-transaktionen'))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body).toHaveProperty('sellerboardCount', 5)
+  })
+
+  it('applies excludeImportSource filter via OR IS NULL (PROJ-38)', async () => {
+    // When excludeImportSource=sellerboard, the route uses .or('import_source.is.null,...')
+    // which means manual transactions (NULL) are still shown
+    const orMock = vi.fn().mockReturnValue({ data: [MOCK_ROW], error: null, count: 1 })
+    const orMockSum = vi.fn().mockReturnValue({ data: [{ betrag_brutto: 1190, betrag_netto: 1000 }], error: null })
+
+    mockFrom
+      .mockReturnValueOnce({
+        select: () => ({
+          order: () => ({
+            range: () => ({
+              gte: () => ({ lte: () => ({ or: orMock }) }),
+              or: orMock,
+            }),
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        select: () => ({ or: orMockSum }),
+      })
+      .mockReturnValueOnce(mockSellerboardCount(3))
+
+    const res = await GET(req('http://localhost/api/ausgaben-kosten-transaktionen?excludeImportSource=sellerboard'))
+    expect(res.status).toBe(200)
+    // orMock should have been called with the IS NULL condition
+    expect(orMock).toHaveBeenCalledWith(expect.stringContaining('import_source.is.null'))
+    expect(orMock).toHaveBeenCalledWith(expect.stringContaining('import_source.neq.sellerboard'))
   })
 
   it('returns 401 when unauthenticated', async () => {
