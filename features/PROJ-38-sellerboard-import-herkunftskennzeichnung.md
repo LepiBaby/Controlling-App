@@ -4,6 +4,12 @@
 **Created:** 2026-05-18
 **Last Updated:** 2026-05-18
 
+## Implementation Notes
+- Toggle-Button in `ausgaben/page.tsx` im Filter-Bereich: sichtbar wenn `sellerboardCount > 0`
+- Button-Label wechselt: „Sellerboard ausblenden" (inaktiv) → „Sellerboard ausgeblendet (X)" (aktiv)
+- `hasAnyFilter` berücksichtigt jetzt auch `excludeSellerboard` → „Filter zurücksetzen" erscheint auch bei aktivem Sellerboard-Filter
+- Kein URL-Persist implementiert (konsistent mit allen anderen Filtern auf der Seite)
+
 ## Dependencies
 - Requires: PROJ-37 (Sellerboard Excel-Import) — der Import-Wizard setzt das neue Feld beim Speichern
 - Requires: PROJ-5 (Ausgaben & Kosten-Transaktionen Eingabe) — betrifft die Ausgaben-Tabelle und deren Datenmodell

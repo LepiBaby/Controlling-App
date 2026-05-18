@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Pencil, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -27,18 +27,20 @@ import { AusgabenFormDialog } from '@/components/ausgaben-form-dialog'
 import { NavSheet } from '@/components/nav-sheet'
 import { ExcelUploadDialog } from '@/components/excel-upload-dialog'
 import { AusgabenImportReviewDialog, ImportRow } from '@/components/ausgaben-import-review-dialog'
+import { SellerboardImportWizard } from '@/components/sellerboard-import-wizard'
 import { ParseResult } from '@/lib/excel-parser'
 import { useToast } from '@/hooks/use-toast'
 
 export default function AusgabenPage() {
   const { categories: ausgabenKategorien, loading: kpiLoading } = useKpiCategories('ausgaben_kosten')
+  const { categories: umsatzKategorien } = useKpiCategories('umsatz')
   const { categories: salesPlattformen } = useKpiCategories('sales_plattformen')
   const { categories: produkteAll } = useKpiCategories('produkte')
   const produkte = useMemo(() => produkteAll.filter(p => p.level === 1), [produkteAll])
 
   const {
     transaktionen, loading, error,
-    total, totalBrutto, totalNetto, page, filter, sortColumn, sortDirection,
+    total, totalBrutto, totalNetto, sellerboardCount, page, filter, sortColumn, sortDirection,
     setPage, setFilter, setSort,
     addTransaktion, updateTransaktion, deleteTransaktion,
   } = useAusgabenKostenTransaktionen()
@@ -51,10 +53,28 @@ export default function AusgabenPage() {
   const [deleting, setDeleting] = useState(false)
   const [editMode, setEditMode] = useState(false)
 
-  // Excel import state
+  // GMI Excel import state
   const [uploadOpen, setUploadOpen] = useState(false)
   const [reviewOpen, setReviewOpen] = useState(false)
   const [parseResult, setParseResult] = useState<ParseResult | null>(null)
+
+  // Sellerboard import state
+  const [sellerboardOpen, setSellerboardOpen] = useState(false)
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { umsatzSuccess, ausgabenSuccess } = (e as CustomEvent).detail as { umsatzSuccess: number; ausgabenSuccess: number }
+      const total = umsatzSuccess + ausgabenSuccess
+      toast({
+        title: 'Sellerboard Import erfolgreich',
+        description: `${total} Transaktion${total !== 1 ? 'en' : ''} importiert (${umsatzSuccess} Umsatz, ${ausgabenSuccess} Ausgaben).`,
+      })
+      setPage(1)
+      setFilter({})
+    }
+    window.addEventListener('sellerboard-import-done', handler)
+    return () => window.removeEventListener('sellerboard-import-done', handler)
+  }, [toast, setPage, setFilter])
 
   const columnVisibility = useMemo<ColumnVisibility>(() => ({
     showGruppe: ausgabenKategorien.some(c => c.level === 2),
@@ -84,7 +104,7 @@ export default function AusgabenPage() {
   const hasAnyFilter = !!(
     filter.von || filter.bis ||
     filter.kategorie_ids?.length || filter.gruppe_ids?.length || filter.untergruppe_ids?.length ||
-    filter.sales_plattform_ids?.length || filter.produkt_ids?.length
+    filter.sales_plattform_ids?.length || filter.produkt_ids?.length || filter.excludeSellerboard
   )
 
   const handleNewClick = () => {
@@ -199,8 +219,11 @@ export default function AusgabenPage() {
                 {editMode ? <Check className="h-3.5 w-3.5 mr-1.5" /> : <Pencil className="h-3.5 w-3.5 mr-1.5" />}
                 {editMode ? 'Bearbeiten beenden' : 'Bearbeiten'}
               </Button>
+              <Button size="sm" onClick={() => setSellerboardOpen(true)}>
+                Sellerboard Excel importieren
+              </Button>
               <Button size="sm" onClick={() => setUploadOpen(true)}>
-                Excel importieren
+                GMI Excel importieren
               </Button>
               <Button onClick={handleNewClick} size="sm">
                 + Neue Transaktion
@@ -316,6 +339,21 @@ export default function AusgabenPage() {
                   />
                 </div>
               )}
+              {sellerboardCount > 0 && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs opacity-0 pointer-events-none select-none">Filter</Label>
+                  <Button
+                    variant={filter.excludeSellerboard ? 'secondary' : 'outline'}
+                    size="sm"
+                    className="h-8"
+                    onClick={() => setFilter({ ...filter, excludeSellerboard: !filter.excludeSellerboard })}
+                  >
+                    {filter.excludeSellerboard
+                      ? `Sellerboard ausgeblendet (${sellerboardCount})`
+                      : 'Sellerboard ausblenden'}
+                  </Button>
+                </div>
+              )}
               {hasAnyFilter && (
                 <Button
                   variant="ghost"
@@ -368,6 +406,16 @@ export default function AusgabenPage() {
         open={uploadOpen}
         onOpenChange={setUploadOpen}
         onParsed={handleParsed}
+      />
+
+      <SellerboardImportWizard
+        open={sellerboardOpen}
+        onOpenChange={setSellerboardOpen}
+        ausgabenKategorien={ausgabenKategorien}
+        umsatzKategorien={umsatzKategorien}
+        salesPlattformen={salesPlattformen}
+        produkteKategorien={produkteAll}
+        onImportDone={() => { setPage(1); setFilter({}) }}
       />
 
       <AusgabenImportReviewDialog
