@@ -1,6 +1,6 @@
 # PROJ-38: Sellerboard-Import-Herkunftskennzeichnung & Filter in Ausgaben-Tabelle
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-05-18
 **Last Updated:** 2026-05-18
 
@@ -80,3 +80,137 @@ In der Ausgaben & Kosten-Tabelle erscheint oberhalb der Tabelle ein **Toggle-Fil
 - **Keine neue Tabellenspalte:** Das Feld wird in der Tabellenansicht nicht dargestellt
 - **Keine neuen npm-Pakete**
 - **RLS:** Das Feld unterliegt denselben Row-Level-Security-Regeln wie alle anderen Felder der Tabelle
+
+---
+
+## Tech Design (Solution Architect)
+
+### Übersicht der Änderungen
+
+Vier Bereiche werden angefasst — kein neues Paket, keine neue Komponente, keine neue Tabelle:
+
+```
+Datenbank (Supabase Migration)
++-- ausgaben_kosten_transaktionen
+    +-- Neues Feld: import_source (Text, nullable, default null)
+
+Backend
++-- GET /api/ausgaben-kosten-transaktionen  (erweitert)
+|   +-- Neuer Query-Param: excludeImportSource=sellerboard
+|   +-- Neue Response-Felder: sellerboardCount
++-- POST /api/ausgaben-kosten-transaktionen/batch  (erweitert)
+    +-- Neues optionales Schema-Feld: import_source
+
+Hook (use-ausgaben-kosten-transaktionen.ts)  (erweitert)
++-- AusgabenKostenTransaktion: + import_source: string | null
++-- AusgabenFilter: + excludeSellerboard?: boolean
++-- fetchData: sendet excludeImportSource wenn aktiv
++-- Rückgabe: + sellerboardCount: number
+
+Frontend (ausgaben/page.tsx)  (erweitert)
++-- Filter-Bereich
+|   +-- Toggle-Button "Sellerboard-Import ausblenden"
+|       (nur sichtbar wenn sellerboardCount > 0)
+|   +-- Hinweistext "X Sellerboard-Transaktionen ausgeblendet"
+|       (nur wenn Filter aktiv und sellerboardCount > 0)
++-- SellerboardImportWizard: sendet import_source: 'sellerboard'
+    bei ausgaben-Batch-Items
+```
+
+---
+
+### Datenbankfeld
+
+**Tabelle:** `ausgaben_kosten_transaktionen`
+**Neues Feld:** `import_source` — Text, nullable, kein Default-Wert (bestehende Zeilen = `NULL`)
+**Migration:** Einfaches `ALTER TABLE ... ADD COLUMN` via Supabase-Migrations-Skript
+**RLS:** Keine eigene Policy nötig — das Feld fällt automatisch unter die bestehenden RLS-Regeln der Tabelle
+
+---
+
+### Backend: GET-Endpoint erweitert
+
+Der bestehende Endpoint erhält zwei Erweiterungen:
+
+**Neuer Query-Parameter `excludeImportSource`:**
+- Wenn `excludeImportSource=sellerboard`: Beide DB-Queries (Paginierungs-Query + Summen-Query) filtern Zeilen mit `import_source = 'sellerboard'` heraus
+- `total` und Summen (Brutto/Netto) beziehen sich dann nur auf die verbleibenden Transaktionen
+
+**Neues Response-Feld `sellerboardCount`:**
+- Immer vorhanden — unabhängig davon, ob `excludeImportSource` gesetzt ist
+- Wert: Anzahl Transaktionen mit `import_source = 'sellerboard'` unter allen aktuellen anderen Filtern (Datum, Kategorie etc.)
+- Erfordert eine dritte, leichtgewichtige Count-Query (nur `.count()`, kein Daten-Laden)
+- Zweck: UI entscheidet anhand dieses Werts, ob Toggle angezeigt wird und wie viele Einträge versteckt sind
+
+---
+
+### Backend: Batch-Endpoint erweitert
+
+Das Zod-Validierungsschema in `POST /api/ausgaben-kosten-transaktionen/batch` erhält:
+- Neues optionales Feld `import_source` (Text, nullable)
+- Beim Insert wird das Feld als `import_source: d.import_source ?? null` mitgeschrieben
+- Der GMI-Import schickt das Feld nicht mit → landet als `null` in der DB (kein Breaking Change)
+
+---
+
+### Hook: use-ausgaben-kosten-transaktionen.ts
+
+**Typänderungen:**
+- `AusgabenKostenTransaktion` bekommt `import_source: string | null`
+- `AusgabenFilter` bekommt `excludeSellerboard?: boolean`
+
+**fetchData-Erweiterung:**
+- Wenn `filter.excludeSellerboard === true`: Param `excludeImportSource=sellerboard` wird an den GET-Request angehängt
+
+**Neuer Rückgabewert:**
+- `sellerboardCount: number` — direkt aus der API-Response gelesen, im State gehalten
+
+**Filter-Reset:**
+- `setFilter({})` setzt auch `excludeSellerboard` zurück → Sellerboard-Transaktionen wieder sichtbar
+
+---
+
+### Frontend: ausgaben/page.tsx
+
+**Toggle-Button:**
+- Platzierung: im bestehenden Filter-Bereich (`flex flex-wrap items-end gap-4`), nach den Kategorie-Filtern, vor dem „Filter zurücksetzen"-Button
+- Sichtbar nur wenn `sellerboardCount > 0` (sonst kein leeres UI-Element)
+- Visueller Zustand: `variant="outline"` (inaktiv) vs. `variant="secondary"` + farbige Hervorhebung (aktiv)
+- Klick: ruft `setFilter({ ...filter, excludeSellerboard: !filter.excludeSellerboard })` auf
+
+**Hinweistext:**
+- Erscheint nur wenn `filter.excludeSellerboard === true && sellerboardCount > 0`
+- Text: `„${sellerboardCount} Sellerboard-Transaktionen ausgeblendet"`
+- Platzierung: als kleiner Badge oder Inline-Text direkt neben dem Toggle-Button
+
+**SellerboardImportWizard:**
+- In `sellerboard-import-wizard.tsx`: beim Aufbau der Ausgaben-Batch-Items wird `import_source: 'sellerboard'` zum jeweiligen Objekt hinzugefügt
+- Keine sichtbare UI-Änderung im Wizard
+
+---
+
+### Was nicht gebaut wird
+
+- Keine neue Komponente
+- Kein neues npm-Paket
+- Keine URL-Persistenz (konsistent mit allen anderen Filtern auf dieser Seite)
+- Kein `import_source`-Feld in `umsatz_transaktionen`
+- Kein `import_source`-Feld in der Tabellenansicht (weder Spalte noch Tooltip)
+- Kein Bearbeiten des Felds durch den Nutzer
+
+---
+
+### Reihenfolge der Implementierung
+
+1. Supabase-Migration (DB-Feld hinzufügen)
+2. Batch-API erweitern (Schema + Insert)
+3. GET-API erweitern (Filter + sellerboardCount)
+4. Hook erweitern (Typen, fetchData, sellerboardCount)
+5. SellerboardImportWizard: import_source mitsenden
+6. ausgaben/page.tsx: Toggle-Button + Hinweistext
+
+## QA Test Results
+_To be added by /qa_
+
+## Deployment
+_To be added by /deploy_
