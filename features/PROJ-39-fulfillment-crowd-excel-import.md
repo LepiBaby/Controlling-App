@@ -1,6 +1,6 @@
 # PROJ-39: Fulfillment Crowd Excel-Import für Bestandsverwaltung
 
-## Status: Planned
+## Status: In Progress
 **Created:** 2026-05-20
 **Last Updated:** 2026-05-20
 
@@ -184,7 +184,62 @@ Identisch mit der Formel in PROJ-17 (`calcEndbestand()`).
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Komponenten-Struktur
+```
+BestandsverwaltungPage (/dashboard/bestandsverwaltung)
++-- Button „Fulfillment Crowd Excel importieren"  ← NEU
++-- [bestehende Tabs + Inhalte] (key=refreshKey, re-mountet nach Import)
+
+FulfillmentCrowdImportWizard (shadcn Dialog)  ← NEU
++-- DialogHeader mit Schritt-Indikator (1/4 … 4/4)
++-- Schritt 1: DateiUploadStep
+|   +-- FileDropArea „Dispatched Orders Review"
+|   +-- FileDropArea „Stock Movement Report"
+|   +-- „Weiter"-Button (deaktiviert bis beide Dateien gewählt)
++-- Schritt 2: ReviewStep
+|   +-- [Pro SKU: SkuReviewSection]
+|       +-- Badge mit SKU-Code
+|       +-- Tabelle (Datum | Anfang | [Plattformen] | Manuell | Einlag. | Anp.+ | Anp.− | Verlust | Endbestand)
+|       +-- Alle Felder außer Datum + Endbestand inline editierbar
++-- Schritt 3: DuplikatCheckStep (übersprungen wenn keine Duplikate)
+|   +-- Duplikat-Tabelle (SKU | Datum | Alt-Endbestand | Neu-Endbestand | Entscheidung)
+|   +-- Massenauswahl: „Alle alten behalten" / „Alle neuen übernehmen"
++-- Schritt 4: AbschlussStep
+    +-- Erfolgsmeldung (X importiert, Y aktualisiert, Z übersprungen)
+```
+
+### Neue Dateien
+| Datei | Zweck |
+|---|---|
+| `src/lib/fulfillment-crowd-parser.ts` | Excel-Parser für beide Dateien; Aggregation; Channel-Mapping; SKU-Validierung |
+| `src/components/fulfillment-crowd-import-wizard.tsx` | 4-Step-Wizard (analog zu `sellerboard-import-wizard.tsx`) |
+
+### Geänderte Dateien
+| Datei | Änderung |
+|---|---|
+| `src/app/dashboard/bestandsverwaltung/page.tsx` | Button + Wizard eingebunden; `refreshKey` für Re-Mount nach Import |
+
+### Keine neuen API-Routen
+Import nutzt ausschließlich bestehende Routen:
+- `GET /api/bestand-transaktionen?sku_id=xxx` — Anfangsbestand + Duplikatprüfung
+- `POST /api/bestand-transaktionen` — neue Einträge
+- `PATCH /api/bestand-transaktionen/[id]` — Update bei „Neuen übernehmen"
+
+### Tech-Entscheidungen
+| Entscheidung | Gewählt | Warum |
+|---|---|---|
+| Wizard-Muster | shadcn Dialog (wie Sellerboard-Wizard) | Identisches Pattern zu `sellerboard-import-wizard.tsx` |
+| Excel-Parsing | `xlsx`-Library, vollständig im Browser | Bereits installiert (PROJ-35); keine Server-Uploads |
+| Anfangsbestand-Verkettung | `cascadeAnfangsbestand()`-Funktion im lokalen State | Identische Formel wie `calcEndbestand()` aus PROJ-17 |
+| Re-Fetch nach Import | `refreshKey` als `key`-Prop auf Main-Content | Erzwingt Re-Mount aller `BestandSkuTab`-Komponenten; simpelste Lösung ohne globalen State |
+| Negative Anfangsbestände | `Math.max(0, prev)` beim Verketten, `Math.max(0, Math.round(...))` beim Import | API-Schema verlangt `min(0)` für alle Mengenfelder |
+
+## Implementation Notes (Frontend)
+
+- `src/lib/fulfillment-crowd-parser.ts` — Parser liest beide Excel-Sheets, findet Kopfzeilen automatisch (sucht nach bekannten Marker-Spalten in den ersten 15 Zeilen), aggregiert auf Datum × SKU-Code, mappt Channels case-insensitiv via Teilstring-Match auf Plattform-IDs (`channel.toLowerCase().includes(platform.name.toLowerCase())`); Channel mit „manually" im Namen → `sendungen_manuell`
+- `src/components/fulfillment-crowd-import-wizard.tsx` — Schritt 1: zwei separate `FileDropArea`-Komponenten mit Drag-&-Drop; Schritt 2: nach Datei-Verarbeitung + API-Fetch für Anfangsbestand werden Einträge pro SKU gruppiert angezeigt; `cascadeAnfangsbestand()` propagiert Endbestand als Anfangsbestand aller Folgetage derselben SKU bei jeder Feldänderung; Schritt 3: Duplikatprüfung via `GET /api/bestand-transaktionen?sku_id=xxx`; keine Duplikate → Import startet direkt ohne Schritt-3-Anzeige; Schritt 4: Erfolgsmeldung
+- Build: ✅ fehlerfrei (TypeScript + Next.js 16 Production Build, 54 Routes)
 
 ## QA Test Results
 _To be added by /qa_

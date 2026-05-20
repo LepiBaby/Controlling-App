@@ -24,6 +24,7 @@ import {
 } from '@/hooks/use-bestand-transaktionen'
 import { BestandTable } from '@/components/bestand-table'
 import { BestandFormDialog } from '@/components/bestand-form-dialog'
+import { FulfillmentCrowdImportWizard } from '@/components/fulfillment-crowd-import-wizard'
 
 // Per-SKU content: transactions table + form + delete dialog
 function BestandSkuTab({
@@ -253,6 +254,8 @@ export default function BestandsverwaltungPage() {
 
   const [filterVon, setFilterVon] = useState('')
   const [filterBis, setFilterBis] = useState('')
+  const [fcWizardOpen, setFcWizardOpen] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   const loading = produkteLoading || plattformenLoading
 
@@ -274,17 +277,40 @@ export default function BestandsverwaltungPage() {
 
   const noProdukte = !loading && sortedProdukte.length === 0
 
+  const skuCategories = useMemo(
+    () => produkteCategories.filter(c => c.level === 2),
+    [produkteCategories],
+  )
+
   return (
     <div className="flex min-h-screen flex-col">
       <header className="border-b bg-background px-6 py-4">
-        <div className="flex items-center gap-2">
-          <NavSheet />
-          <h1 className="text-lg font-semibold">Bestandsverwaltung</h1>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <NavSheet />
+            <h1 className="text-lg font-semibold">Bestandsverwaltung</h1>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setFcWizardOpen(true)}
+            disabled={loading}
+          >
+            Fulfillment Crowd Excel importieren
+          </Button>
         </div>
       </header>
 
+      <FulfillmentCrowdImportWizard
+        open={fcWizardOpen}
+        onOpenChange={setFcWizardOpen}
+        skuCategories={skuCategories}
+        plattformCategories={sortedPlattformen}
+        onImportDone={() => setRefreshKey(k => k + 1)}
+      />
+
       <main className="flex-1 p-6">
-        <div className="w-full space-y-6">
+        <div key={refreshKey} className="w-full space-y-6">
 
           {loading && (
             <div className="py-8 text-center text-sm text-muted-foreground">Laden…</div>
