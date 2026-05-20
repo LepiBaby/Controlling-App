@@ -50,6 +50,7 @@ Eine interne Controlling-Plattform für das Finanzreporting eines E-Commerce Unt
 | P1 | PROJ-36: Schnellbearbeitungsmodus für Transaktionstabellen | Planned |
 | P1 | PROJ-37: Sellerboard Excel-Import für Umsatz & Ausgaben | Planned |
 | P1 | PROJ-38: Sellerboard-Import-Herkunftskennzeichnung & Filter | Planned |
+| P1 | PROJ-39: Fulfillment Crowd Excel-Import für Bestandsverwaltung | Planned |
 
 ## Success Metrics
 - Alle Finanzdaten werden in einer zentralen Plattform erfasst (kein Excel-Chaos)
