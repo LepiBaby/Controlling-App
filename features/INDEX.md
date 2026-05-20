@@ -56,7 +56,7 @@
 | PROJ-34 | Vermögensreport | Deployed | [PROJ-34-vermoegensreport.md](PROJ-34-vermoegensreport.md) | 2026-05-15 |
 | PROJ-35 | GetMyInvoices Excel-Import für Ausgaben & Kosten | In Review | [PROJ-35-getmyinvoices-excel-import.md](PROJ-35-getmyinvoices-excel-import.md) | 2026-05-16 |
 | PROJ-36 | Schnellbearbeitungsmodus für Transaktionstabellen | Deployed | [PROJ-36-schnellbearbeitungsmodus.md](PROJ-36-schnellbearbeitungsmodus.md) | 2026-05-16 |
-| PROJ-37 | Sellerboard Excel-Import für Umsatz & Ausgaben | In Progress | [PROJ-37-sellerboard-excel-import.md](PROJ-37-sellerboard-excel-import.md) | 2026-05-18 |
+| PROJ-37 | Sellerboard Excel-Import für Umsatz & Ausgaben | Approved | [PROJ-37-sellerboard-excel-import.md](PROJ-37-sellerboard-excel-import.md) | 2026-05-18 |
 | PROJ-38 | Sellerboard-Import-Herkunftskennzeichnung & Filter | Approved | [PROJ-38-sellerboard-import-herkunftskennzeichnung.md](PROJ-38-sellerboard-import-herkunftskennzeichnung.md) | 2026-05-18 |
 
 <!-- Add features above this line -->

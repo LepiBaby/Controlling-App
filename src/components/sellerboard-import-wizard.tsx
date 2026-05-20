@@ -11,7 +11,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { KpiCategory } from '@/hooks/use-kpi-categories'
-import { parseSellerboardExcel, SellerboardParseResult, SellerboardAggregatedRow } from '@/lib/sellerboard-parser'
+import { parseSellerboardExcel, SellerboardParseResult } from '@/lib/sellerboard-parser'
 import {
   calculateSellerboardRows,
   SellerboardImportRow,
@@ -98,8 +98,8 @@ export function SellerboardImportWizard({
   const [dragging, setDragging] = useState(false)
 
   // Step 2
-  const [shippingCosts, setShippingCosts] = useState<Record<string, string>>({})
-  const [amazonFeeEntries, setAmazonFeeEntries] = useState<{ betrag: string; date: string }[]>([{ betrag: '', date: '' }])
+  const [retourenkostenEntries, setRetourenkostenEntries] = useState<Record<string, Record<string, string>>>({})
+  const [amazonFeePerMonth, setAmazonFeePerMonth] = useState<Record<string, string>>({})
 
   // Step 3
   const [importRows, setImportRows] = useState<SellerboardImportRow[]>([])
@@ -121,8 +121,8 @@ export function SellerboardImportWizard({
     setUploading(false)
     setUploadError(null)
     setDragging(false)
-    setShippingCosts({})
-    setAmazonFeeEntries([{ betrag: '', date: '' }])
+    setRetourenkostenEntries({})
+    setAmazonFeePerMonth({})
     setImportRows([])
     setShowHidden(false)
     setLoadingConflicts(false)
@@ -142,27 +142,27 @@ export function SellerboardImportWizard({
   }
 
   // Unique products in the parse result
-  const uniqueProducts = useMemo<{ productId: string; productName: string; totalUnits: number }[]>(() => {
+  const uniqueProducts = useMemo<{ productId: string; productName: string }[]>(() => {
     if (!parseResult) return []
-    const map = new Map<string, { productId: string; productName: string; totalUnits: number }>()
+    const map = new Map<string, { productId: string; productName: string }>()
     for (const row of parseResult.aggregatedRows) {
-      const existing = map.get(row.productId)
-      const units = row.unitsOrganic + row.unitsPPC + row.unitsSponsoredProducts + row.unitsSponsoredDisplay
-      if (existing) {
-        existing.totalUnits += units
-      } else {
-        map.set(row.productId, { productId: row.productId, productName: row.productName, totalUnits: units })
+      if (!map.has(row.productId)) {
+        map.set(row.productId, { productId: row.productId, productName: row.productName })
       }
     }
     return Array.from(map.values()).sort((a, b) => a.productName.localeCompare(b.productName))
   }, [parseResult])
 
-  // Step 2 validity
-  const step2Valid = useMemo(() => {
-    return uniqueProducts.every(p =>
-      p.totalUnits === 0 || (shippingCosts[p.productId] ?? '').trim() !== ''
-    )
-  }, [uniqueProducts, shippingCosts])
+  // Unique months in the parse result (YYYY-MM)
+  const uniqueMonths = useMemo<{ monthKey: string; monthLabel: string }[]>(() => {
+    if (!parseResult) return []
+    const months = new Set(parseResult.aggregatedRows.map(r => r.date.slice(0, 7)))
+    return Array.from(months).sort().map(m => {
+      const [yyyy, mm] = m.split('-')
+      const d = new Date(Number(yyyy), Number(mm) - 1, 1)
+      return { monthKey: m, monthLabel: d.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' }) }
+    })
+  }, [parseResult])
 
   // Visible / hidden counts for Step 3
   const { visibleRows, hiddenCount } = useMemo(() => {
@@ -194,12 +194,18 @@ export function SellerboardImportWizard({
         return
       }
       setParseResult(result)
-      // Initialize shipping costs
-      const initCosts: Record<string, string> = {}
-      result.aggregatedRows.forEach(row => {
-        if (!initCosts[row.productId]) initCosts[row.productId] = ''
-      })
-      setShippingCosts(initCosts)
+      // Initialize month-based entries
+      const months = [...new Set(result.aggregatedRows.map(r => r.date.slice(0, 7)))].sort()
+      const productIds = [...new Set(result.aggregatedRows.map(r => r.productId))]
+      const initRetourenkosten: Record<string, Record<string, string>> = {}
+      const initFeePerMonth: Record<string, string> = {}
+      for (const month of months) {
+        initRetourenkosten[month] = {}
+        for (const pid of productIds) initRetourenkosten[month][pid] = ''
+        initFeePerMonth[month] = ''
+      }
+      setRetourenkostenEntries(initRetourenkosten)
+      setAmazonFeePerMonth(initFeePerMonth)
       setStep(2)
     } catch (e) {
       setUploadError(e instanceof Error ? e.message : 'Fehler beim Verarbeiten der Datei.')
@@ -223,16 +229,21 @@ export function SellerboardImportWizard({
 
   const handleGoToStep3 = () => {
     if (!parseResult) return
-    const shippingMap: Record<string, number> = {}
-    for (const p of uniqueProducts) {
-      shippingMap[p.productId] = parseFloat(shippingCosts[p.productId] ?? '0') || 0
+    const retourenkostenByMonth: Record<string, Record<string, number>> = {}
+    for (const [monthKey, productMap] of Object.entries(retourenkostenEntries)) {
+      retourenkostenByMonth[monthKey] = {}
+      for (const [pid, val] of Object.entries(productMap)) {
+        retourenkostenByMonth[monthKey][pid] = parseFloat(val) || 0
+      }
+    }
+    const feeByMonth: Record<string, number> = {}
+    for (const [monthKey, val] of Object.entries(amazonFeePerMonth)) {
+      feeByMonth[monthKey] = parseFloat(val) || 0
     }
     const rows = calculateSellerboardRows({
       aggregatedRows: parseResult.aggregatedRows,
-      shippingCosts: shippingMap,
-      amazonFeeEntries: amazonFeeEntries
-        .map(e => ({ betrag: parseFloat(e.betrag) || 0, date: e.date }))
-        .filter(e => e.betrag > 0),
+      retourenkostenByMonth,
+      amazonFeePerMonth: feeByMonth,
       ausgabenKategorien,
       umsatzKategorien,
       salesPlattformen,
@@ -278,7 +289,10 @@ export function SellerboardImportWizard({
     setConflictError(null)
     setStep(4)
     try {
-      const { von, bis } = parseResult.dateRange
+      const { von: rawVon, bis } = parseResult.dateRange
+      // Extend von to include 1st of month (for Retourenkosten/Plattformgebühren rows)
+      const firstOfMonth = rawVon.slice(0, 7) + '-01'
+      const von = firstOfMonth < rawVon ? firstOfMonth : rawVon
       const [existingUmsatz, existingAusgaben] = await Promise.all([
         fetchAllPages('/api/umsatz-transaktionen', von, bis),
         fetchAllPages('/api/ausgaben-kosten-transaktionen', von, bis),
@@ -469,16 +483,20 @@ export function SellerboardImportWizard({
           />}
 
           {step === 2 && parseResult && <Step2Config
+            uniqueMonths={uniqueMonths}
             uniqueProducts={uniqueProducts}
             unknownSkus={parseResult.unknownSkus}
-            shippingCosts={shippingCosts}
-            amazonFeeEntries={amazonFeeEntries}
-            onShippingChange={(id, val) => setShippingCosts(prev => ({ ...prev, [id]: val }))}
-            onFeeEntryChange={(idx, field, val) =>
-              setAmazonFeeEntries(prev => prev.map((e, i) => i === idx ? { ...e, [field]: val } : e))
+            retourenkostenEntries={retourenkostenEntries}
+            amazonFeePerMonth={amazonFeePerMonth}
+            onRetourenkostenChange={(monthKey, pid, val) =>
+              setRetourenkostenEntries(prev => ({
+                ...prev,
+                [monthKey]: { ...prev[monthKey], [pid]: val },
+              }))
             }
-            onFeeEntryAdd={() => setAmazonFeeEntries(prev => [...prev, { betrag: '', date: '' }])}
-            onFeeEntryRemove={idx => setAmazonFeeEntries(prev => prev.filter((_, i) => i !== idx))}
+            onAmazonFeeChange={(monthKey, val) =>
+              setAmazonFeePerMonth(prev => ({ ...prev, [monthKey]: val }))
+            }
           />}
 
           {step === 3 && <Step3Preview
@@ -533,7 +551,7 @@ export function SellerboardImportWizard({
             {step === 2 && (
               <>
                 <Button variant="outline" onClick={() => setStep(1)}>Zurück</Button>
-                <Button onClick={handleGoToStep3} disabled={!step2Valid}>Weiter</Button>
+                <Button onClick={handleGoToStep3}>Weiter</Button>
               </>
             )}
             {step === 3 && (
@@ -627,20 +645,20 @@ function Step1Upload({
 // ─── Step 2: Config ───────────────────────────────────────────────────────────
 
 function Step2Config({
-  uniqueProducts, unknownSkus, shippingCosts, amazonFeeEntries,
-  onShippingChange, onFeeEntryChange, onFeeEntryAdd, onFeeEntryRemove,
+  uniqueMonths, uniqueProducts, unknownSkus,
+  retourenkostenEntries, amazonFeePerMonth,
+  onRetourenkostenChange, onAmazonFeeChange,
 }: {
-  uniqueProducts: { productId: string; productName: string; totalUnits: number }[]
+  uniqueMonths: { monthKey: string; monthLabel: string }[]
+  uniqueProducts: { productId: string; productName: string }[]
   unknownSkus: string[]
-  shippingCosts: Record<string, string>
-  amazonFeeEntries: { betrag: string; date: string }[]
-  onShippingChange: (id: string, val: string) => void
-  onFeeEntryChange: (idx: number, field: 'betrag' | 'date', val: string) => void
-  onFeeEntryAdd: () => void
-  onFeeEntryRemove: (idx: number) => void
+  retourenkostenEntries: Record<string, Record<string, string>>
+  amazonFeePerMonth: Record<string, string>
+  onRetourenkostenChange: (monthKey: string, productId: string, val: string) => void
+  onAmazonFeeChange: (monthKey: string, val: string) => void
 }) {
   return (
-    <div className="max-w-lg mx-auto space-y-6 pt-2">
+    <div className="space-y-6 pt-2 max-w-4xl mx-auto">
       {unknownSkus.length > 0 && (
         <Alert>
           <AlertDescription>
@@ -650,77 +668,80 @@ function Step2Config({
         </Alert>
       )}
 
+      {/* Retourenkosten matrix: months × products */}
       <div className="space-y-3">
-        <p className="text-sm font-medium">Versandkosten pro Einheit (€ Netto) je Produkt</p>
-        <p className="text-xs text-muted-foreground">
-          Wird zur Berechnung der Retourenkosten benötigt (Retourenkosten = Amazon Shipping − Einheiten × Versandkosten).
-        </p>
-        {uniqueProducts.map(p => (
-          <div key={p.productId} className="flex items-center gap-3">
-            <Label className="flex-1 text-sm truncate" title={p.productName}>
-              {p.productName}
-            </Label>
-            <div className="flex items-center gap-1 shrink-0">
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="0,00"
-                className="h-8 w-28 text-xs text-right"
-                value={shippingCosts[p.productId] ?? ''}
-                onChange={e => onShippingChange(p.productId, e.target.value)}
-              />
-              <span className="text-xs text-muted-foreground">€</span>
-            </div>
-            {p.totalUnits === 0 && (
-              <span className="text-xs text-muted-foreground">(keine Units)</span>
-            )}
-          </div>
-        ))}
+        <div>
+          <p className="text-sm font-medium">Retourenkosten (€ Netto)</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Pro Monat und Produkt eintragen. Leere Felder werden nicht importiert. Datum wird automatisch auf den 1. des Monats gesetzt.
+          </p>
+        </div>
+        <div className="overflow-auto rounded border">
+          <table className="text-xs border-collapse w-max min-w-full">
+            <thead className="bg-muted/40 border-b">
+              <tr>
+                <th className="p-2 text-left font-medium text-muted-foreground whitespace-nowrap min-w-[120px]">Monat</th>
+                {uniqueProducts.map(p => (
+                  <th key={p.productId} className="p-2 text-left font-medium text-muted-foreground whitespace-nowrap min-w-[130px]">
+                    {p.productName}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {uniqueMonths.map(({ monthKey, monthLabel }) => (
+                <tr key={monthKey} className="border-b last:border-0 hover:bg-muted/10">
+                  <td className="p-2 font-medium whitespace-nowrap">{monthLabel}</td>
+                  {uniqueProducts.map(p => (
+                    <td key={p.productId} className="p-2">
+                      <div className="flex items-center gap-1">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="–"
+                          className="h-7 w-28 text-xs text-right"
+                          value={retourenkostenEntries[monthKey]?.[p.productId] ?? ''}
+                          onChange={e => onRetourenkostenChange(monthKey, p.productId, e.target.value)}
+                        />
+                        <span className="text-xs text-muted-foreground">€</span>
+                      </div>
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
+      {/* Plattformgebühren per month */}
       <div className="border-t pt-4 space-y-3">
-        <p className="text-sm font-medium">Produktunabhängige Amazongebühren (optional)</p>
-        <p className="text-xs text-muted-foreground">
-          Wird als Ausgabe unter Operativ → Sales &amp; Marketing → Plattformgebühren importiert.
-        </p>
+        <div>
+          <p className="text-sm font-medium">Produktunabhängige Amazongebühren (optional)</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Wird als Ausgabe unter Operativ → Sales &amp; Marketing → Plattformgebühren importiert. Datum = 1. des Monats.
+          </p>
+        </div>
         <div className="space-y-2">
-          {amazonFeeEntries.map((entry, idx) => (
-            <div key={idx} className="flex items-center gap-2">
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="0,00"
-                className="h-8 w-32 text-xs text-right"
-                value={entry.betrag}
-                onChange={e => onFeeEntryChange(idx, 'betrag', e.target.value)}
-              />
-              <span className="text-xs text-muted-foreground shrink-0">€ Netto</span>
-              <Input
-                type="date"
-                className="h-8 w-38 text-xs"
-                value={entry.date}
-                onChange={e => onFeeEntryChange(idx, 'date', e.target.value)}
-              />
-              {amazonFeeEntries.length > 1 && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
-                  onClick={() => onFeeEntryRemove(idx)}
-                >
-                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </Button>
-              )}
+          {uniqueMonths.map(({ monthKey, monthLabel }) => (
+            <div key={monthKey} className="flex items-center gap-3">
+              <Label className="w-36 text-sm shrink-0">{monthLabel}</Label>
+              <div className="flex items-center gap-1">
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="–"
+                  className="h-8 w-32 text-xs text-right"
+                  value={amazonFeePerMonth[monthKey] ?? ''}
+                  onChange={e => onAmazonFeeChange(monthKey, e.target.value)}
+                />
+                <span className="text-xs text-muted-foreground">€ Netto</span>
+              </div>
             </div>
           ))}
         </div>
-        <Button variant="outline" size="sm" className="h-8 text-xs" onClick={onFeeEntryAdd}>
-          + Weitere Gebühr hinzufügen
-        </Button>
       </div>
     </div>
   )
