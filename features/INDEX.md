@@ -58,7 +58,7 @@
 | PROJ-36 | Schnellbearbeitungsmodus für Transaktionstabellen | Deployed | [PROJ-36-schnellbearbeitungsmodus.md](PROJ-36-schnellbearbeitungsmodus.md) | 2026-05-16 |
 | PROJ-37 | Sellerboard Excel-Import für Umsatz & Ausgaben | Approved | [PROJ-37-sellerboard-excel-import.md](PROJ-37-sellerboard-excel-import.md) | 2026-05-18 |
 | PROJ-38 | Sellerboard-Import-Herkunftskennzeichnung & Filter | Approved | [PROJ-38-sellerboard-import-herkunftskennzeichnung.md](PROJ-38-sellerboard-import-herkunftskennzeichnung.md) | 2026-05-18 |
-| PROJ-39 | Fulfillment Crowd Excel-Import für Bestandsverwaltung | In Progress | [PROJ-39-fulfillment-crowd-excel-import.md](PROJ-39-fulfillment-crowd-excel-import.md) | 2026-05-20 |
+| PROJ-39 | Fulfillment Crowd Excel-Import für Bestandsverwaltung | Approved | [PROJ-39-fulfillment-crowd-excel-import.md](PROJ-39-fulfillment-crowd-excel-import.md) | 2026-05-20 |
 
 <!-- Add features above this line -->
 

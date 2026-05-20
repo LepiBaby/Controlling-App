@@ -1,6 +1,6 @@
 # PROJ-39: Fulfillment Crowd Excel-Import für Bestandsverwaltung
 
-## Status: In Progress
+## Status: In Review
 **Created:** 2026-05-20
 **Last Updated:** 2026-05-20
 
@@ -242,7 +242,81 @@ Import nutzt ausschließlich bestehende Routen:
 - Build: ✅ fehlerfrei (TypeScript + Next.js 16 Production Build, 54 Routes)
 
 ## QA Test Results
-_To be added by /qa_
+
+**QA Date:** 2026-05-20
+**QA Engineer:** Claude QA (automated)
+**Overall Result:** ✅ APPROVED — Keine Critical/High Bugs
+
+### Acceptance Criteria
+
+| # | Kriterium | Status | Notiz |
+|---|-----------|--------|-------|
+| AC-1 | Button „Fulfillment Crowd Excel importieren" auf Bestandsverwaltung sichtbar | ✅ Pass | Schwarzer Button links neben „+ Neue Transaktion" |
+| AC-2 | Klick öffnet 4-Schritt-Wizard | ✅ Pass | Dialog mit Step-Indikator |
+| AC-3 | Schritt 1: zwei Upload-Bereiche (Dispatched + Stock Movement) | ✅ Pass | Mit Drag-&-Drop |
+| AC-4 | Nur .xlsx-Dateien akzeptiert | ✅ Pass | `accept=".xlsx"` |
+| AC-5 | „Weiter"-Button deaktiviert bis beide Dateien gewählt | ✅ Pass | `disabled={!dispatchedFile \|\| !stockFile}` |
+| AC-6 | Datei kann durch erneuten Klick ersetzt werden | ✅ Pass | |
+| AC-7 | Lade-Indikator während Verarbeitung | ✅ Pass | Spinner + „Wird verarbeitet…" |
+| AC-8 | Fehler bei unbekannten SKU-Codes (Import blockiert) | ✅ Pass | Fehlermeldung mit Liste |
+| AC-9 | Fehler bei unbekannten Channels (Import blockiert) | ✅ Pass | Fehlermeldung mit Liste |
+| AC-10 | Review: Ergebnisse pro Produkt → SKU in Tab-Struktur | ✅ Pass | Zweistufige Tabs: Produkt → SKU |
+| AC-11 | Review: Tabelle pro SKU mit einer Zeile pro Tag, aufsteigend sortiert | ✅ Pass | |
+| AC-12 | Review: Spalten Datum, Anfang, Plattformen, Manuell, Einlag., Anp.+, Anp.−, Verlust, Endbestand | ✅ Pass | |
+| AC-13 | Review: Alle Felder außer Datum/Endbestand editierbar | ✅ Pass | |
+| AC-14 | Review: Endbestand wird bei Feldänderung automatisch neu berechnet | ✅ Pass | `calcReviewEndbestand()` |
+| AC-15 | Review: Anfangsbestand des ersten Tags aus letztem DB-Eintrag (strikt vor Importdatum) | ✅ Pass | Fix angewendet: `filter(t => t.datum < raw.datum)` |
+| AC-16 | Review: Folgetage im Import: Anfangsbestand = Endbestand Vortag (verkettet) | ✅ Pass | `cascadeAnfangsbestand()` |
+| AC-17 | Review: Negative Endbestände farblich hervorgehoben | ✅ Pass | `text-destructive` |
+| AC-18 | Schritt 3 übersprungen wenn keine Konflikte | ✅ Pass | |
+| AC-19 | Konflikte-Tabelle: SKU, Datum, Alt-Endbestand, Neu-Endbestand, Entscheidung | ✅ Pass | |
+| AC-20 | Pro Konflikt: Radio „Alten behalten" (Vorauswahl) / „Neuen übernehmen" | ✅ Pass | |
+| AC-21 | Globaler „Alle behalten" / „Alle übernehmen"-Toggle | ✅ Pass | |
+| AC-22 | Identische Einträge (gleicher Endbestand) nicht als Konflikt angezeigt | ✅ Pass | Stille Übersprungung |
+| AC-23 | Import: neue Einträge per POST, Updates per PATCH | ✅ Pass | |
+| AC-24 | Erfolgsmeldung: X importiert, Y aktualisiert, Z übersprungen, W bereits vorhanden | ✅ Pass | |
+| AC-25 | Bestandsverwaltung-Tabelle aktualisiert sich nach Import | ✅ Pass | Via `refreshKey` |
+
+### Edge Cases
+
+| Edge Case | Status | Notiz |
+|-----------|--------|-------|
+| Beide Dateien leer | ✅ Pass | „Keine Daten in den Dateien gefunden" |
+| Nur Dispatched-Daten für einen Tag | ✅ Pass | Stock-Felder = 0 |
+| Nur Stock-Daten für einen Tag | ✅ Pass | Sendungen = 0 |
+| SKU in einer Datei, nicht in der anderen | ✅ Pass | Fehlende Werte = 0 |
+| SKU nicht im KPI-Modell | ✅ Pass | Import blockiert mit Fehlermeldung |
+| Channel nicht zuordenbar | ✅ Pass | Import blockiert mit Fehlermeldung |
+| Import älterer Daten (Datum vor bestehenden Einträgen) | ✅ Pass | Fix: `filter(t => t.datum < raw.datum)` |
+| Anfangsbestand-Verkettung bei Zwischentag-Änderung | ✅ Pass | `cascadeAnfangsbestand()` propagiert korrekt |
+| Quarantäne-Store: Transfer Complete → Warenverluste, nicht Einlagerungen | ✅ Pass | |
+| Positive/Negative Stock Adjustment Stage-Mapping | ✅ Pass | Fix: case-insensitive `includes()` |
+| Dialog schließen ohne Import | ✅ Pass | `reset()` beim Schließen |
+
+### Security Audit
+
+| Test | Ergebnis |
+|------|---------|
+| Unauthentifizierte GET /api/bestand-transaktionen | ✅ Redirect zu /login |
+| Unauthentifizierte POST /api/bestand-transaktionen | ✅ Redirect zu /login |
+| Unauthentifizierte PATCH /api/bestand-transaktionen/[id] | ✅ Redirect zu /login |
+| Seite /dashboard/bestandsverwaltung ohne Auth | ✅ Redirect zu /login |
+| Excel-Parsing vollständig im Browser | ✅ Keine Datei-Uploads auf Server |
+
+### Automatisierte Tests
+
+| Suite | Ergebnis |
+|-------|---------|
+| Unit-Tests (Vitest) — `fulfillment-crowd-parser.test.ts` | ✅ 29/29 passed |
+| E2E-Tests (Playwright) — `PROJ-39-fulfillment-crowd-excel-import.spec.ts` | ✅ 18/18 passed |
+
+### Bugs gefunden
+
+Keine Critical/High Bugs. Alle während der Implementierung gefundenen Bugs wurden bereits gefixt:
+- `fix(PROJ-39)`: Anfangsbestand-Datumsprüfung (letzter Eintrag strikt vor Importdatum)
+- `fix(PROJ-39)`: Positive/Negative Stock Adjustment Stage-Mapping korrigiert
+- `fix(PROJ-39)`: Spalten-Alignment in Review-Tabelle (w-full statt w-20)
+- `fix(PROJ-39)`: „Konflikte" statt „Duplikate"; identische Einträge still überspringen
 
 ## Deployment
 _To be added by /deploy_
