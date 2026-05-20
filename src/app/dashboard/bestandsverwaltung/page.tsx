@@ -307,6 +307,7 @@ export default function BestandsverwaltungPage() {
         open={fcWizardOpen}
         onOpenChange={setFcWizardOpen}
         skuCategories={skuCategories}
+        produkteCategories={sortedProdukte}
         plattformCategories={sortedPlattformen}
         onImportDone={() => setRefreshKey(k => k + 1)}
       />

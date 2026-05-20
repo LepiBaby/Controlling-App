@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useState, useCallback, useMemo } from 'react'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -37,11 +38,18 @@ interface DuplicateEntry {
 
 type DuplicateDecision = 'keep_old' | 'keep_new'
 
+interface ProduktGroup {
+  produktId: string
+  produktName: string
+  skuGroups: { skuCode: string; skuLabel: string; entries: FcReviewEntry[] }[]
+}
+
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
-  skuCategories: KpiCategory[]      // type='produkte', level=2
-  plattformCategories: KpiCategory[] // type='sales_plattformen', level=1
+  skuCategories: KpiCategory[]        // type='produkte', level=2
+  produkteCategories: KpiCategory[]   // type='produkte', level=1
+  plattformCategories: KpiCategory[]  // type='sales_plattformen', level=1
   onImportDone: () => void
 }
 
@@ -110,6 +118,7 @@ export function FulfillmentCrowdImportWizard({
   open,
   onOpenChange,
   skuCategories,
+  produkteCategories,
   plattformCategories,
   onImportDone,
 }: Props) {
@@ -434,14 +443,33 @@ export function FulfillmentCrowdImportWizard({
 
   // ── Derived ───────────────────────────────────────────────────────────────
 
-  const groupedBySkuCode = useMemo(() => {
-    const groups: Record<string, FcReviewEntry[]> = {}
-    for (const e of reviewEntries) {
-      if (!groups[e.skuCode]) groups[e.skuCode] = []
-      groups[e.skuCode].push(e)
+  const produktGroups = useMemo<ProduktGroup[]>(() => {
+    const map = new Map<string, ProduktGroup>()
+    for (const entry of reviewEntries) {
+      if (!map.has(entry.produktId)) {
+        const p = produkteCategories.find(p => p.id === entry.produktId)
+        map.set(entry.produktId, {
+          produktId: entry.produktId,
+          produktName: p?.name ?? entry.produktId,
+          skuGroups: [],
+        })
+      }
+      const pg = map.get(entry.produktId)!
+      let sg = pg.skuGroups.find(s => s.skuCode === entry.skuCode)
+      if (!sg) {
+        const sku = skuCategories.find(s => s.id === entry.skuId)
+        const skuLabel = sku?.sku_code ? `${sku.sku_code} – ${sku.name}` : (sku?.name ?? entry.skuCode)
+        sg = { skuCode: entry.skuCode, skuLabel, entries: [] }
+        pg.skuGroups.push(sg)
+      }
+      sg.entries.push(entry)
     }
-    return groups
-  }, [reviewEntries])
+    return [...map.values()].sort((a, b) => {
+      const pa = produkteCategories.find(p => p.id === a.produktId)
+      const pb = produkteCategories.find(p => p.id === b.produktId)
+      return (pa?.sort_order ?? 0) - (pb?.sort_order ?? 0)
+    })
+  }, [reviewEntries, produkteCategories, skuCategories])
 
   const importedPlattformen = useMemo(
     () => plattformCategories.filter(p => importedPlattformIds.includes(p.id)),
@@ -482,7 +510,7 @@ export function FulfillmentCrowdImportWizard({
 
           {step === 2 && (
             <Step2Review
-              groupedBySkuCode={groupedBySkuCode}
+              produktGroups={produktGroups}
               importedPlattformen={importedPlattformen}
               onEntryChange={handleEntryChange}
               onSendungChange={handleSendungChange}
@@ -515,7 +543,7 @@ export function FulfillmentCrowdImportWizard({
         <div className="border-t px-6 py-4 shrink-0 flex items-center justify-between gap-4">
           <p className="text-xs text-muted-foreground">
             {step === 1 && 'Beide Dateien auswählen, dann „Weiter" klicken'}
-            {step === 2 && `${reviewEntries.length} Einträge in ${Object.keys(groupedBySkuCode).length} SKU${Object.keys(groupedBySkuCode).length !== 1 ? 's' : ''}`}
+            {step === 2 && (() => { const n = produktGroups.reduce((acc, pg) => acc + pg.skuGroups.length, 0); return `${reviewEntries.length} Einträge in ${n} SKU${n !== 1 ? 's' : ''}` })()}
           </p>
           <div className="flex gap-2">
             {step === 1 && (
@@ -672,45 +700,82 @@ function Step1Upload({
 // ─── Step 2: Review ──────────────────────────────────────────────────────────
 
 function Step2Review({
-  groupedBySkuCode,
+  produktGroups,
   importedPlattformen,
   onEntryChange,
   onSendungChange,
 }: {
-  groupedBySkuCode: Record<string, FcReviewEntry[]>
+  produktGroups: ProduktGroup[]
   importedPlattformen: KpiCategory[]
   onEntryChange: (id: string, patch: Partial<FcReviewEntry>) => void
   onSendungChange: (id: string, plattformId: string, menge: number) => void
 }) {
-  const skuCodes = Object.keys(groupedBySkuCode).sort()
+  if (produktGroups.length === 0) return null
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
         Bitte die berechneten Werte prüfen und bei Bedarf anpassen. Der Endbestand wird automatisch berechnet.
       </p>
-      {skuCodes.map(skuCode => (
-        <SkuReviewSection
-          key={skuCode}
-          skuCode={skuCode}
-          entries={groupedBySkuCode[skuCode]}
-          importedPlattformen={importedPlattformen}
-          onEntryChange={onEntryChange}
-          onSendungChange={onSendungChange}
-        />
-      ))}
+      <Tabs defaultValue={produktGroups[0].produktId}>
+        <TabsList className="flex-wrap h-auto gap-1">
+          {produktGroups.map(pg => (
+            <TabsTrigger key={pg.produktId} value={pg.produktId}>
+              {pg.produktName}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        {produktGroups.map(pg => (
+          <TabsContent key={pg.produktId} value={pg.produktId} className="mt-4">
+            {pg.skuGroups.length === 1 ? (
+              <SkuReviewSection
+                skuCode={pg.skuGroups[0].skuCode}
+                skuLabel={pg.skuGroups[0].skuLabel}
+                entries={pg.skuGroups[0].entries}
+                importedPlattformen={importedPlattformen}
+                onEntryChange={onEntryChange}
+                onSendungChange={onSendungChange}
+              />
+            ) : (
+              <Tabs defaultValue={pg.skuGroups[0].skuCode}>
+                <TabsList className="flex-wrap h-auto gap-1">
+                  {pg.skuGroups.map(sg => (
+                    <TabsTrigger key={sg.skuCode} value={sg.skuCode}>
+                      {sg.skuLabel}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+                {pg.skuGroups.map(sg => (
+                  <TabsContent key={sg.skuCode} value={sg.skuCode} className="mt-4">
+                    <SkuReviewSection
+                      skuCode={sg.skuCode}
+                      skuLabel={sg.skuLabel}
+                      entries={sg.entries}
+                      importedPlattformen={importedPlattformen}
+                      onEntryChange={onEntryChange}
+                      onSendungChange={onSendungChange}
+                    />
+                  </TabsContent>
+                ))}
+              </Tabs>
+            )}
+          </TabsContent>
+        ))}
+      </Tabs>
     </div>
   )
 }
 
 function SkuReviewSection({
   skuCode,
+  skuLabel,
   entries,
   importedPlattformen,
   onEntryChange,
   onSendungChange,
 }: {
   skuCode: string
+  skuLabel: string
   entries: FcReviewEntry[]
   importedPlattformen: KpiCategory[]
   onEntryChange: (id: string, patch: Partial<FcReviewEntry>) => void
@@ -719,7 +784,7 @@ function SkuReviewSection({
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
-        <Badge variant="outline" className="font-mono text-xs">{skuCode}</Badge>
+        <Badge variant="outline" className="font-mono text-xs">{skuLabel}</Badge>
         <span className="text-xs text-muted-foreground">{entries.length} Tag{entries.length !== 1 ? 'e' : ''}</span>
       </div>
       <div className="overflow-auto rounded border">
