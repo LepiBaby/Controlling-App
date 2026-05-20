@@ -99,7 +99,7 @@ function formatDate(iso: string): string {
 // ─── Step indicator ───────────────────────────────────────────────────────────
 
 function StepHeader({ step }: { step: 1 | 2 | 3 | 4 }) {
-  const steps = ['Upload', 'Review', 'Duplikate', 'Abschluss']
+  const steps = ['Upload', 'Review', 'Konflikte', 'Abschluss']
   return (
     <div className="flex items-center gap-1 text-xs text-muted-foreground">
       {steps.map((label, i) => (
@@ -140,13 +140,14 @@ export function FulfillmentCrowdImportWizard({
   const [checkingDuplicates, setCheckingDuplicates] = useState(false)
   const [duplicates, setDuplicates] = useState<DuplicateEntry[]>([])
   const [newEntries, setNewEntries] = useState<FcReviewEntry[]>([])
+  const [identicalCount, setIdenticalCount] = useState(0)
   const [duplicateDecisions, setDuplicateDecisions] = useState<Record<string, DuplicateDecision>>({})
   const [duplicateError, setDuplicateError] = useState<string | null>(null)
 
   // Step 4
   const [importing, setImporting] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
-  const [importResult, setImportResult] = useState<{ imported: number; updated: number; skipped: number } | null>(null)
+  const [importResult, setImportResult] = useState<{ imported: number; updated: number; skipped: number; identical: number } | null>(null)
 
   const reset = useCallback(() => {
     setStep(1)
@@ -159,6 +160,7 @@ export function FulfillmentCrowdImportWizard({
     setCheckingDuplicates(false)
     setDuplicates([])
     setNewEntries([])
+    setIdenticalCount(0)
     setDuplicateDecisions({})
     setDuplicateError(null)
     setImporting(false)
@@ -333,32 +335,40 @@ export function FulfillmentCrowdImportWizard({
         }),
       )
 
-      const foundDuplicates: DuplicateEntry[] = []
+      const foundConflicts: DuplicateEntry[] = []
       const foundNew: FcReviewEntry[] = []
       const defaultDecisions: Record<string, DuplicateDecision> = {}
+      let foundIdentical = 0
 
       for (const entry of reviewEntries) {
         const existing = existingBySku.get(entry.skuId) ?? []
         const match = existing.find(t => t.datum === entry.datum)
         if (match) {
-          foundDuplicates.push({
-            reviewEntry: entry,
-            existingId: match.id,
-            existingEndbestand: calcEndbestand(match),
-          })
-          defaultDecisions[entry._id] = 'keep_old'
+          const existingEnd = calcEndbestand(match)
+          const newEnd = calcReviewEndbestand(entry)
+          if (existingEnd === newEnd) {
+            foundIdentical++
+          } else {
+            foundConflicts.push({
+              reviewEntry: entry,
+              existingId: match.id,
+              existingEndbestand: existingEnd,
+            })
+            defaultDecisions[entry._id] = 'keep_old'
+          }
         } else {
           foundNew.push(entry)
         }
       }
 
-      setDuplicates(foundDuplicates)
+      setDuplicates(foundConflicts)
       setNewEntries(foundNew)
+      setIdenticalCount(foundIdentical)
       setDuplicateDecisions(defaultDecisions)
 
-      // Skip step 3 if no duplicates
-      if (foundDuplicates.length === 0) {
-        await runImport(foundNew, [], {})
+      // Skip step 3 if no conflicts
+      if (foundConflicts.length === 0) {
+        await runImport(foundNew, [], {}, foundIdentical)
       } else {
         setStep(3)
       }
@@ -376,10 +386,11 @@ export function FulfillmentCrowdImportWizard({
     toInsert: FcReviewEntry[],
     dupEntries: DuplicateEntry[],
     decisions: Record<string, DuplicateDecision>,
+    alreadySkipped = 0,
   ) => {
     setImporting(true)
     setImportError(null)
-    let imported = 0, updated = 0, skipped = 0
+    let imported = 0, updated = 0, skipped = 0, identical = alreadySkipped
 
     const toFormData = (e: FcReviewEntry) => ({
       sku_id: e.skuId,
@@ -430,7 +441,7 @@ export function FulfillmentCrowdImportWizard({
         }
       }
 
-      setImportResult({ imported, updated, skipped })
+      setImportResult({ imported, updated, skipped, identical })
       setStep(4)
       onImportDone()
     } catch (e) {
@@ -441,8 +452,8 @@ export function FulfillmentCrowdImportWizard({
   }, [onImportDone])
 
   const handleImport = useCallback(() => {
-    runImport(newEntries, duplicates, duplicateDecisions)
-  }, [newEntries, duplicates, duplicateDecisions, runImport])
+    runImport(newEntries, duplicates, duplicateDecisions, identicalCount)
+  }, [newEntries, duplicates, duplicateDecisions, identicalCount, runImport])
 
   // ── Derived ───────────────────────────────────────────────────────────────
 
@@ -564,7 +575,7 @@ export function FulfillmentCrowdImportWizard({
               <>
                 <Button variant="outline" onClick={() => setStep(1)}>Zurück</Button>
                 <Button onClick={handleGoToStep3} disabled={checkingDuplicates}>
-                  {checkingDuplicates ? 'Prüfe Duplikate…' : 'Weiter'}
+                  {checkingDuplicates ? 'Prüfe Konflikte…' : 'Weiter'}
                 </Button>
               </>
             )}
@@ -941,13 +952,13 @@ function Step3Duplicates({
       <div className="flex items-center gap-3 text-sm">
         <Badge variant="secondary">{newEntries.length} neu</Badge>
         {duplicates.length > 0 && (
-          <Badge variant="destructive">{duplicates.length} Duplikat{duplicates.length !== 1 ? 'e' : ''}</Badge>
+          <Badge variant="destructive">{duplicates.length} Konflikt{duplicates.length !== 1 ? 'e' : ''}</Badge>
         )}
       </div>
 
       {duplicates.length === 0 ? (
         <p className="text-sm text-muted-foreground py-4">
-          Keine Duplikate gefunden. Klicke „Jetzt importieren" um alle {newEntries.length} Einträge zu speichern.
+          Keine Konflikte gefunden. Klicke „Jetzt importieren" um alle {newEntries.length} Einträge zu speichern.
         </p>
       ) : (
         <div className="space-y-3">
@@ -1015,7 +1026,7 @@ function Step3Duplicates({
 
 // ─── Step 4: Done ─────────────────────────────────────────────────────────────
 
-function Step4Done({ result }: { result: { imported: number; updated: number; skipped: number } }) {
+function Step4Done({ result }: { result: { imported: number; updated: number; skipped: number; identical: number } }) {
   return (
     <div className="flex flex-col items-center justify-center h-48 gap-4 text-center">
       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
@@ -1029,6 +1040,7 @@ function Step4Done({ result }: { result: { imported: number; updated: number; sk
           {result.imported} importiert
           {result.updated > 0 && `, ${result.updated} aktualisiert`}
           {result.skipped > 0 && `, ${result.skipped} übersprungen`}
+          {result.identical > 0 && `, ${result.identical} bereits vorhanden`}
         </p>
       </div>
     </div>
