@@ -254,8 +254,11 @@ export function FulfillmentCrowdImportWizard({
 
         if (raw.skuCode !== prevSkuCode) {
           const existing = existingBySku.get(sku.id) ?? []
-          // data is sorted desc by datum; first entry is most recent
-          prevEndbestand = existing.length > 0 ? calcEndbestand(existing[0]) : 0
+          // Find latest existing transaction strictly before the first import date for this SKU
+          const lastBefore = existing
+            .filter(t => t.datum < raw.datum)
+            .sort((a, b) => b.datum.localeCompare(a.datum))[0]
+          prevEndbestand = lastBefore ? calcEndbestand(lastBefore) : 0
           prevSkuCode = raw.skuCode
         }
 
