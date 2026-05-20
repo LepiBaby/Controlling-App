@@ -35,6 +35,7 @@ function BestandSkuTab({
   filterBis,
   setFilterVon,
   setFilterBis,
+  onFcImportClick,
 }: {
   skuId: string
   produktId: string
@@ -43,6 +44,7 @@ function BestandSkuTab({
   filterBis: string
   setFilterVon: (v: string) => void
   setFilterBis: (v: string) => void
+  onFcImportClick: () => void
 }) {
   const { transaktionen, loading, error, addTransaktion, updateTransaktion, deleteTransaktion } =
     useBestandTransaktionen(skuId)
@@ -116,7 +118,14 @@ function BestandSkuTab({
         )}
       </div>
 
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <Button
+          size="sm"
+          className="bg-black text-white hover:bg-black/85"
+          onClick={onFcImportClick}
+        >
+          Fulfillment Crowd Excel importieren
+        </Button>
         <Button size="sm" onClick={handleNewClick}>
           + Neue Transaktion
         </Button>
@@ -186,6 +195,7 @@ function ProduktTab({
   filterBis,
   setFilterVon,
   setFilterBis,
+  onFcImportClick,
 }: {
   produkt: KpiCategory
   allProdukteCategories: KpiCategory[]
@@ -194,6 +204,7 @@ function ProduktTab({
   filterBis: string
   setFilterVon: (v: string) => void
   setFilterBis: (v: string) => void
+  onFcImportClick: () => void
 }) {
   const skus = useMemo(
     () =>
@@ -241,6 +252,7 @@ function ProduktTab({
             filterBis={filterBis}
             setFilterVon={setFilterVon}
             setFilterBis={setFilterBis}
+            onFcImportClick={onFcImportClick}
           />
         </TabsContent>
       ))}
@@ -285,19 +297,9 @@ export default function BestandsverwaltungPage() {
   return (
     <div className="flex min-h-screen flex-col">
       <header className="border-b bg-background px-6 py-4">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <NavSheet />
-            <h1 className="text-lg font-semibold">Bestandsverwaltung</h1>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setFcWizardOpen(true)}
-            disabled={loading}
-          >
-            Fulfillment Crowd Excel importieren
-          </Button>
+        <div className="flex items-center gap-2">
+          <NavSheet />
+          <h1 className="text-lg font-semibold">Bestandsverwaltung</h1>
         </div>
       </header>
 
@@ -349,6 +351,7 @@ export default function BestandsverwaltungPage() {
                     filterBis={filterBis}
                     setFilterVon={setFilterVon}
                     setFilterBis={setFilterBis}
+                    onFcImportClick={() => setFcWizardOpen(true)}
                   />
                 </TabsContent>
               ))}
