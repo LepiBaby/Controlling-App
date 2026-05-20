@@ -1,6 +1,6 @@
 # PROJ-39: Fulfillment Crowd Excel-Import für Bestandsverwaltung
 
-## Status: In Review
+## Status: Deployed
 **Created:** 2026-05-20
 **Last Updated:** 2026-05-20
 
@@ -319,4 +319,9 @@ Keine Critical/High Bugs. Alle während der Implementierung gefundenen Bugs wurd
 - `fix(PROJ-39)`: „Konflikte" statt „Duplikate"; identische Einträge still überspringen
 
 ## Deployment
-_To be added by /deploy_
+
+**Deployed:** 2026-05-20
+**Platform:** Vercel (Auto-Deploy via GitHub push)
+**Repository:** https://github.com/LepiBaby/Controlling-App
+**Commits deployed:** `511ca49` → `5f9a02a` (9 Commits für PROJ-39)
+**Build:** ✅ Next.js Production Build, 54 Routes, keine Fehler
