@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Pencil, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -27,13 +27,11 @@ import { AusgabenFormDialog } from '@/components/ausgaben-form-dialog'
 import { NavSheet } from '@/components/nav-sheet'
 import { ExcelUploadDialog } from '@/components/excel-upload-dialog'
 import { AusgabenImportReviewDialog, ImportRow } from '@/components/ausgaben-import-review-dialog'
-import { SellerboardImportWizard } from '@/components/sellerboard-import-wizard'
 import { ParseResult } from '@/lib/excel-parser'
 import { useToast } from '@/hooks/use-toast'
 
 export default function AusgabenPage() {
   const { categories: ausgabenKategorien, loading: kpiLoading } = useKpiCategories('ausgaben_kosten')
-  const { categories: umsatzKategorien } = useKpiCategories('umsatz')
   const { categories: salesPlattformen } = useKpiCategories('sales_plattformen')
   const { categories: produkteAll } = useKpiCategories('produkte')
   const produkte = useMemo(() => produkteAll.filter(p => p.level === 1), [produkteAll])
@@ -57,24 +55,6 @@ export default function AusgabenPage() {
   const [uploadOpen, setUploadOpen] = useState(false)
   const [reviewOpen, setReviewOpen] = useState(false)
   const [parseResult, setParseResult] = useState<ParseResult | null>(null)
-
-  // Sellerboard import state
-  const [sellerboardOpen, setSellerboardOpen] = useState(false)
-
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const { umsatzSuccess, ausgabenSuccess } = (e as CustomEvent).detail as { umsatzSuccess: number; ausgabenSuccess: number }
-      const total = umsatzSuccess + ausgabenSuccess
-      toast({
-        title: 'Sellerboard Import erfolgreich',
-        description: `${total} Transaktion${total !== 1 ? 'en' : ''} importiert (${umsatzSuccess} Umsatz, ${ausgabenSuccess} Ausgaben).`,
-      })
-      setPage(1)
-      setFilter({})
-    }
-    window.addEventListener('sellerboard-import-done', handler)
-    return () => window.removeEventListener('sellerboard-import-done', handler)
-  }, [toast, setPage, setFilter])
 
   const columnVisibility = useMemo<ColumnVisibility>(() => ({
     showGruppe: ausgabenKategorien.some(c => c.level === 2),
@@ -218,9 +198,6 @@ export default function AusgabenPage() {
               >
                 {editMode ? <Check className="h-3.5 w-3.5 mr-1.5" /> : <Pencil className="h-3.5 w-3.5 mr-1.5" />}
                 {editMode ? 'Bearbeiten beenden' : 'Bearbeiten'}
-              </Button>
-              <Button size="sm" onClick={() => setSellerboardOpen(true)}>
-                Sellerboard Excel importieren
               </Button>
               <Button size="sm" onClick={() => setUploadOpen(true)}>
                 GMI Excel importieren
@@ -406,16 +383,6 @@ export default function AusgabenPage() {
         open={uploadOpen}
         onOpenChange={setUploadOpen}
         onParsed={handleParsed}
-      />
-
-      <SellerboardImportWizard
-        open={sellerboardOpen}
-        onOpenChange={setSellerboardOpen}
-        ausgabenKategorien={ausgabenKategorien}
-        umsatzKategorien={umsatzKategorien}
-        salesPlattformen={salesPlattformen}
-        produkteKategorien={produkteAll}
-        onImportDone={() => { setPage(1); setFilter({}) }}
       />
 
       <AusgabenImportReviewDialog

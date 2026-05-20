@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Pencil, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,9 +21,12 @@ import { useUmsatzTransaktionen, ColumnVisibility, UmsatzTransaktion } from '@/h
 import { UmsatzTable } from '@/components/umsatz-table'
 import { UmsatzFormDialog } from '@/components/umsatz-form-dialog'
 import { NavSheet } from '@/components/nav-sheet'
+import { SellerboardImportWizard } from '@/components/sellerboard-import-wizard'
+import { useToast } from '@/hooks/use-toast'
 
 export default function UmsatzPage() {
   const { categories: umsatzKategorien, loading: kpiLoading } = useKpiCategories('umsatz')
+  const { categories: ausgabenKategorien } = useKpiCategories('ausgaben_kosten')
   const { categories: salesPlattformen } = useKpiCategories('sales_plattformen')
   const { categories: produkteAll } = useKpiCategories('produkte')
   const produkte = useMemo(() => produkteAll.filter(p => p.level === 1), [produkteAll])
@@ -35,11 +38,29 @@ export default function UmsatzPage() {
     addTransaktion, updateTransaktion, deleteTransaktion,
   } = useUmsatzTransaktionen()
 
+  const { toast } = useToast()
+
   const [formOpen, setFormOpen] = useState(false)
   const [editingTransaktion, setEditingTransaktion] = useState<UmsatzTransaktion | null>(null)
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [editMode, setEditMode] = useState(false)
+  const [sellerboardOpen, setSellerboardOpen] = useState(false)
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { umsatzSuccess, ausgabenSuccess } = (e as CustomEvent).detail as { umsatzSuccess: number; ausgabenSuccess: number }
+      const total = umsatzSuccess + ausgabenSuccess
+      toast({
+        title: 'Sellerboard Import erfolgreich',
+        description: `${total} Transaktion${total !== 1 ? 'en' : ''} importiert (${umsatzSuccess} Umsatz, ${ausgabenSuccess} Ausgaben).`,
+      })
+      setPage(1)
+      setFilter({})
+    }
+    window.addEventListener('sellerboard-import-done', handler)
+    return () => window.removeEventListener('sellerboard-import-done', handler)
+  }, [toast, setPage, setFilter])
 
   // Compute dynamic column visibility from KPI model
   const columnVisibility = useMemo<ColumnVisibility>(() => ({
@@ -129,6 +150,9 @@ export default function UmsatzPage() {
               >
                 {editMode ? <Check className="h-3.5 w-3.5 mr-1.5" /> : <Pencil className="h-3.5 w-3.5 mr-1.5" />}
                 {editMode ? 'Bearbeiten beenden' : 'Bearbeiten'}
+              </Button>
+              <Button size="sm" onClick={() => setSellerboardOpen(true)}>
+                Sellerboard Excel importieren
               </Button>
               <Button onClick={handleNewClick} size="sm">
                 + Neue Transaktion
@@ -284,6 +308,17 @@ export default function UmsatzPage() {
           )}
         </div>
       </main>
+
+      {/* Sellerboard import wizard */}
+      <SellerboardImportWizard
+        open={sellerboardOpen}
+        onOpenChange={setSellerboardOpen}
+        ausgabenKategorien={ausgabenKategorien}
+        umsatzKategorien={umsatzKategorien}
+        salesPlattformen={salesPlattformen}
+        produkteKategorien={produkteAll}
+        onImportDone={() => { setPage(1); setFilter({}) }}
+      />
 
       {/* Form dialog */}
       <UmsatzFormDialog
