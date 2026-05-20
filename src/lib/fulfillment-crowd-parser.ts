@@ -186,9 +186,9 @@ export function parseFulfillmentCrowdExcel(
       if (stage === 'Transfer Complete') {
         if (isQuarantine) s.warenverluste += qty
         else s.einlagerungen += qty
-      } else if (stage === 'Positive Stock Adjustments' && !isQuarantine) {
+      } else if (stage.toLowerCase().includes('positive stock adjustment') && !isQuarantine) {
         s.anpassungen_positiv += qty
-      } else if (stage === 'Restocking Adjustments' && !isQuarantine) {
+      } else if (stage.toLowerCase().includes('negative stock adjustment') && !isQuarantine) {
         s.anpassungen_negativ += qty
       }
     }
