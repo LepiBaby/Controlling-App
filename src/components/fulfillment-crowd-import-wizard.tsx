@@ -819,7 +819,7 @@ function SkuReviewSection({
                       step="1"
                       value={entry.anfangsbestand}
                       onChange={e => onEntryChange(entry._id, { anfangsbestand: Math.max(0, parseInt(e.target.value) || 0) })}
-                      className="h-7 w-20 text-xs text-right"
+                      className="h-7 w-full text-xs text-right"
                     />
                   </td>
                   {importedPlattformen.map(p => {
@@ -832,7 +832,7 @@ function SkuReviewSection({
                           step="1"
                           value={s?.menge ?? 0}
                           onChange={e => onSendungChange(entry._id, p.id, Math.max(0, parseInt(e.target.value) || 0))}
-                          className="h-7 w-20 text-xs text-right"
+                          className="h-7 w-full text-xs text-right"
                         />
                       </td>
                     )
@@ -844,7 +844,7 @@ function SkuReviewSection({
                       step="1"
                       value={entry.sendungen_manuell}
                       onChange={e => onEntryChange(entry._id, { sendungen_manuell: Math.max(0, parseInt(e.target.value) || 0) })}
-                      className="h-7 w-20 text-xs text-right"
+                      className="h-7 w-full text-xs text-right"
                     />
                   </td>
                   <td className="p-1.5">
@@ -854,7 +854,7 @@ function SkuReviewSection({
                       step="1"
                       value={entry.einlagerungen}
                       onChange={e => onEntryChange(entry._id, { einlagerungen: Math.max(0, parseInt(e.target.value) || 0) })}
-                      className="h-7 w-20 text-xs text-right"
+                      className="h-7 w-full text-xs text-right"
                     />
                   </td>
                   <td className="p-1.5">
@@ -864,7 +864,7 @@ function SkuReviewSection({
                       step="1"
                       value={entry.anpassungen_positiv}
                       onChange={e => onEntryChange(entry._id, { anpassungen_positiv: Math.max(0, parseInt(e.target.value) || 0) })}
-                      className="h-7 w-20 text-xs text-right"
+                      className="h-7 w-full text-xs text-right"
                     />
                   </td>
                   <td className="p-1.5">
@@ -874,7 +874,7 @@ function SkuReviewSection({
                       step="1"
                       value={entry.anpassungen_negativ}
                       onChange={e => onEntryChange(entry._id, { anpassungen_negativ: Math.max(0, parseInt(e.target.value) || 0) })}
-                      className="h-7 w-20 text-xs text-right"
+                      className="h-7 w-full text-xs text-right"
                     />
                   </td>
                   <td className="p-1.5">
@@ -884,7 +884,7 @@ function SkuReviewSection({
                       step="1"
                       value={entry.warenverluste}
                       onChange={e => onEntryChange(entry._id, { warenverluste: Math.max(0, parseInt(e.target.value) || 0) })}
-                      className="h-7 w-20 text-xs text-right"
+                      className="h-7 w-full text-xs text-right"
                     />
                   </td>
                   <td className={`p-2 text-right font-medium tabular-nums whitespace-nowrap ${endbestand < 0 ? 'text-destructive' : ''}`}>
