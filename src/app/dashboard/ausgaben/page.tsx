@@ -38,8 +38,8 @@ export default function AusgabenPage() {
 
   const {
     transaktionen, loading, error,
-    total, totalBrutto, totalNetto, sellerboardCount, page, filter, sortColumn, sortDirection,
-    setPage, setFilter, setSort,
+    total, totalBrutto, totalNetto, sellerboardCount, page, pageSize, filter, sortColumn, sortDirection,
+    setPage, setPageSize, setFilter, setSort,
     addTransaktion, updateTransaktion, deleteTransaktion,
   } = useAusgabenKostenTransaktionen()
 
@@ -83,6 +83,7 @@ export default function AusgabenPage() {
 
   const hasAnyFilter = !!(
     filter.von || filter.bis ||
+    filter.zahlungsdatum_von || filter.zahlungsdatum_bis ||
     filter.kategorie_ids?.length || filter.gruppe_ids?.length || filter.untergruppe_ids?.length ||
     filter.sales_plattform_ids?.length || filter.produkt_ids?.length || filter.excludeSellerboard
   )
@@ -236,7 +237,7 @@ export default function AusgabenPage() {
           {!noKpiModel && (
             <div className="flex flex-wrap items-end gap-4">
               <div className="space-y-1.5">
-                <Label className="text-xs">Von</Label>
+                <Label className="text-xs text-muted-foreground">Leistungsdatum von</Label>
                 <Input
                   type="date"
                   className="h-8 w-36 text-sm"
@@ -245,7 +246,7 @@ export default function AusgabenPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Bis</Label>
+                <Label className="text-xs text-muted-foreground">Leistungsdatum bis</Label>
                 <Input
                   type="date"
                   className="h-8 w-36 text-sm"
@@ -253,6 +254,26 @@ export default function AusgabenPage() {
                   onChange={e => setFilter({ ...filter, bis: e.target.value || undefined })}
                 />
               </div>
+              <div className="self-end h-8 w-px bg-border mx-1" />
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Zahlungsdatum von</Label>
+                <Input
+                  type="date"
+                  className="h-8 w-36 text-sm"
+                  value={filter.zahlungsdatum_von ?? ''}
+                  onChange={e => setFilter({ ...filter, zahlungsdatum_von: e.target.value || undefined })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Zahlungsdatum bis</Label>
+                <Input
+                  type="date"
+                  className="h-8 w-36 text-sm"
+                  value={filter.zahlungsdatum_bis ?? ''}
+                  onChange={e => setFilter({ ...filter, zahlungsdatum_bis: e.target.value || undefined })}
+                />
+              </div>
+              <div className="self-end h-8 w-px bg-border mx-1" />
               <div className="space-y-1.5">
                 <Label className="text-xs">Kategorie</Label>
                 <MultiSelect
@@ -356,7 +377,9 @@ export default function AusgabenPage() {
               totalBrutto={totalBrutto}
               totalNetto={totalNetto}
               page={page}
+              pageSize={pageSize}
               onPageChange={setPage}
+              onPageSizeChange={setPageSize}
               sortColumn={sortColumn}
               sortDirection={sortDirection}
               onSort={handleSort}

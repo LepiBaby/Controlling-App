@@ -3,6 +3,13 @@
 import { ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Table,
   TableBody,
   TableCell,
@@ -12,7 +19,7 @@ import {
 } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
 import { KpiCategory } from '@/hooks/use-kpi-categories'
-import { VorsteuerTransaktion, VorsteuerSortColumn, SortDirection, PAGE_SIZE } from '@/hooks/use-vorsteuer'
+import { VorsteuerTransaktion, VorsteuerSortColumn, SortDirection } from '@/hooks/use-vorsteuer'
 
 function formatEuro(value: number): string {
   return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(value)
@@ -82,7 +89,9 @@ interface VorsteuerTableProps {
   columnVisibility: VorsteuerColumnVisibility
   total: number
   page: number
+  pageSize: number
   onPageChange: (page: number) => void
+  onPageSizeChange: (size: number) => void
   sortColumn: VorsteuerSortColumn
   sortDirection: SortDirection
   onSort: (col: VorsteuerSortColumn) => void
@@ -95,13 +104,15 @@ export function VorsteuerTable({
   columnVisibility,
   total,
   page,
+  pageSize,
   onPageChange,
+  onPageSizeChange,
   sortColumn,
   sortDirection,
   onSort,
 }: VorsteuerTableProps) {
   const { showGruppe, showUntergruppe } = columnVisibility
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const totalPages = pageSize > 0 ? Math.max(1, Math.ceil(total / pageSize)) : 1
 
   if (loading && transaktionen.length === 0) {
     return (
@@ -186,8 +197,22 @@ export function VorsteuerTable({
       </div>
 
       <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <span>{total} Transaktion{total !== 1 ? 'en' : ''} gesamt</span>
-        {totalPages > 1 && (
+        <div className="flex items-center gap-2">
+          <span>Zeilen pro Seite:</span>
+          <Select value={String(pageSize)} onValueChange={v => onPageSizeChange(Number(v))}>
+            <SelectTrigger className="h-8 w-[80px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="25">25</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+              <SelectItem value="100">100</SelectItem>
+              <SelectItem value="250">250</SelectItem>
+              <SelectItem value="0">Alle</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {pageSize > 0 && totalPages > 1 && (
           <div className="flex items-center gap-2">
             <span>Seite {page} von {totalPages}</span>
             <Button

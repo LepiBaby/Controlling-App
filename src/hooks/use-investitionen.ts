@@ -41,6 +41,7 @@ export function useInvestitionen() {
   const [total, setTotal] = useState(0)
   const [totalBetrag, setTotalBetrag] = useState(0)
   const [page, setPageState] = useState(1)
+  const [pageSize, setPageSizeState] = useState(50)
   const [filter, setFilterState] = useState<InvestitionenFilter>({})
   const [sortColumn, setSortColumn] = useState<InvestitionenSortColumn>('datum')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
@@ -51,6 +52,7 @@ export function useInvestitionen() {
     try {
       const params = new URLSearchParams()
       params.set('page', String(page))
+      params.set('pageSize', String(pageSize))
       params.set('sortColumn', sortColumn)
       params.set('sortDirection', sortDirection)
       if (filter.von) params.set('von', filter.von)
@@ -70,11 +72,16 @@ export function useInvestitionen() {
     } finally {
       setLoading(false)
     }
-  }, [page, sortColumn, sortDirection, filter])
+  }, [page, pageSize, sortColumn, sortDirection, filter])
 
   useEffect(() => { fetchData() }, [fetchData])
 
   const setPage = useCallback((p: number) => setPageState(p), [])
+
+  const setPageSize = useCallback((s: number) => {
+    setPageSizeState(s)
+    setPageState(1)
+  }, [])
 
   const setFilter = useCallback((f: InvestitionenFilter) => {
     setFilterState(prev => {
@@ -96,8 +103,8 @@ export function useInvestitionen() {
 
   return {
     raten, loading, error,
-    total, totalBetrag, page, filter, sortColumn, sortDirection,
-    setPage, setFilter, setSort,
+    total, totalBetrag, page, pageSize, filter, sortColumn, sortDirection,
+    setPage, setPageSize, setFilter, setSort,
     refresh: fetchData,
   }
 }

@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import {
   ResponsiveContainer,
   LineChart,
@@ -44,10 +45,13 @@ function formatFull(value: number): string {
 }
 
 const LINES = [
-  { key: 'einnahmen', label: 'Einnahmen', color: 'hsl(142, 76%, 36%)' },
-  { key: 'ausgaben_abs', label: 'Ausgaben', color: 'hsl(0, 84%, 50%)' },
-  { key: 'cashflow', label: 'Cashflow der Periode', color: 'hsl(217, 91%, 50%)' },
+  { key: 'einnahmen',   label: 'Einnahmen',          color: 'hsl(142, 76%, 36%)' },
+  { key: 'ausgaben_abs', label: 'Ausgaben',           color: 'hsl(0, 84%, 50%)'   },
+  { key: 'cashflow',    label: 'Cashflow der Periode', color: 'hsl(217, 91%, 50%)' },
+  { key: 'kontostand',  label: 'Kontostand',          color: 'hsl(270, 70%, 55%)' },
 ] as const
+
+type LineKey = typeof LINES[number]['key']
 
 interface Props {
   data: ReportingLiquiditaetData | null
@@ -56,6 +60,23 @@ interface Props {
 }
 
 export function ReportingLiquiditaetChart({ data, loading, hasDateRange }: Props) {
+  const [visibleLines, setVisibleLines] = useState<Set<LineKey>>(
+    () => new Set(LINES.map(l => l.key))
+  )
+
+  function toggleLine(key: LineKey) {
+    setVisibleLines(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) {
+        if (next.size === 1) return prev
+        next.delete(key)
+      } else {
+        next.add(key)
+      }
+      return next
+    })
+  }
+
   if (!hasDateRange) {
     return (
       <div className="rounded-lg border border-dashed p-4">
@@ -88,6 +109,7 @@ export function ReportingLiquiditaetChart({ data, loading, hasDateRange }: Props
     einnahmen: data.gesamt_einnahmen[p] ?? 0,
     ausgaben_abs: Math.abs(data.gesamt_ausgaben[p] ?? 0),
     cashflow: data.cashflow[p] ?? 0,
+    kontostand: data.kontostand[p] ?? 0,
   }))
 
   return (
@@ -141,32 +163,70 @@ export function ReportingLiquiditaetChart({ data, loading, hasDateRange }: Props
           <ReferenceLine y={0} stroke="hsl(var(--border))" strokeWidth={1.5} />
           <Legend
             content={() => (
-              <div className="flex flex-wrap justify-center gap-x-5 gap-y-1 pt-2">
-                {LINES.map(line => (
-                  <div key={line.key} className="flex items-center gap-1.5 text-xs">
-                    <span
-                      className="inline-block h-0.5 w-5 rounded-full flex-shrink-0"
-                      style={{ background: line.color }}
-                    />
-                    <span className="text-muted-foreground">{line.label}</span>
-                  </div>
-                ))}
+              <div className="flex flex-wrap justify-center gap-2 pt-3">
+                {LINES.map(line => {
+                  const active = visibleLines.has(line.key)
+                  return (
+                    <button
+                      key={line.key}
+                      type="button"
+                      onClick={() => toggleLine(line.key)}
+                      className="flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium transition-all cursor-pointer select-none"
+                      style={
+                        active
+                          ? {
+                              borderColor: line.color,
+                              backgroundColor: line.color + '18',
+                              color: line.color,
+                            }
+                          : {
+                              borderColor: 'hsl(var(--border))',
+                              backgroundColor: 'transparent',
+                              color: 'hsl(var(--muted-foreground))',
+                            }
+                      }
+                    >
+                      <span
+                        className="inline-block h-[3px] w-4 rounded-full flex-shrink-0 transition-opacity"
+                        style={{
+                          backgroundColor: active ? line.color : 'hsl(var(--muted-foreground))',
+                          opacity: active ? 1 : 0.4,
+                        }}
+                      />
+                      {line.label}
+                    </button>
+                  )
+                })}
               </div>
             )}
           />
-          {LINES.map(line => (
-            <Line
-              key={line.key}
-              type="linear"
-              dataKey={line.key}
-              name={line.label}
-              stroke={line.color}
-              strokeWidth={2}
-              dot={false}
-              activeDot={{ r: 4 }}
-              connectNulls={false}
-            />
-          ))}
+          {LINES.map(line =>
+            visibleLines.has(line.key) ? (
+              <Line
+                key={line.key}
+                type="linear"
+                dataKey={line.key}
+                name={line.label}
+                stroke={line.color}
+                strokeWidth={2}
+                dot={false}
+                activeDot={{ r: 4 }}
+                connectNulls={false}
+              />
+            ) : (
+              <Line
+                key={line.key}
+                type="linear"
+                dataKey={line.key}
+                name={line.label}
+                stroke="transparent"
+                strokeWidth={0}
+                dot={false}
+                activeDot={false}
+                legendType="none"
+              />
+            )
+          )}
         </LineChart>
       </ResponsiveContainer>
     </div>

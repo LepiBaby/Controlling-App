@@ -402,6 +402,7 @@ export function AusgabenFormDialog({
                 <SelectValue placeholder="Keine Angabe" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="1_jahr">1 Jahr</SelectItem>
                 <SelectItem value="3_jahre">3 Jahre</SelectItem>
                 <SelectItem value="5_jahre">5 Jahre</SelectItem>
                 <SelectItem value="7_jahre">7 Jahre</SelectItem>

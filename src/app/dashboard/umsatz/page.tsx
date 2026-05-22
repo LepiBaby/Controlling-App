@@ -33,8 +33,8 @@ export default function UmsatzPage() {
 
   const {
     transaktionen, loading, error,
-    total, totalBetrag, page, filter, sortColumn, sortDirection,
-    setPage, setFilter, setSort,
+    total, totalBetrag, page, pageSize, filter, sortColumn, sortDirection,
+    setPage, setPageSize, setFilter, setSort,
     addTransaktion, updateTransaktion, deleteTransaktion,
   } = useUmsatzTransaktionen()
 
@@ -296,7 +296,9 @@ export default function UmsatzPage() {
               total={total}
               totalBetrag={totalBetrag}
               page={page}
+              pageSize={pageSize}
               onPageChange={setPage}
+              onPageSizeChange={setPageSize}
               sortColumn={sortColumn}
               sortDirection={sortDirection}
               onSort={handleSort}

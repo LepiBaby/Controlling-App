@@ -4,6 +4,13 @@ import { useState, useRef } from 'react'
 import { ArrowUp, ArrowDown, ArrowUpDown, Pencil, Trash2, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Table,
   TableBody,
   TableCell,
@@ -22,12 +29,12 @@ import {
   ColumnVisibility,
   SortColumn,
   SortDirection,
-  PAGE_SIZE,
 } from '@/hooks/use-ausgaben-kosten-transaktionen'
 
 // ─── Inline-edit helpers ───────────────────────────────────────────────────
 
 const ABSCHREIBUNG_LABEL: Record<string, string> = {
+  '1_jahr': '1 Jahr',
   '3_jahre': '3 Jahre',
   '5_jahre': '5 Jahre',
   '7_jahre': '7 Jahre',
@@ -339,6 +346,7 @@ function AusgabenEditRow({
           onChange={e => setDraft(p => ({ ...p, abschreibung: e.target.value }))}
           onBlur={handleBlur} disabled={saving}>
           <option value="">Keine</option>
+          <option value="1_jahr">1 Jahr</option>
           <option value="3_jahre">3 Jahre</option>
           <option value="5_jahre">5 Jahre</option>
           <option value="7_jahre">7 Jahre</option>
@@ -398,7 +406,9 @@ interface AusgabenTableProps {
   totalBrutto: number
   totalNetto: number
   page: number
+  pageSize: number
   onPageChange: (page: number) => void
+  onPageSizeChange: (size: number) => void
   sortColumn: SortColumn
   sortDirection: SortDirection
   onSort: (col: SortColumn) => void
@@ -419,7 +429,9 @@ export function AusgabenTable({
   totalBrutto,
   totalNetto,
   page,
+  pageSize,
   onPageChange,
+  onPageSizeChange,
   sortColumn,
   sortDirection,
   onSort,
@@ -430,7 +442,7 @@ export function AusgabenTable({
 }: AusgabenTableProps) {
   const { showGruppe, showUntergruppe, showSalesPlattform, showProdukte } = columnVisibility
 
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const totalPages = pageSize > 0 ? Math.max(1, Math.ceil(total / pageSize)) : 1
 
   const optionalCount = [showGruppe, showUntergruppe, showSalesPlattform, showProdukte].filter(Boolean).length
   // Fixed columns: Leistungsdatum, Zahlungsdatum, Kategorie, Beschreibung, Brutto, Netto, USt, Rentabilität, Abschreibung, Actions = 10
@@ -578,10 +590,25 @@ export function AusgabenTable({
       </div>
 
       {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>Seite {page} von {totalPages}</span>
-          <div className="flex gap-2">
+      <div className="flex items-center justify-between text-sm text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <span>Zeilen pro Seite:</span>
+          <Select value={String(pageSize)} onValueChange={v => onPageSizeChange(Number(v))}>
+            <SelectTrigger className="h-8 w-[80px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="25">25</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+              <SelectItem value="100">100</SelectItem>
+              <SelectItem value="250">250</SelectItem>
+              <SelectItem value="0">Alle</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {pageSize > 0 && totalPages > 1 && (
+          <div className="flex items-center gap-2">
+            <span>Seite {page} von {totalPages}</span>
             <Button
               variant="outline"
               size="sm"
@@ -599,8 +626,8 @@ export function AusgabenTable({
               Weiter
             </Button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }

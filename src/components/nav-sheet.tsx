@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Menu } from 'lucide-react'
+import { Menu, ChevronDown, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Sheet,
@@ -10,6 +10,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet'
+import { usePathname } from 'next/navigation'
 
 const NAV_GROUPS = [
   {
@@ -49,6 +50,12 @@ const NAV_GROUPS = [
 
 export function NavSheet() {
   const [open, setOpen] = useState(false)
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
+  const pathname = usePathname()
+
+  function toggleGroup(label: string) {
+    setCollapsed((prev) => ({ ...prev, [label]: !prev[label] }))
+  }
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -58,34 +65,56 @@ export function NavSheet() {
           <span className="sr-only">Navigation öffnen</span>
         </Button>
       </SheetTrigger>
-      <SheetContent side="left" className="w-72">
-        <SheetHeader>
+      <SheetContent side="left" className="flex w-72 flex-col p-0">
+        <SheetHeader className="border-b px-4 py-4">
           <SheetTitle>
             <a href="/dashboard" onClick={() => setOpen(false)} className="hover:opacity-80">
               Controlling App
             </a>
           </SheetTitle>
         </SheetHeader>
-        <nav className="mt-6 flex flex-col gap-6">
-          {NAV_GROUPS.map((group) => (
-            <div key={group.label}>
-              <p className="mb-2 px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                {group.label}
-              </p>
-              <div className="flex flex-col gap-1">
-                {group.items.map((item) => (
-                  <a
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setOpen(false)}
-                    className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted transition-colors"
+        <nav className="flex-1 overflow-y-auto px-3 py-4">
+          <div className="flex flex-col gap-4">
+            {NAV_GROUPS.map((group) => {
+              const isCollapsed = collapsed[group.label] ?? false
+              return (
+                <div key={group.label}>
+                  <button
+                    onClick={() => toggleGroup(group.label)}
+                    className="flex w-full items-center justify-between rounded-md px-1 py-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
                   >
-                    {item.label}
-                  </a>
-                ))}
-              </div>
-            </div>
-          ))}
+                    {group.label}
+                    {isCollapsed ? (
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    ) : (
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    )}
+                  </button>
+                  {!isCollapsed && (
+                    <div className="mt-1 flex flex-col gap-0.5">
+                      {group.items.map((item) => {
+                        const isActive = pathname === item.href
+                        return (
+                          <a
+                            key={item.href}
+                            href={item.href}
+                            onClick={() => setOpen(false)}
+                            className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                              isActive
+                                ? 'bg-muted text-foreground'
+                                : 'hover:bg-muted text-muted-foreground hover:text-foreground'
+                            }`}
+                          >
+                            {item.label}
+                          </a>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
         </nav>
       </SheetContent>
     </Sheet>

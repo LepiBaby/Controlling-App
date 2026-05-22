@@ -17,8 +17,8 @@ export default function InvestitionenPage() {
 
   const {
     raten, loading, error,
-    total, totalBetrag, page, filter, sortColumn, sortDirection,
-    setPage, setFilter, setSort,
+    total, totalBetrag, page, pageSize, filter, sortColumn, sortDirection,
+    setPage, setPageSize, setFilter, setSort,
   } = useInvestitionen()
 
   // "Produktinvestitionen"-Kategorie (Ebene 1) im KPI-Modell finden
@@ -216,7 +216,9 @@ export default function InvestitionenPage() {
               total={total}
               totalBetrag={totalBetrag}
               page={page}
+              pageSize={pageSize}
               onPageChange={setPage}
+              onPageSizeChange={setPageSize}
               sortColumn={sortColumn}
               sortDirection={sortDirection}
               onSort={handleSort}

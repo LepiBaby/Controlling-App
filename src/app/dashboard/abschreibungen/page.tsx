@@ -15,8 +15,8 @@ export default function AbschreibungenPage() {
 
   const {
     raten, loading, error,
-    total, totalBetrag, page, filter, sortColumn, sortDirection,
-    setPage, setFilter, setSort,
+    total, totalBetrag, page, pageSize, filter, sortColumn, sortDirection,
+    setPage, setPageSize, setFilter, setSort,
   } = useAbschreibungen()
 
   // Nur Ebene-1-Kategorien für den Kategorie-Filter
@@ -197,7 +197,9 @@ export default function AbschreibungenPage() {
               total={total}
               totalBetrag={totalBetrag}
               page={page}
+              pageSize={pageSize}
               onPageChange={setPage}
+              onPageSizeChange={setPageSize}
               sortColumn={sortColumn}
               sortDirection={sortDirection}
               onSort={handleSort}

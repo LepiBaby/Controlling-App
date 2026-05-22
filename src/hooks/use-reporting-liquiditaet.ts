@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 
-export type ReportGranularitaet = 'monat' | 'quartal' | 'jahr'
+export type ReportGranularitaet = 'woche' | 'monat' | 'quartal' | 'jahr'
 
 export interface LiquiditaetBlatt {
   id: string

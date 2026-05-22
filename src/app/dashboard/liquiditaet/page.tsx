@@ -28,8 +28,8 @@ export default function LiquiditaetPage() {
 
   const {
     zeilen, loading, error,
-    total, totalNettoCashflow, page, filter, sortColumn, sortDirection,
-    setPage, setFilter, setSort,
+    total, totalNettoCashflow, page, pageSize, filter, sortColumn, sortDirection,
+    setPage, setPageSize, setFilter, setSort,
   } = useLiquiditaet()
 
   const kpiLoading = einnahmenLoading || ausgabenLoading
@@ -286,7 +286,9 @@ export default function LiquiditaetPage() {
               total={total}
               totalNettoCashflow={totalNettoCashflow}
               page={page}
+              pageSize={pageSize}
               onPageChange={setPage}
+              onPageSizeChange={setPageSize}
               sortColumn={sortColumn}
               sortDirection={sortDirection}
               onSort={handleSort}

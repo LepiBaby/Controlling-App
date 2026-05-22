@@ -1,6 +1,14 @@
 'use client'
 
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   Table,
   TableBody,
@@ -34,6 +42,9 @@ export function BestandTable({
   onEdit,
   onDelete,
 }: Props) {
+  const [pageSize, setPageSize] = useState(50)
+  const [page, setPage] = useState(1)
+
   if (loading) {
     return <div className="py-8 text-center text-sm text-muted-foreground">Laden…</div>
   }
@@ -45,6 +56,10 @@ export function BestandTable({
       return true
     })
     .sort((a, b) => b.datum.localeCompare(a.datum))
+
+  const totalPages = pageSize > 0 ? Math.max(1, Math.ceil(filtered.length / pageSize)) : 1
+  const safePage   = Math.min(page, totalPages)
+  const paginated  = pageSize > 0 ? filtered.slice((safePage - 1) * pageSize, safePage * pageSize) : filtered
 
   if (filtered.length === 0) {
     const hasFilter = filterVon || filterBis
@@ -58,6 +73,7 @@ export function BestandTable({
   }
 
   return (
+    <div className="space-y-3">
     <div className="overflow-x-auto rounded-md border">
       <Table>
         <TableHeader>
@@ -77,7 +93,7 @@ export function BestandTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {filtered.map(t => {
+          {paginated.map(t => {
             const endbestand = calcEndbestand(t)
             return (
               <TableRow key={t.id}>
@@ -128,6 +144,36 @@ export function BestandTable({
           })}
         </TableBody>
       </Table>
+    </div>
+
+    <div className="flex items-center justify-between text-sm text-muted-foreground">
+      <div className="flex items-center gap-2">
+        <span>Zeilen pro Seite:</span>
+        <Select value={String(pageSize)} onValueChange={v => { setPageSize(Number(v)); setPage(1) }}>
+          <SelectTrigger className="h-8 w-[80px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="25">25</SelectItem>
+            <SelectItem value="50">50</SelectItem>
+            <SelectItem value="100">100</SelectItem>
+            <SelectItem value="250">250</SelectItem>
+            <SelectItem value="0">Alle</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      {pageSize > 0 && totalPages > 1 && (
+        <div className="flex items-center gap-2">
+          <span>Seite {safePage} von {totalPages}</span>
+          <Button variant="outline" size="sm" disabled={safePage <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>
+            Zurück
+          </Button>
+          <Button variant="outline" size="sm" disabled={safePage >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>
+            Weiter
+          </Button>
+        </div>
+      )}
+    </div>
     </div>
   )
 }

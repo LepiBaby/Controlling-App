@@ -60,7 +60,9 @@ function isRowComplete(
   colVis: AusgabenImportReviewDialogProps['columnVisibility'],
 ): boolean {
   if (!row.kategorieId || !row.relevanz) return false
-  if (row.hatFehler) return false
+  if (!row.leistungsdatum) return false
+  if (row.betrag_brutto <= 0) return false
+  if (row.ust_betrag < 0 || (row.betrag_brutto > 0 && row.ust_betrag >= row.betrag_brutto)) return false
 
   const selectedKat = kategorien.find(c => c.id === row.kategorieId)
   const gruppen = kategorien.filter(c => c.level === 2 && c.parent_id === row.kategorieId)
@@ -111,7 +113,10 @@ function RowCells({ row, index, kategorien, salesPlattformen, produkte, colVis, 
     onChange(index, { gruppeId: v, untergruppeId: '' })
   }
 
-  const rowClass = row.hatFehler ? 'bg-destructive/5' : ''
+  const bruttoError = row.betrag_brutto <= 0
+  const ustError    = row.ust_betrag < 0 || (row.betrag_brutto > 0 && row.ust_betrag >= row.betrag_brutto)
+  const dateError   = !row.leistungsdatum
+  const rowClass    = (bruttoError || ustError || dateError) ? 'bg-destructive/5' : ''
 
   return (
     <tr className={`border-b last:border-0 ${rowClass}`}>
@@ -121,57 +126,21 @@ function RowCells({ row, index, kategorien, salesPlattformen, produkte, colVis, 
           type="date"
           value={row.leistungsdatum}
           onChange={e => onChange(index, { leistungsdatum: e.target.value })}
-          className="h-8 text-xs"
+          className={`h-8 text-xs ${dateError ? 'border-destructive' : ''}`}
         />
+        {dateError && (
+          <p className="text-[10px] text-destructive mt-0.5">Datum erforderlich</p>
+        )}
       </td>
 
-      {/* Beschreibung */}
-      <td className="p-2 min-w-[160px]">
+      {/* Zahlungsdatum (optional) */}
+      <td className="p-2 min-w-[130px]">
         <Input
-          value={row.beschreibung}
-          onChange={e => onChange(index, { beschreibung: e.target.value })}
-          placeholder="–"
+          type="date"
+          value={row.zahlungsdatum}
+          onChange={e => onChange(index, { zahlungsdatum: e.target.value })}
           className="h-8 text-xs"
         />
-      </td>
-
-      {/* Bruttobetrag + Währungswarnung */}
-      <td className="p-2 min-w-[110px] text-right">
-        <div className="flex items-center justify-end gap-1">
-          {row.istFremdwaehrung && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-amber-400 text-[10px] font-bold text-white cursor-help">!</span>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-[220px] text-xs">
-                  Betrag aus Fremdwährung ({row.waehrung}) — kein Wechselkurs angewandt. Bitte Betrag manuell prüfen.
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
-          {row.hatFehler ? (
-            <span className="text-xs text-destructive font-medium">{EUR.format(row.betrag_brutto)}</span>
-          ) : (
-            <span className="text-xs">{EUR.format(row.betrag_brutto)}</span>
-          )}
-        </div>
-        {row.hatFehler && row.betrag_brutto <= 0 && (
-          <p className="text-[10px] text-destructive mt-0.5 text-right">Betrag muss &gt; 0 sein</p>
-        )}
-        {row.hatFehler && row.betrag_brutto > 0 && row.ust_betrag >= row.betrag_brutto && (
-          <p className="text-[10px] text-destructive mt-0.5 text-right">USt ≥ Brutto</p>
-        )}
-      </td>
-
-      {/* USt-Betrag */}
-      <td className="p-2 min-w-[90px] text-right">
-        <span className="text-xs">{EUR.format(row.ust_betrag)}</span>
-      </td>
-
-      {/* Netto */}
-      <td className="p-2 min-w-[90px] text-right">
-        <span className="text-xs text-muted-foreground">{EUR.format(netto)}</span>
       </td>
 
       {/* Kategorie */}
@@ -276,6 +245,73 @@ function RowCells({ row, index, kategorien, salesPlattformen, produkte, colVis, 
         </td>
       )}
 
+      {/* Beschreibung */}
+      <td className="p-2 min-w-[160px]">
+        <Input
+          value={row.beschreibung}
+          onChange={e => onChange(index, { beschreibung: e.target.value })}
+          placeholder="–"
+          className="h-8 text-xs"
+        />
+      </td>
+
+      {/* Bruttobetrag + Währungswarnung */}
+      <td className="p-2 min-w-[130px]">
+        <div className="flex items-center gap-1">
+          {row.istFremdwaehrung && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-amber-400 text-[10px] font-bold text-white cursor-help">!</span>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-[220px] text-xs">
+                  Betrag aus Fremdwährung ({row.waehrung}) — kein Wechselkurs angewandt. Bitte Betrag manuell prüfen.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+          <Input
+            type="number"
+            step="0.01"
+            min="0.01"
+            value={row.betrag_brutto > 0 ? row.betrag_brutto : ''}
+            onChange={e => {
+              const val = e.target.value === '' ? 0 : parseFloat(e.target.value)
+              onChange(index, { betrag_brutto: isNaN(val) ? 0 : Math.round(val * 100) / 100 })
+            }}
+            className={`h-8 text-xs text-right ${bruttoError ? 'border-destructive' : ''}`}
+            placeholder="Betrag"
+          />
+        </div>
+        {bruttoError && (
+          <p className="text-[10px] text-destructive mt-0.5">Betrag muss &gt; 0 sein</p>
+        )}
+      </td>
+
+      {/* Netto (berechnet) */}
+      <td className="p-2 min-w-[90px] text-right">
+        <span className="text-xs text-muted-foreground">{EUR.format(netto)}</span>
+      </td>
+
+      {/* USt-Betrag */}
+      <td className="p-2 min-w-[110px]">
+        <Input
+          type="number"
+          step="0.01"
+          min="0"
+          value={row.ust_betrag}
+          onChange={e => {
+            const val = e.target.value === '' ? 0 : parseFloat(e.target.value)
+            onChange(index, { ust_betrag: isNaN(val) ? 0 : Math.round(val * 100) / 100 })
+          }}
+          className={`h-8 text-xs text-right ${ustError ? 'border-destructive' : ''}`}
+          placeholder="0,00"
+        />
+        {ustError && row.betrag_brutto > 0 && (
+          <p className="text-[10px] text-destructive mt-0.5">USt ≥ Brutto</p>
+        )}
+      </td>
+
       {/* Relevanz */}
       <td className="p-2 min-w-[145px]">
         <Select value={row.relevanz} onValueChange={v => onChange(index, { relevanz: v })}>
@@ -290,16 +326,6 @@ function RowCells({ row, index, kategorien, salesPlattformen, produkte, colVis, 
         </Select>
       </td>
 
-      {/* Zahlungsdatum (optional) */}
-      <td className="p-2 min-w-[130px]">
-        <Input
-          type="date"
-          value={row.zahlungsdatum}
-          onChange={e => onChange(index, { zahlungsdatum: e.target.value })}
-          className="h-8 text-xs"
-        />
-      </td>
-
       {/* Abschreibung (optional) */}
       <td className="p-2 min-w-[130px]">
         <Select value={row.abschreibung} onValueChange={v => onChange(index, { abschreibung: v })}>
@@ -307,6 +333,7 @@ function RowCells({ row, index, kategorien, salesPlattformen, produkte, colVis, 
             <SelectValue placeholder="Keine" />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="1_jahr">1 Jahr</SelectItem>
             <SelectItem value="3_jahre">3 Jahre</SelectItem>
             <SelectItem value="5_jahre">5 Jahre</SelectItem>
             <SelectItem value="7_jahre">7 Jahre</SelectItem>
@@ -429,10 +456,7 @@ export function AusgabenImportReviewDialog({
               <thead className="sticky top-0 z-10 bg-background border-b">
                 <tr>
                   <th className="p-2 text-left text-xs font-medium text-muted-foreground min-w-[130px]">Leistungsdatum</th>
-                  <th className="p-2 text-left text-xs font-medium text-muted-foreground min-w-[160px]">Beschreibung</th>
-                  <th className="p-2 text-right text-xs font-medium text-muted-foreground min-w-[110px]">Brutto (€)</th>
-                  <th className="p-2 text-right text-xs font-medium text-muted-foreground min-w-[90px]">USt (€)</th>
-                  <th className="p-2 text-right text-xs font-medium text-muted-foreground min-w-[90px]">Netto (€)</th>
+                  <th className="p-2 text-left text-xs font-medium text-muted-foreground min-w-[130px]">Zahlungsdatum</th>
                   <th className="p-2 text-left text-xs font-medium text-muted-foreground min-w-[160px]">
                     Kategorie <span className="text-destructive">*</span>
                   </th>
@@ -456,10 +480,13 @@ export function AusgabenImportReviewDialog({
                       Produkt <span className="text-destructive">*</span>
                     </th>
                   )}
+                  <th className="p-2 text-left text-xs font-medium text-muted-foreground min-w-[160px]">Beschreibung</th>
+                  <th className="p-2 text-left text-xs font-medium text-muted-foreground min-w-[130px]">Brutto (€)</th>
+                  <th className="p-2 text-right text-xs font-medium text-muted-foreground min-w-[90px]">Netto (€)</th>
+                  <th className="p-2 text-left text-xs font-medium text-muted-foreground min-w-[110px]">USt (€)</th>
                   <th className="p-2 text-left text-xs font-medium text-muted-foreground min-w-[145px]">
                     Relevanz <span className="text-destructive">*</span>
                   </th>
-                  <th className="p-2 text-left text-xs font-medium text-muted-foreground min-w-[130px]">Zahlungsdatum</th>
                   <th className="p-2 text-left text-xs font-medium text-muted-foreground min-w-[130px]">Abschreibung</th>
                   <th className="p-2 min-w-[44px]" />
                 </tr>

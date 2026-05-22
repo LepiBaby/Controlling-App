@@ -26,6 +26,8 @@ function valueColorClass(value: number): string {
 }
 
 function formatPeriode(periode: string): string {
+  const kwMatch = periode.match(/^(\d{4})-KW(\d{2})$/)
+  if (kwMatch) return `KW ${kwMatch[2]} ${kwMatch[1]}`
   if (periode.includes('-Q')) {
     const [year, q] = periode.split('-')
     return `${q} ${year}`

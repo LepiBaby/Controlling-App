@@ -15,8 +15,8 @@ export default function VorsteuerPage() {
 
   const {
     transaktionen, loading, error,
-    total, page, filter, sortColumn, sortDirection,
-    setPage, setFilter, setSort,
+    total, page, pageSize, filter, sortColumn, sortDirection,
+    setPage, setPageSize, setFilter, setSort,
   } = useVorsteuer()
 
   const level1Kategorien = useMemo<KpiCategory[]>(
@@ -166,7 +166,9 @@ export default function VorsteuerPage() {
               columnVisibility={columnVisibility}
               total={total}
               page={page}
+              pageSize={pageSize}
               onPageChange={setPage}
+              onPageSizeChange={setPageSize}
               sortColumn={sortColumn}
               sortDirection={sortDirection}
               onSort={handleSort}

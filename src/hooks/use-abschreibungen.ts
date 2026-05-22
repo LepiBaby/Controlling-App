@@ -42,6 +42,7 @@ export function useAbschreibungen() {
   const [total, setTotal] = useState(0)
   const [totalBetrag, setTotalBetrag] = useState(0)
   const [page, setPageState] = useState(1)
+  const [pageSize, setPageSizeState] = useState(50)
   const [filter, setFilterState] = useState<AbschreibungenFilter>({})
   const [sortColumn, setSortColumn] = useState<AbschreibungenSortColumn>('datum')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
@@ -52,6 +53,7 @@ export function useAbschreibungen() {
     try {
       const params = new URLSearchParams()
       params.set('page', String(page))
+      params.set('pageSize', String(pageSize))
       params.set('sortColumn', sortColumn)
       params.set('sortDirection', sortDirection)
       if (filter.von) params.set('von', filter.von)
@@ -71,11 +73,16 @@ export function useAbschreibungen() {
     } finally {
       setLoading(false)
     }
-  }, [page, sortColumn, sortDirection, filter])
+  }, [page, pageSize, sortColumn, sortDirection, filter])
 
   useEffect(() => { fetchData() }, [fetchData])
 
   const setPage = useCallback((p: number) => setPageState(p), [])
+
+  const setPageSize = useCallback((s: number) => {
+    setPageSizeState(s)
+    setPageState(1)
+  }, [])
 
   const setFilter = useCallback((f: AbschreibungenFilter) => {
     setFilterState(prev => {
@@ -105,8 +112,8 @@ export function useAbschreibungen() {
 
   return {
     raten, loading, error,
-    total, totalBetrag, page, filter, sortColumn, sortDirection,
-    setPage, setFilter, setSort,
+    total, totalBetrag, page, pageSize, filter, sortColumn, sortDirection,
+    setPage, setPageSize, setFilter, setSort,
     refresh: fetchData,
   }
 }

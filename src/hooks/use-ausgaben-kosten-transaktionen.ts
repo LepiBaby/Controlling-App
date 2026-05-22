@@ -41,6 +41,8 @@ export interface AusgabenKostenTransaktionInput {
 export interface AusgabenFilter {
   von?: string
   bis?: string
+  zahlungsdatum_von?: string
+  zahlungsdatum_bis?: string
   kategorie_ids?: string[]
   gruppe_ids?: string[]
   untergruppe_ids?: string[]
@@ -70,6 +72,7 @@ export function useAusgabenKostenTransaktionen() {
   const [totalNetto, setTotalNetto] = useState(0)
   const [sellerboardCount, setSellerboardCount] = useState(0)
   const [page, setPageState] = useState(1)
+  const [pageSize, setPageSizeState] = useState(50)
   const [filter, setFilterState] = useState<AusgabenFilter>({})
   const [sortColumn, setSortColumn] = useState<SortColumn>('leistungsdatum')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
@@ -80,10 +83,13 @@ export function useAusgabenKostenTransaktionen() {
     try {
       const params = new URLSearchParams()
       params.set('page', String(page))
+      params.set('pageSize', String(pageSize))
       params.set('sortColumn', sortColumn)
       params.set('sortDirection', sortDirection)
       if (filter.von) params.set('von', filter.von)
       if (filter.bis) params.set('bis', filter.bis)
+      if (filter.zahlungsdatum_von) params.set('zahlungsdatum_von', filter.zahlungsdatum_von)
+      if (filter.zahlungsdatum_bis) params.set('zahlungsdatum_bis', filter.zahlungsdatum_bis)
       if (filter.kategorie_ids?.length) params.set('kategorie_ids', filter.kategorie_ids.join(','))
       if (filter.gruppe_ids?.length) params.set('gruppe_ids', filter.gruppe_ids.join(','))
       if (filter.untergruppe_ids?.length) params.set('untergruppe_ids', filter.untergruppe_ids.join(','))
@@ -104,11 +110,16 @@ export function useAusgabenKostenTransaktionen() {
     } finally {
       setLoading(false)
     }
-  }, [page, sortColumn, sortDirection, filter])
+  }, [page, pageSize, sortColumn, sortDirection, filter])
 
   useEffect(() => { fetchData() }, [fetchData])
 
   const setPage = useCallback((p: number) => setPageState(p), [])
+
+  const setPageSize = useCallback((s: number) => {
+    setPageSizeState(s)
+    setPageState(1)
+  }, [])
 
   const setFilter = useCallback((f: AusgabenFilter) => {
     setFilterState(f)
@@ -149,8 +160,8 @@ export function useAusgabenKostenTransaktionen() {
 
   return {
     transaktionen, loading, error,
-    total, totalBrutto, totalNetto, sellerboardCount, page, filter, sortColumn, sortDirection,
-    setPage, setFilter, setSort,
+    total, totalBrutto, totalNetto, sellerboardCount, page, pageSize, filter, sortColumn, sortDirection,
+    setPage, setPageSize, setFilter, setSort,
     addTransaktion, updateTransaktion, deleteTransaktion,
   }
 }

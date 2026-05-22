@@ -88,7 +88,6 @@ export function parseGetMyInvoicesExcel(buffer: ArrayBuffer): ParseResult {
 
   dataRows.forEach((rawRow, i) => {
     const row = rawRow as unknown[]
-    const excelRow = i + 2
 
     const rawDate   = row[idx('Dokumentendatum')]
     const rawBrutto = row[idx('Bruttobetrag')]
@@ -96,20 +95,12 @@ export function parseGetMyInvoicesExcel(buffer: ArrayBuffer): ParseResult {
     const rawFirma  = idx('Firma/Portal') >= 0 ? row[idx('Firma/Portal')] : undefined
     const rawWaehr  = idx('Währung') >= 0 ? row[idx('Währung')] : undefined
 
-    const leistungsdatum = parseGermanDate(rawDate)
-    const betrag_brutto  = parseGermanNumber(rawBrutto)
-
-    if (!leistungsdatum || betrag_brutto === null) {
-      skippedCount++
-      if (!leistungsdatum)   skippedReasons.push(`Zeile ${excelRow}: Ungültiges Dokumentendatum`)
-      if (betrag_brutto === null) skippedReasons.push(`Zeile ${excelRow}: Ungültiger Bruttobetrag`)
-      return
-    }
-
-    const ust_betrag  = parseGermanNumber(rawUst) ?? 0
-    const beschreibung = rawFirma != null ? String(rawFirma).trim() : ''
-    const waehrung     = rawWaehr != null ? String(rawWaehr).trim() : 'EUR'
-    const hatFehler    = betrag_brutto <= 0 || ust_betrag < 0 || ust_betrag >= betrag_brutto
+    const leistungsdatum = parseGermanDate(rawDate) ?? ''
+    const betrag_brutto  = parseGermanNumber(rawBrutto) ?? 0
+    const ust_betrag     = parseGermanNumber(rawUst) ?? 0
+    const beschreibung   = rawFirma != null ? String(rawFirma).trim() : ''
+    const waehrung       = rawWaehr != null ? String(rawWaehr).trim() : 'EUR'
+    const hatFehler      = betrag_brutto <= 0 || ust_betrag < 0 || (betrag_brutto > 0 && ust_betrag >= betrag_brutto)
 
     rows.push({
       _id: `import-${i}-${Date.now()}`,

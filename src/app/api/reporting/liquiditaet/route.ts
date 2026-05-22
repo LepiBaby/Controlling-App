@@ -7,10 +7,10 @@ import { requireAuth } from '@/lib/supabase-server'
 const querySchema = z.object({
   von: z.string().regex(/^\d{4}-\d{2}$/, 'von muss im Format YYYY-MM sein'),
   bis: z.string().regex(/^\d{4}-\d{2}$/, 'bis muss im Format YYYY-MM sein'),
-  granularitaet: z.enum(['monat', 'quartal', 'jahr']).default('monat'),
+  granularitaet: z.enum(['woche', 'monat', 'quartal', 'jahr']).default('monat'),
 })
 
-type Granularitaet = 'monat' | 'quartal' | 'jahr'
+type Granularitaet = 'woche' | 'monat' | 'quartal' | 'jahr'
 
 // ─── Perioden-Utilities ───────────────────────────────────────────────────────
 
@@ -19,7 +19,18 @@ function monthEnd(yyyyMM: string): string {
   return `${yyyyMM}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`
 }
 
+function isoWeekKey(dateStr: string): string {
+  const d = new Date(`${dateStr}T00:00:00Z`)
+  const dayNum = d.getUTCDay() || 7
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum) // move to Thursday of the week
+  const year = d.getUTCFullYear()
+  const yearStart = new Date(Date.UTC(year, 0, 1))
+  const weekNo = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7)
+  return `${year}-KW${String(weekNo).padStart(2, '0')}`
+}
+
 function dateToPeriod(date: string, gran: Granularitaet): string {
+  if (gran === 'woche') return isoWeekKey(date)
   const [year, month] = date.split('-')
   if (gran === 'monat') return `${year}-${month}`
   if (gran === 'quartal') return `${year}-Q${Math.ceil(parseInt(month, 10) / 3)}`
@@ -29,6 +40,24 @@ function dateToPeriod(date: string, gran: Granularitaet): string {
 function generatePerioden(von: string, bis: string, gran: Granularitaet): string[] {
   const perioden: string[] = []
   const seen = new Set<string>()
+
+  if (gran === 'woche') {
+    const [vonY, vonM] = von.split('-').map(Number)
+    const [bisY, bisM] = bis.split('-').map(Number)
+    const lastDay = new Date(bisY, bisM, 0).getDate()
+    const current = new Date(Date.UTC(vonY, vonM - 1, 1))
+    const end = new Date(Date.UTC(bisY, bisM - 1, lastDay))
+    // Start from Monday of the week containing the first day
+    const dow = current.getUTCDay() || 7
+    current.setUTCDate(current.getUTCDate() - (dow - 1))
+    while (current <= end) {
+      const key = isoWeekKey(current.toISOString().slice(0, 10))
+      if (!seen.has(key)) { seen.add(key); perioden.push(key) }
+      current.setUTCDate(current.getUTCDate() + 7)
+    }
+    return perioden
+  }
+
   const [vonY, vonM] = von.split('-').map(Number)
   const [bisY, bisM] = bis.split('-').map(Number)
   let y = vonY, m = vonM
@@ -95,6 +124,8 @@ export async function GET(request: Request) {
     { data: produkteCats,     error: prdErr    },
     { data: einnahmenRows,    error: einErr    },
     { data: ausgabenRows,     error: ausErr    },
+    { data: preEinnahmen,     error: preEinErr },
+    { data: preAusgaben,      error: preAusErr },
   ] = await Promise.all([
     supabase
       .from('kpi_categories')
@@ -127,6 +158,18 @@ export async function GET(request: Request) {
       .in('relevanz', ['liquiditaet', 'beides'])
       .gte('zahlungsdatum', vonDate)
       .lte('zahlungsdatum', bisDate),
+    // Alle Einnahmen vor dem Zeitraum für Anfangsbestand
+    supabase
+      .from('einnahmen_transaktionen')
+      .select('betrag')
+      .lt('zahlungsdatum', vonDate),
+    // Alle Ausgaben vor dem Zeitraum für Anfangsbestand
+    supabase
+      .from('ausgaben_kosten_transaktionen')
+      .select('betrag_brutto')
+      .not('zahlungsdatum', 'is', null)
+      .in('relevanz', ['liquiditaet', 'beides'])
+      .lt('zahlungsdatum', vonDate),
   ])
 
   if (einKatErr) return NextResponse.json({ error: einKatErr.message }, { status: 500 })
@@ -135,6 +178,13 @@ export async function GET(request: Request) {
   if (prdErr)    return NextResponse.json({ error: prdErr.message    }, { status: 500 })
   if (einErr)    return NextResponse.json({ error: einErr.message    }, { status: 500 })
   if (ausErr)    return NextResponse.json({ error: ausErr.message    }, { status: 500 })
+  if (preEinErr) return NextResponse.json({ error: preEinErr.message }, { status: 500 })
+  if (preAusErr) return NextResponse.json({ error: preAusErr.message }, { status: 500 })
+
+  const anfangsbestand = roundTo2(
+    (preEinnahmen ?? []).reduce((s, r) => s + Number(r.betrag), 0) +
+    (preAusgaben  ?? []).reduce((s, r) => s - Number(r.betrag_brutto), 0)
+  )
 
   // ── 2. Lookup-Maps & Kinder-Maps aufbauen ─────────────────────────────────
 
@@ -350,7 +400,7 @@ export async function GET(request: Request) {
   const cashflow:         Record<string, number> = {}
   const kontostand:       Record<string, number> = {}
 
-  let kumuliert = 0
+  let kumuliert = anfangsbestand
   for (const p of perioden) {
     const einnahmen = roundTo2(einnahmenKategorien.reduce((s, k) => s + (k.values[p] ?? 0), 0))
     const ausgaben  = roundTo2(ausgabenKategorien.reduce((s, k)  => s + (k.values[p] ?? 0), 0))

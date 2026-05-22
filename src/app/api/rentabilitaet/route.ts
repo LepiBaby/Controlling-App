@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/supabase-server'
 
-const PAGE_SIZE = 50
-
 type Quelle = 'umsatz' | 'kosten'
 
 interface RentabilitaetZeile {
@@ -24,6 +22,8 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url)
   const page          = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10))
+  const pageSizeParam  = parseInt(searchParams.get('pageSize') ?? '50', 10)
+  const pageSize       = pageSizeParam > 0 ? pageSizeParam : 0
   const sortColumn    = searchParams.get('sortColumn') === 'betrag' ? 'betrag' : 'leistungsdatum'
   const sortAsc       = searchParams.get('sortDirection') === 'asc'
 
@@ -147,9 +147,8 @@ export async function GET(request: Request) {
   ) / 100
 
   // ─── Paginate the sorted merged array ────────────────────────────────────
-  const fromIdx = (page - 1) * PAGE_SIZE
-  const toIdx   = fromIdx + PAGE_SIZE
-  const paginated = merged.slice(fromIdx, toIdx)
+  const fromIdx   = pageSize > 0 ? (page - 1) * pageSize : 0
+  const paginated = pageSize > 0 ? merged.slice(fromIdx, fromIdx + pageSize) : merged
 
   return NextResponse.json({
     data:       paginated,

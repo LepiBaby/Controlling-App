@@ -28,8 +28,8 @@ export default function RentabilitaetPage() {
 
   const {
     zeilen, loading, error,
-    total, totalNetto, page, filter, sortColumn, sortDirection,
-    setPage, setFilter, setSort,
+    total, totalNetto, page, pageSize, filter, sortColumn, sortDirection,
+    setPage, setPageSize, setFilter, setSort,
   } = useRentabilitaet()
 
   const kpiLoading = umsatzLoading || ausgabenLoading
@@ -287,7 +287,9 @@ export default function RentabilitaetPage() {
               total={total}
               totalNetto={totalNetto}
               page={page}
+              pageSize={pageSize}
               onPageChange={setPage}
+              onPageSizeChange={setPageSize}
               sortColumn={sortColumn}
               sortDirection={sortDirection}
               onSort={handleSort}

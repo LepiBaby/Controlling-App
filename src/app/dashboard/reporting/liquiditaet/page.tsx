@@ -67,6 +67,7 @@ export default function ReportingLiquiditaetPage() {
                 onValueChange={v => setGranularitaet(v as ReportGranularitaet)}
               >
                 <TabsList className="h-8">
+                  <TabsTrigger value="woche" className="text-xs px-3 h-6">Wöchentlich</TabsTrigger>
                   <TabsTrigger value="monat" className="text-xs px-3 h-6">Monatlich</TabsTrigger>
                   <TabsTrigger value="quartal" className="text-xs px-3 h-6">Quartal</TabsTrigger>
                   <TabsTrigger value="jahr" className="text-xs px-3 h-6">Jahr</TabsTrigger>

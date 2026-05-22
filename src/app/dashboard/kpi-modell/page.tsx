@@ -106,10 +106,7 @@ export default function KpiModellPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <NavSheet />
-            <div>
-              <h1 className="text-lg font-semibold">KPI-Modell Verwaltung</h1>
-              <p className="text-sm text-muted-foreground">Kategorie-Hierarchien für alle Eingabetabellen</p>
-            </div>
+            <h1 className="text-lg font-semibold">KPI-Modell Verwaltung</h1>
           </div>
         </div>
       </header>

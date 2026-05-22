@@ -19,7 +19,7 @@ const patchSchema = z.object({
   produkt_id:                  z.string().uuid().nullable().optional(),
   beschreibung:                z.string().max(1000).nullable().optional(),
   relevanz:                    z.enum(['rentabilitaet', 'liquiditaet', 'beides']).optional(),
-  abschreibung:                z.enum(['3_jahre', '5_jahre', '7_jahre', '10_jahre']).nullable().optional(),
+  abschreibung:                z.enum(['1_jahr', '3_jahre', '5_jahre', '7_jahre', '10_jahre']).nullable().optional(),
 })
 
 function computeUstBetrag(brutto: number, ustSatz: string, ustBetragManual: number): number {

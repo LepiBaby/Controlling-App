@@ -3,6 +3,13 @@
 import { ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Table,
   TableBody,
   TableCell,
@@ -17,7 +24,6 @@ import {
   InvestitionsRate,
   InvestitionenSortColumn,
   SortDirection,
-  PAGE_SIZE,
 } from '@/hooks/use-investitionen'
 
 function formatBetrag(betrag: number): string {
@@ -78,7 +84,9 @@ interface InvestitionenTableProps {
   total: number
   totalBetrag: number
   page: number
+  pageSize: number
   onPageChange: (page: number) => void
+  onPageSizeChange: (size: number) => void
   sortColumn: InvestitionenSortColumn
   sortDirection: SortDirection
   onSort: (col: InvestitionenSortColumn) => void
@@ -93,13 +101,15 @@ export function InvestitionenTable({
   total,
   totalBetrag,
   page,
+  pageSize,
   onPageChange,
+  onPageSizeChange,
   sortColumn,
   sortDirection,
   onSort,
 }: InvestitionenTableProps) {
   const { showGruppe, showUntergruppe, showProdukt } = columnVisibility
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const totalPages = pageSize > 0 ? Math.max(1, Math.ceil(total / pageSize)) : 1
 
   // Feste Spalten: Datum | Ursprung | Beschreibung | Betrag = 4
   // Dynamische Spalten: Gruppe + Untergruppe + Produkt
@@ -203,10 +213,25 @@ export function InvestitionenTable({
         </Table>
       </div>
 
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>Seite {page} von {totalPages}</span>
-          <div className="flex gap-2">
+      <div className="flex items-center justify-between text-sm text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <span>Zeilen pro Seite:</span>
+          <Select value={String(pageSize)} onValueChange={v => onPageSizeChange(Number(v))}>
+            <SelectTrigger className="h-8 w-[80px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="25">25</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+              <SelectItem value="100">100</SelectItem>
+              <SelectItem value="250">250</SelectItem>
+              <SelectItem value="0">Alle</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {pageSize > 0 && totalPages > 1 && (
+          <div className="flex items-center gap-2">
+            <span>Seite {page} von {totalPages}</span>
             <Button
               variant="outline"
               size="sm"
@@ -224,8 +249,8 @@ export function InvestitionenTable({
               Weiter
             </Button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }

@@ -1,4 +1,5 @@
 export const ABSCHREIBUNG_MONATE: Record<string, number> = {
+  '1_jahr': 12,
   '3_jahre': 36,
   '5_jahre': 60,
   '7_jahre': 84,

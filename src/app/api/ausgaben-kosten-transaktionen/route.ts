@@ -2,8 +2,6 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/supabase-server'
 
-const PAGE_SIZE = 50
-
 const UST_SAETZE = ['100', '19', '7', '0', 'individuell'] as const
 
 const createSchema = z.object({
@@ -19,7 +17,7 @@ const createSchema = z.object({
   produkt_id:                  z.string().uuid().nullable().optional(),
   beschreibung:                z.string().max(1000).nullable().optional(),
   relevanz:                    z.enum(['rentabilitaet', 'liquiditaet', 'beides'], { message: 'Ungültige Relevanz' }),
-  abschreibung:                z.enum(['3_jahre', '5_jahre', '7_jahre', '10_jahre']).nullable().optional(),
+  abschreibung:                z.enum(['1_jahr', '3_jahre', '5_jahre', '7_jahre', '10_jahre']).nullable().optional(),
 })
 
 function computeNetto(brutto: number, ustSatz: string, ustBetrag: number): number {
@@ -44,10 +42,14 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url)
   const page                = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10))
+  const pageSizeParam        = parseInt(searchParams.get('pageSize') ?? '50', 10)
+  const pageSize             = pageSizeParam > 0 ? pageSizeParam : 0
   const sortColumn          = searchParams.get('sortColumn') === 'betrag_brutto' ? 'betrag_brutto' : 'leistungsdatum'
   const sortAsc             = searchParams.get('sortDirection') === 'asc'
   const von                 = searchParams.get('von')
   const bis                 = searchParams.get('bis')
+  const zahlungsdatumVon    = searchParams.get('zahlungsdatum_von')
+  const zahlungsdatumBis    = searchParams.get('zahlungsdatum_bis')
   const kategorieIds        = searchParams.get('kategorie_ids')?.split(',').filter(Boolean) ?? []
   const gruppeIds           = searchParams.get('gruppe_ids')?.split(',').filter(Boolean) ?? []
   const untergruppeIds      = searchParams.get('untergruppe_ids')?.split(',').filter(Boolean) ?? []
@@ -55,17 +57,20 @@ export async function GET(request: Request) {
   const produktIds          = searchParams.get('produkt_ids')?.split(',').filter(Boolean) ?? []
   const excludeImportSource = searchParams.get('excludeImportSource')
 
-  const from = (page - 1) * PAGE_SIZE
-  const to   = from + PAGE_SIZE - 1
-
   let query = supabase
     .from('ausgaben_kosten_transaktionen')
     .select('*', { count: 'exact' })
     .order(sortColumn, { ascending: sortAsc })
-    .range(from, to)
+
+  if (pageSize > 0) {
+    const from = (page - 1) * pageSize
+    query = query.range(from, from + pageSize - 1)
+  }
 
   if (von)                      query = query.gte('leistungsdatum', von)
   if (bis)                      query = query.lte('leistungsdatum', bis)
+  if (zahlungsdatumVon)         query = query.gte('zahlungsdatum', zahlungsdatumVon)
+  if (zahlungsdatumBis)         query = query.lte('zahlungsdatum', zahlungsdatumBis)
   if (kategorieIds.length)      query = query.in('kategorie_id', kategorieIds)
   if (gruppeIds.length)         query = query.in('gruppe_id', gruppeIds)
   if (untergruppeIds.length)    query = query.in('untergruppe_id', untergruppeIds)
@@ -83,6 +88,8 @@ export async function GET(request: Request) {
 
   if (von)                      sumQuery = sumQuery.gte('leistungsdatum', von)
   if (bis)                      sumQuery = sumQuery.lte('leistungsdatum', bis)
+  if (zahlungsdatumVon)         sumQuery = sumQuery.gte('zahlungsdatum', zahlungsdatumVon)
+  if (zahlungsdatumBis)         sumQuery = sumQuery.lte('zahlungsdatum', zahlungsdatumBis)
   if (kategorieIds.length)      sumQuery = sumQuery.in('kategorie_id', kategorieIds)
   if (gruppeIds.length)         sumQuery = sumQuery.in('gruppe_id', gruppeIds)
   if (untergruppeIds.length)    sumQuery = sumQuery.in('untergruppe_id', untergruppeIds)
@@ -101,6 +108,8 @@ export async function GET(request: Request) {
 
   if (von)                      sellerboardCountQuery = sellerboardCountQuery.gte('leistungsdatum', von)
   if (bis)                      sellerboardCountQuery = sellerboardCountQuery.lte('leistungsdatum', bis)
+  if (zahlungsdatumVon)         sellerboardCountQuery = sellerboardCountQuery.gte('zahlungsdatum', zahlungsdatumVon)
+  if (zahlungsdatumBis)         sellerboardCountQuery = sellerboardCountQuery.lte('zahlungsdatum', zahlungsdatumBis)
   if (kategorieIds.length)      sellerboardCountQuery = sellerboardCountQuery.in('kategorie_id', kategorieIds)
   if (gruppeIds.length)         sellerboardCountQuery = sellerboardCountQuery.in('gruppe_id', gruppeIds)
   if (untergruppeIds.length)    sellerboardCountQuery = sellerboardCountQuery.in('untergruppe_id', untergruppeIds)

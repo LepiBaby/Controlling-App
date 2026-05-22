@@ -47,6 +47,7 @@ export function useLiquiditaet() {
   const [total, setTotal] = useState(0)
   const [totalNettoCashflow, setTotalNettoCashflow] = useState(0)
   const [page, setPageState] = useState(1)
+  const [pageSize, setPageSizeState] = useState(50)
   const [filter, setFilterState] = useState<LiquiditaetFilter>({})
   const [sortColumn, setSortColumn] = useState<LiquiditaetSortColumn>('zahlungsdatum')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
@@ -57,6 +58,7 @@ export function useLiquiditaet() {
     try {
       const params = new URLSearchParams()
       params.set('page', String(page))
+      params.set('pageSize', String(pageSize))
       params.set('sortColumn', sortColumn)
       params.set('sortDirection', sortDirection)
       if (filter.von) params.set('von', filter.von)
@@ -79,11 +81,16 @@ export function useLiquiditaet() {
     } finally {
       setLoading(false)
     }
-  }, [page, sortColumn, sortDirection, filter])
+  }, [page, pageSize, sortColumn, sortDirection, filter])
 
   useEffect(() => { fetchData() }, [fetchData])
 
   const setPage = useCallback((p: number) => setPageState(p), [])
+
+  const setPageSize = useCallback((s: number) => {
+    setPageSizeState(s)
+    setPageState(1)
+  }, [])
 
   const setFilter = useCallback((f: LiquiditaetFilter) => {
     setFilterState(f)
@@ -98,8 +105,8 @@ export function useLiquiditaet() {
 
   return {
     zeilen, loading, error,
-    total, totalNettoCashflow, page, filter, sortColumn, sortDirection,
-    setPage, setFilter, setSort,
+    total, totalNettoCashflow, page, pageSize, filter, sortColumn, sortDirection,
+    setPage, setPageSize, setFilter, setSort,
     refresh: fetchData,
   }
 }

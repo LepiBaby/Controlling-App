@@ -2,8 +2,6 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/supabase-server'
 
-const PAGE_SIZE = 50
-
 const createSchema = z.object({
   zahlungsdatum:      z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Ungültiges Datumsformat (YYYY-MM-DD)'),
   betrag:             z.number().positive('Betrag muss größer als 0 sein'),
@@ -21,6 +19,8 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url)
   const page         = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10))
+  const pageSizeParam = parseInt(searchParams.get('pageSize') ?? '50', 10)
+  const pageSize      = pageSizeParam > 0 ? pageSizeParam : 0
   const sortColumn   = searchParams.get('sortColumn') === 'betrag' ? 'betrag' : 'zahlungsdatum'
   const sortAsc      = searchParams.get('sortDirection') === 'asc'
   const von               = searchParams.get('von')
@@ -31,15 +31,16 @@ export async function GET(request: Request) {
   const salesPlattformIds = searchParams.get('sales_plattform_ids')?.split(',').filter(Boolean) ?? []
   const produktIds        = searchParams.get('produkt_ids')?.split(',').filter(Boolean) ?? []
 
-  const from = (page - 1) * PAGE_SIZE
-  const to   = from + PAGE_SIZE - 1
-
   // Build filtered query for data
   let query = supabase
     .from('einnahmen_transaktionen')
     .select('*', { count: 'exact' })
     .order(sortColumn, { ascending: sortAsc })
-    .range(from, to)
+
+  if (pageSize > 0) {
+    const from = (page - 1) * pageSize
+    query = query.range(from, from + pageSize - 1)
+  }
 
   if (von)                    query = query.gte('zahlungsdatum', von)
   if (bis)                    query = query.lte('zahlungsdatum', bis)

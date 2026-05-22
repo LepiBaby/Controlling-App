@@ -3,6 +3,13 @@
 import { ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Table,
   TableBody,
   TableCell,
@@ -17,7 +24,6 @@ import {
   AbschreibungsRate,
   AbschreibungenSortColumn,
   SortDirection,
-  PAGE_SIZE,
 } from '@/hooks/use-abschreibungen'
 
 function formatBetrag(betrag: number): string {
@@ -88,7 +94,9 @@ interface AbschreibungenTableProps {
   total: number
   totalBetrag: number
   page: number
+  pageSize: number
   onPageChange: (page: number) => void
+  onPageSizeChange: (size: number) => void
   sortColumn: AbschreibungenSortColumn
   sortDirection: SortDirection
   onSort: (col: AbschreibungenSortColumn) => void
@@ -103,13 +111,15 @@ export function AbschreibungenTable({
   total,
   totalBetrag,
   page,
+  pageSize,
   onPageChange,
+  onPageSizeChange,
   sortColumn,
   sortDirection,
   onSort,
 }: AbschreibungenTableProps) {
   const { showGruppe, showUntergruppe } = columnVisibility
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const totalPages = pageSize > 0 ? Math.max(1, Math.ceil(total / pageSize)) : 1
 
   // Feste Spalten: Datum | Ursprung | Kategorie | Beschreibung | Betrag = 5
   // Dynamische Spalten: Gruppe + Untergruppe
@@ -212,10 +222,25 @@ export function AbschreibungenTable({
       </div>
 
       {/* Paginierung */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>Seite {page} von {totalPages}</span>
-          <div className="flex gap-2">
+      <div className="flex items-center justify-between text-sm text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <span>Zeilen pro Seite:</span>
+          <Select value={String(pageSize)} onValueChange={v => onPageSizeChange(Number(v))}>
+            <SelectTrigger className="h-8 w-[80px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="25">25</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+              <SelectItem value="100">100</SelectItem>
+              <SelectItem value="250">250</SelectItem>
+              <SelectItem value="0">Alle</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {pageSize > 0 && totalPages > 1 && (
+          <div className="flex items-center gap-2">
+            <span>Seite {page} von {totalPages}</span>
             <Button
               variant="outline"
               size="sm"
@@ -233,8 +258,8 @@ export function AbschreibungenTable({
               Weiter
             </Button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }
