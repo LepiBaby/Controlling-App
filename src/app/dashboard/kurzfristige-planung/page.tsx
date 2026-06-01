@@ -50,7 +50,7 @@ export default function KurzfristigePlanungPage() {
               >
                 <p className="font-medium">Versandausgaben-Einstellungen</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Versandgebühr je Plattform &amp; Produkt sowie Allgemein-Einstellungen pflegen
+                  Versandgebühr (Spediteur &amp; 3PL) sowie Zahlungsziel je Plattform &amp; Produkt pflegen
                 </p>
               </a>
               <a

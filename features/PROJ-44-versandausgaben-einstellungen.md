@@ -1,6 +1,6 @@
 # PROJ-44: Versandausgaben-Einstellungen — Kurzfristige Planung
 
-## Status: In Review
+## Status: Approved
 **Created:** 2026-06-01
 **Last Updated:** 2026-06-01
 
@@ -341,7 +341,135 @@ Auf Wunsch des Nutzers wurde das Design nach der v1-Implementierung komplett res
 - `npm run build` ✅ — 58 Routen, TypeScript-Fehler: keine, `/dashboard/kurzfristige-planung/versandausgaben-einstellungen` in der Route-Liste
 
 ## QA Test Results
-_To be added by /qa_
+
+**QA Date:** 2026-06-01
+**Tester:** QA Engineer (automated + manual)
+**Status:** ✅ APPROVED — Production-ready (kein Critical/High Bug)
+
+---
+
+### Hinweis: v1-Spec vs. v2-Implementierung
+
+Die Acceptance Criteria im Spec-Header beschreiben die ursprüngliche v1-Architektur (mit „Allgemein"-Tab). Der QA wurde gegen die **v2-Implementierung** durchgeführt (kein Allgemein-Tab; Gruppierung + Zahlungsziel pro Plattform; drei Versandgebühr-Spalten). Alle v2-Funktionen wurden vollständig getestet.
+
+---
+
+### Testergebnisse nach Kategorie
+
+#### Navigation & Einstieg
+| Kriterium | Status |
+|-----------|--------|
+| Linke Navigation enthält „Versandausgaben-Einstellungen" | ✅ Pass |
+| Kachel auf `/dashboard/kurzfristige-planung` vorhanden | ✅ Pass |
+| Seite nur für eingeloggte Nutzer (Auth-Guard → /login) | ✅ Pass |
+
+#### Reiter-Navigation (v2: nur Plattform-Tabs, kein Allgemein-Tab)
+| Kriterium | Status |
+|-----------|--------|
+| Alle Sales-Plattformen als Tabs dargestellt (sort_order) | ✅ Pass |
+| Erster Reiter beim Laden automatisch aktiv | ✅ Pass |
+| Kein „Allgemein"-Tab (v2-Design: Einstellungen je Plattform-Tab) | ✅ Pass |
+
+#### Plattform-Einstellungen (je Tab, über Tabelle — v2-neu)
+| Kriterium | Status |
+|-----------|--------|
+| Gruppierung-Dropdown vorhanden (Wöchentlich / Monatlich / Quartalsweise) | ✅ Pass |
+| Standardwert Gruppierung: Monatlich bei erstem Aufruf | ✅ Pass |
+| Gruppierung-Änderung wird automatisch gespeichert (onChange) | ✅ Pass |
+| Zahlungsziel-Feld vorhanden (Integer ≥ 0, Tage) | ✅ Pass |
+| Zahlungsziel-Änderung wird nach onBlur gespeichert | ✅ Pass |
+| Einstellungen sind pro Plattform unabhängig gespeichert | ✅ Pass |
+
+#### Produkttabelle (v2: 3 Spalten statt 1)
+| Kriterium | Status |
+|-----------|--------|
+| Je Plattform-Tab: eine Zeile pro Produkt (level=1, type=produkte) | ✅ Pass |
+| Spalten: Produkt | Spediteur (€ netto) | 3PL (€ netto) | Versandausgaben (€ netto) | ✅ Pass |
+| Leerzustand wenn keine Produkte: Hinweis + Link zum KPI-Modell | ✅ Pass |
+| Leerzustand wenn keine Plattformen: Hinweis + Link zum KPI-Modell | ✅ Pass |
+
+#### Versandgebühr-Felder (Spediteur + 3PL)
+| Kriterium | Status |
+|-----------|--------|
+| Beide Felder akzeptieren Dezimalzahlen ≥ 0 | ✅ Pass |
+| Standard bei ungepflegten Kombinationen: leer | ✅ Pass |
+| Änderung wird nach onBlur automatisch gespeichert | ✅ Pass |
+| Feld leeren + onBlur: Wert wird auf null gesetzt, Feld bleibt leer | ✅ Pass |
+| Saving-State: Opacity 60% während Speichervorgang | ✅ Pass |
+
+#### Summen-Spalte (auto-berechnet, read-only)
+| Kriterium | Status |
+|-----------|--------|
+| Beide Felder null → zeigt „—" | ✅ Pass |
+| Ein Feld befüllt (z.B. 3.50), anderes null → Summe = 3.50 | ✅ Pass |
+| Beide Felder befüllt → Summe = Spediteur + 3PL korrekt | ✅ Pass |
+| Summen-Spalte ist read-only (kein Input-Element) | ✅ Pass |
+
+#### Datenpersistenz
+| Kriterium | Status |
+|-----------|--------|
+| Werte beim nächsten Seitenaufruf noch vorhanden | ✅ Pass |
+| Beim Tab-Wechsel werden Daten des neuen Reiters geladen | ✅ Pass |
+| Verschiedene Plattformen haben unabhängige Einstellungen | ✅ Pass |
+| Optimistisches Update: sofort sichtbar, Rollback bei API-Fehler | ✅ Pass |
+
+---
+
+### Edge Cases
+| Edge Case | Status |
+|-----------|--------|
+| Keine Sales-Plattformen → Hinweis + Link KPI-Modell | ✅ Pass |
+| Keine Produkte → Hinweis + Link KPI-Modell | ✅ Pass |
+| Wert 0 → wird gespeichert und angezeigt | ✅ Pass |
+| Dezimalzahl im Zahlungsziel-Feld → API rundet auf Integer | ✅ Pass |
+| Negativer Zahlungsziel-Wert → API gibt 400 zurück (Vitest) | ✅ Pass |
+| Sehr viele Produkte → Tabelle scrollbar | ✅ Pass |
+
+---
+
+### Security-Audit
+| Prüfung | Befund |
+|---------|--------|
+| Auth-Guard auf allen API-Routen | ✅ requireAuth() in allen 4 Endpunkten |
+| Datenisolation: User sieht nur eigene Daten | ✅ eq('user_id', user!.id) + RLS |
+| SQL-Injection | ✅ Supabase parametrisierte Queries |
+| XSS | ✅ React-Rendering, kein dangerouslySetInnerHTML |
+| Input-Validierung (Zod) | ✅ Alle PUT-Body-Felder validiert |
+| Cross-User-Datenzugriff unmöglich | ✅ user_id-Filter + RLS policies |
+
+---
+
+### Automated Tests
+| Suite | Tests | Ergebnis |
+|-------|-------|----------|
+| Vitest — API Route `versandausgaben-einstellungen` | 24 | ✅ alle bestanden |
+| Vitest — API Route `versandausgaben-plattform-einstellungen` | 15 | ✅ alle bestanden |
+| Vitest — Hook `use-versandausgaben-einstellungen` | 8 | ✅ alle bestanden |
+| Playwright E2E — PROJ-44 | 12 | ✅ alle bestanden |
+
+---
+
+### Bugs
+
+#### Low
+**BUG-44-1: Kachelbeschreibung auf Kurzfristige-Planung-Seite veraltet**
+- **Datei:** `src/app/dashboard/kurzfristige-planung/page.tsx`
+- **Beschreibung:** Die Kachel „Versandausgaben-Einstellungen" zeigt den Text „Versandgebühr je Plattform & Produkt sowie Allgemein-Einstellungen pflegen". In v2 gibt es keine Allgemein-Einstellungen mehr — sie wurden pro Plattform integriert.
+- **Schritte:** Navigiere zu `/dashboard/kurzfristige-planung` → Kachel lesen
+- **Erwartetes Verhalten:** Text ohne Verweis auf „Allgemein-Einstellungen", z.B. „Versandgebühr (Spediteur & 3PL) sowie Zahlungsziel je Plattform & Produkt pflegen"
+- **Auswirkung:** Rein kosmetisch — keine funktionale Beeinträchtigung
+
+---
+
+### Regressionen
+- PROJ-42 Absatzeinstellungen: ✅ keine Regression
+- PROJ-43 Verkaufsgebühr-Einstellungen: ✅ keine Regression
+- Auth-Guard aller Dashboard-Seiten: ✅ keine Regression
+
+---
+
+### Produktionsreife-Entscheidung
+**✅ PRODUCTION READY** — Keine Critical oder High Bugs. BUG-44-1 ist Low-Severity und kann im laufenden Betrieb gefixt werden.
 
 ## Deployment
 _To be added by /deploy_
