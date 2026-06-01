@@ -54,6 +54,7 @@ const KURZFRISTIGE_PLANUNG_NAV_GROUPS = [
     label: 'Kurzfristige Planung',
     items: [
       { href: '/dashboard/kurzfristige-planung/absatzeinstellungen', label: 'Absatzeinstellungen' },
+      { href: '/dashboard/kurzfristige-planung/verkaufsgebuehr-einstellungen', label: 'Verkaufsgebühr-Einstellungen' },
     ],
   },
 ]

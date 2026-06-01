@@ -64,7 +64,7 @@
 
 | PROJ-41 | Bereichswechsler — Plattform-Navigation | Approved | [PROJ-41-bereichswechsler.md](PROJ-41-bereichswechsler.md) | 2026-06-01 |
 | PROJ-42 | Absatzeinstellungen — Kurzfristige Planung | Approved | [PROJ-42-absatzeinstellungen.md](PROJ-42-absatzeinstellungen.md) | 2026-06-01 |
-| PROJ-43 | Verkaufsgebühr-Einstellungen — Kurzfristige Planung | Architected | [PROJ-43-verkaufsgebuehr-einstellungen.md](PROJ-43-verkaufsgebuehr-einstellungen.md) | 2026-06-01 |
+| PROJ-43 | Verkaufsgebühr-Einstellungen — Kurzfristige Planung | In Progress | [PROJ-43-verkaufsgebuehr-einstellungen.md](PROJ-43-verkaufsgebuehr-einstellungen.md) | 2026-06-01 |
 
 <!-- Add features above this line -->
 

@@ -35,6 +35,15 @@ export default function KurzfristigePlanungPage() {
                   Absatzberechnungsmethode je Plattform &amp; Produkt konfigurieren
                 </p>
               </a>
+              <a
+                href="/dashboard/kurzfristige-planung/verkaufsgebuehr-einstellungen"
+                className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+              >
+                <p className="font-medium">Verkaufsgebühr-Einstellungen</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Prozentuale Verkaufsgebühr je Plattform &amp; Produkt pflegen
+                </p>
+              </a>
             </div>
           </div>
         </div>

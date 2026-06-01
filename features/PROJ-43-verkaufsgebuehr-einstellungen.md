@@ -1,6 +1,6 @@
 # PROJ-43: Verkaufsgebühr-Einstellungen — Kurzfristige Planung
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-06-01
 **Last Updated:** 2026-06-01
 
@@ -208,8 +208,19 @@ PUT  /api/verkaufsgebuehr-einstellungen
 | Obergrenze | Keine | Addierte Plattformgebühren können > 100 % sein; UI-Validierung wäre hier irreführend |
 | Neue Packages | Keine | Tabs, Table, Input — alles bereits in shadcn/ui installiert |
 
-## Implementation Notes
-_To be added by /frontend and /backend_
+## Implementation Notes (Frontend — 2026-06-01)
+
+### Neue Dateien
+- `src/hooks/use-verkaufsgebuehr-einstellungen.ts` — Typ `VerkaufsgebuehrEinstellung`, Hook `useVerkaufsgebuehrEinstellungen(plattformId)` mit Laden, optimistischem Upsert und Rollback
+- `src/components/verkaufsgebuehr-einstellungen-tabelle.tsx` — Drei Komponenten: `VerkaufsgebuehrEinstellungZeile` (lokaler State, Auto-Save onBlur), `PlattformTabelle` (pro Plattform mit eigenem Hook-Aufruf), `VerkaufsgebuehrEinstellungenTabelle` (Export, lädt Plattformen + Produkte, rendert Tabs)
+- `src/app/dashboard/kurzfristige-planung/verkaufsgebuehr-einstellungen/page.tsx` — Client Component, Page-Header + `VerkaufsgebuehrEinstellungenTabelle`
+
+### Geänderte Dateien
+- `src/components/nav-sheet.tsx` — Eintrag „Verkaufsgebühr-Einstellungen" zur bestehenden Gruppe „Kurzfristige Planung" ergänzt
+- `src/app/dashboard/kurzfristige-planung/page.tsx` — Kachel „Verkaufsgebühr-Einstellungen" zum Kachelraster hinzugefügt
+
+### Build
+- `npm run build` ✅ — neue Route `/dashboard/kurzfristige-planung/verkaufsgebuehr-einstellungen` in der Route-Liste
 
 ## QA Test Results
 _To be added by /qa_
