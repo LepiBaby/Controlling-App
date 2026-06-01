@@ -1,13 +1,32 @@
 'use client'
 
 import { usePathname, useRouter } from 'next/navigation'
+import { BarChart3, CalendarClock, Target } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getAktivesBereich } from '@/components/bereichs-switcher'
 
 const BEREICHE = [
-  { value: 'reporting', label: 'Reporting', href: '/dashboard' },
-  { value: 'kurzfristige-planung', label: 'Kurzfristige Planung', href: '/dashboard/kurzfristige-planung' },
-  { value: 'langfristige-planung', label: 'Langfristige Planung', href: '/dashboard/langfristige-planung' },
+  {
+    value: 'reporting',
+    label: 'Reporting',
+    description: 'Auswertungen, Reports & Datenpflege',
+    icon: BarChart3,
+    href: '/dashboard',
+  },
+  {
+    value: 'kurzfristige-planung',
+    label: 'Kurzfristige Planung',
+    description: 'Kommt in Kürze',
+    icon: CalendarClock,
+    href: '/dashboard/kurzfristige-planung',
+  },
+  {
+    value: 'langfristige-planung',
+    label: 'Langfristige Planung',
+    description: 'Kommt in Kürze',
+    icon: Target,
+    href: '/dashboard/langfristige-planung',
+  },
 ]
 
 export function BereichsKartenSwitcher() {
@@ -16,28 +35,36 @@ export function BereichsKartenSwitcher() {
   const aktiv = getAktivesBereich(pathname)
 
   return (
-    <div className="border-b bg-muted/20">
-      <div className="mx-auto max-w-7xl px-6">
-        <nav className="flex overflow-x-auto">
-          {BEREICHE.map((bereich) => {
-            const isAktiv = bereich.value === aktiv
-            return (
-              <button
-                key={bereich.value}
-                onClick={() => router.push(bereich.href)}
-                className={cn(
-                  'shrink-0 px-5 py-3.5 text-sm transition-colors border-b-2 -mb-px',
-                  isAktiv
-                    ? 'border-primary font-semibold text-foreground'
-                    : 'border-transparent font-medium text-muted-foreground hover:text-foreground hover:border-muted-foreground/30'
-                )}
-              >
-                {bereich.label}
-              </button>
-            )
-          })}
-        </nav>
-      </div>
+    <div className="grid gap-4 sm:grid-cols-3">
+      {BEREICHE.map((bereich) => {
+        const Icon = bereich.icon
+        const isAktiv = bereich.value === aktiv
+        return (
+          <button
+            key={bereich.value}
+            onClick={() => router.push(bereich.href)}
+            className={cn(
+              'rounded-xl p-6 text-left transition-all',
+              isAktiv
+                ? 'bg-primary text-primary-foreground shadow-lg scale-[1.02]'
+                : 'bg-muted/60 border border-border hover:bg-muted hover:border-muted-foreground/30'
+            )}
+          >
+            <Icon
+              className={cn(
+                'h-7 w-7 mb-3',
+                isAktiv ? 'text-primary-foreground/80' : 'text-muted-foreground'
+              )}
+            />
+            <p className={cn('text-base font-semibold', isAktiv ? 'text-primary-foreground' : 'text-foreground')}>
+              {bereich.label}
+            </p>
+            <p className={cn('mt-1 text-sm', isAktiv ? 'text-primary-foreground/70' : 'text-muted-foreground')}>
+              {bereich.description}
+            </p>
+          </button>
+        )
+      })}
     </div>
   )
 }

@@ -17,10 +17,9 @@ export default function KurzfristigePlanungPage() {
         </div>
       </header>
 
-      <BereichsKartenSwitcher />
-
       <main className="flex-1 p-6">
-        <div className="mx-auto max-w-7xl">
+        <div className="mx-auto max-w-7xl space-y-8">
+          <BereichsKartenSwitcher />
           <div className="flex flex-col items-center justify-center py-24 text-center">
             <p className="text-lg font-medium text-muted-foreground">Kurzfristige Planung</p>
             <p className="mt-2 text-sm text-muted-foreground">Dieser Bereich wird in Kürze verfügbar sein.</p>

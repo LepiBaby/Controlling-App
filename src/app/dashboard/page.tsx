@@ -46,10 +46,9 @@ export default async function DashboardPage() {
         </div>
       </header>
 
-      <BereichsKartenSwitcher />
-
       <main className="flex-1 p-6">
-        <div className="mx-auto max-w-7xl space-y-6">
+        <div className="mx-auto max-w-7xl space-y-8">
+          <BereichsKartenSwitcher />
           <div className="space-y-3">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Datenpflege</h2>
           <div className="grid gap-3 sm:grid-cols-3">
