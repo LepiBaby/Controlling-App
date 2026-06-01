@@ -24,6 +24,8 @@ export interface SellerboardAggregatedRow {
   refundCommission: number
   refundRefundCommission: number
   refundPrincipal: number
+  refundPromotion: number
+  shippingHB: number
 }
 
 export interface SellerboardParseResult {
@@ -143,7 +145,7 @@ export function parseSellerboardExcel(
         promoValue: 0,
         sponsoredProducts: 0, sponsoredDisplay: 0, sponsoredBrands: 0, sponsoredBrandsVideo: 0,
         shipping: 0,
-        commission: 0, refundCommission: 0, refundRefundCommission: 0, refundPrincipal: 0,
+        commission: 0, refundCommission: 0, refundRefundCommission: 0, refundPrincipal: 0, refundPromotion: 0, shippingHB: 0,
       })
     }
 
@@ -168,6 +170,8 @@ export function parseSellerboardExcel(
     agg.refundCommission       += parseNum(col('Refund Commission', row))
     agg.refundRefundCommission += parseNum(col('Refund RefundCommission', row))
     agg.refundPrincipal        += parseNum(col('Refund Principal', row))
+    agg.refundPromotion        += parseNum(col('Refund Promotion', row))
+    agg.shippingHB             += parseNum(col('ShippingHB', row))
   }
 
   const aggregatedRows = Array.from(aggregateMap.values())

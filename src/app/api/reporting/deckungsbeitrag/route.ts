@@ -170,19 +170,30 @@ export async function GET(request: Request) {
       if (plattformIds.length > 0) q = q.in('sales_plattform_id', plattformIds)
       return q
     })(),
-    (() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (async (): Promise<{ data: any[] | null; error: any }> => {
+      const PAGE = 1000
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let q: any = supabase
-        .from('ausgaben_kosten_transaktionen')
-        .select('leistungsdatum, betrag_netto, kategorie_id, gruppe_id, untergruppe_id, sales_plattform_id, produkt_id')
-        .not('leistungsdatum', 'is', null)
-        .is('abschreibung', null)
-        .in('relevanz', ['rentabilitaet', 'beides'])
-        .gte('leistungsdatum', vonDate)
-        .lte('leistungsdatum', bisDate)
-      if (produktIds.length > 0) q = q.in('produkt_id', produktIds)
-      if (plattformIds.length > 0) q = q.in('sales_plattform_id', plattformIds)
-      return q
+      const all: any[] = []
+      let from = 0
+      for (;;) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let q: any = supabase
+          .from('ausgaben_kosten_transaktionen')
+          .select('leistungsdatum, betrag_netto, kategorie_id, gruppe_id, untergruppe_id, sales_plattform_id, produkt_id')
+          .not('leistungsdatum', 'is', null)
+          .is('abschreibung', null)
+          .in('relevanz', ['rentabilitaet', 'beides'])
+          .gte('leistungsdatum', vonDate)
+          .lte('leistungsdatum', bisDate)
+        if (produktIds.length > 0) q = q.in('produkt_id', produktIds)
+        if (plattformIds.length > 0) q = q.in('sales_plattform_id', plattformIds)
+        const { data, error } = await q.range(from, from + PAGE - 1)
+        if (error) return { data: null, error }
+        if (data) all.push(...data)
+        if (!data || data.length < PAGE) return { data: all, error: null }
+        from += PAGE
+      }
     })(),
     supabase
       .from('ausgaben_kosten_transaktionen')

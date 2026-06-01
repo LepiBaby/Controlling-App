@@ -170,7 +170,7 @@ export function calculateSellerboardRows(input: CalculatorInput): SellerboardImp
     const rabatte = r2(Math.abs(agg.promoValue))
     rows.push(makeUmsatz(rabatte, rabatteKat, agg, 'rabatte', amazonId, 'Rabatte'))
 
-    const rueck = r2(Math.abs(agg.refundPrincipal))
+    const rueck = r2(Math.abs(agg.refundPrincipal + agg.refundPromotion))
     rows.push(makeUmsatz(rueck, rueckKat, agg, 'rueckerstattungen', amazonId, 'Rückerstattungen'))
 
     // --- Ausgaben rows ---
@@ -181,7 +181,7 @@ export function calculateSellerboardRows(input: CalculatorInput): SellerboardImp
       agg, 'amazon_ads', amazonId, 'Amazon Ads',
     ))
 
-    const verkaufsNetto = r2(Math.abs(agg.commission + agg.refundRefundCommission + agg.refundCommission))
+    const verkaufsNetto = r2(-(agg.commission + agg.refundCommission + agg.refundRefundCommission + agg.shippingHB))
     rows.push(makeAusgaben(
       verkaufsNetto,
       vertriebKat, verkaufsgebuehrenGruppe, undefined,
@@ -235,7 +235,10 @@ function makeAusgaben(
   warnungText: string | null = null,
 ): SellerboardImportRow {
   const hatFehler = !kat
-  const nettoR = Math.max(0, netto)
+  const istGutschrift = netto < 0
+  const effektiveWarnung = istGutschrift
+    ? 'Kostengutschrift: Commission-Rückerstattung übersteigt Gebühren dieses Tages'
+    : warnungText
   return {
     _id: `${kpiType}-${agg.productId}-${agg.date}`,
     rowType: 'ausgaben',
@@ -248,11 +251,11 @@ function makeAusgaben(
     salesPlattformId: amazonId,
     produktId: agg.productId,
     beschreibung: `${label} – ${agg.productName} – ${agg.date}`,
-    betragNetto: nettoR,
-    betragBrutto: r2(nettoR * 1.19),
-    ustBetrag: r2(nettoR * 0.19),
-    hatWarnung: warnungText !== null,
-    warnungText,
+    betragNetto: netto,
+    betragBrutto: r2(netto * 1.19),
+    ustBetrag: r2(netto * 0.19),
+    hatWarnung: effektiveWarnung !== null,
+    warnungText: effektiveWarnung,
     hatFehler,
     fehlerText: hatFehler ? `Ausgaben-Kategorie '${label}' nicht im KPI-Modell gefunden` : null,
   }

@@ -37,6 +37,8 @@ export default function ReportingDeckungsbeitragPage() {
 
   const [selectedPositionIds, setSelectedPositionIds] = useState<string[]>([])
   const initializedRef = useRef(false)
+  const absatzScrollRef = useRef<HTMLDivElement>(null)
+  const matrixScrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!data || initializedRef.current) return
@@ -46,6 +48,32 @@ export default function ReportingDeckungsbeitragPage() {
     setSelectedPositionIds(ids)
     initializedRef.current = true
   }, [data])
+
+  // Horizontales Scroll-Sync zwischen Absatztabelle und Matrix
+  useEffect(() => {
+    const el1 = absatzScrollRef.current
+    const el2 = matrixScrollRef.current
+    if (!el1 || !el2) return
+    let syncing = false
+    function syncFromAbsatz() {
+      if (syncing) return
+      syncing = true
+      el2!.scrollLeft = el1!.scrollLeft
+      syncing = false
+    }
+    function syncFromMatrix() {
+      if (syncing) return
+      syncing = true
+      el1!.scrollLeft = el2!.scrollLeft
+      syncing = false
+    }
+    el1.addEventListener('scroll', syncFromAbsatz)
+    el2.addEventListener('scroll', syncFromMatrix)
+    return () => {
+      el1.removeEventListener('scroll', syncFromAbsatz)
+      el2.removeEventListener('scroll', syncFromMatrix)
+    }
+  }, [data, absatzData])
 
   const currentMonth = new Date().toISOString().slice(0, 7)
 
@@ -199,6 +227,7 @@ export default function ReportingDeckungsbeitragPage() {
             loading={absatzLoading}
             hasDateRange={hasValidDateRange}
             displayPerioden={displayPerioden}
+            scrollContainerRef={absatzScrollRef}
           />
 
           {/* Matrix */}
@@ -209,6 +238,7 @@ export default function ReportingDeckungsbeitragPage() {
             anzeigemodus={anzeigemodus}
             displayPerioden={displayPerioden}
             ohneInvestitionen={false}
+            scrollContainerRef={matrixScrollRef}
           />
 
         </div>

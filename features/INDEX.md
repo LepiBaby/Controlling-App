@@ -60,6 +60,8 @@
 | PROJ-38 | Sellerboard-Import-Herkunftskennzeichnung & Filter | Approved | [PROJ-38-sellerboard-import-herkunftskennzeichnung.md](PROJ-38-sellerboard-import-herkunftskennzeichnung.md) | 2026-05-18 |
 | PROJ-39 | Fulfillment Crowd Excel-Import für Bestandsverwaltung | Deployed | [PROJ-39-fulfillment-crowd-excel-import.md](PROJ-39-fulfillment-crowd-excel-import.md) | 2026-05-20 |
 
+| PROJ-40 | Betragsselektion in Transaktionstabellen | Approved | [PROJ-40-betragsselektion-tabellen.md](PROJ-40-betragsselektion-tabellen.md) | 2026-05-22 |
+
 <!-- Add features above this line -->
 
-## Next Available ID: PROJ-40
+## Next Available ID: PROJ-41

@@ -153,14 +153,28 @@ export async function GET(request: Request) {
       .select('leistungsdatum, betrag, kategorie_id, gruppe_id, untergruppe_id, sales_plattform_id, produkt_id')
       .gte('leistungsdatum', vonDate)
       .lte('leistungsdatum', bisDate),
-    supabase
-      .from('ausgaben_kosten_transaktionen')
-      .select('leistungsdatum, betrag_netto, kategorie_id, gruppe_id, untergruppe_id, sales_plattform_id, produkt_id')
-      .not('leistungsdatum', 'is', null)
-      .is('abschreibung', null)
-      .in('relevanz', ['rentabilitaet', 'beides'])
-      .gte('leistungsdatum', vonDate)
-      .lte('leistungsdatum', bisDate),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (async (): Promise<{ data: any[] | null; error: any }> => {
+      const PAGE = 1000
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const all: any[] = []
+      let from = 0
+      for (;;) {
+        const { data, error } = await supabase
+          .from('ausgaben_kosten_transaktionen')
+          .select('leistungsdatum, betrag_netto, kategorie_id, gruppe_id, untergruppe_id, sales_plattform_id, produkt_id')
+          .not('leistungsdatum', 'is', null)
+          .is('abschreibung', null)
+          .in('relevanz', ['rentabilitaet', 'beides'])
+          .gte('leistungsdatum', vonDate)
+          .lte('leistungsdatum', bisDate)
+          .range(from, from + PAGE - 1)
+        if (error) return { data: null, error }
+        if (data) all.push(...data)
+        if (!data || data.length < PAGE) return { data: all, error: null }
+        from += PAGE
+      }
+    })(),
     supabase
       .from('ausgaben_kosten_transaktionen')
       .select('leistungsdatum, betrag_netto, kategorie_id, gruppe_id, untergruppe_id, abschreibung')
@@ -212,6 +226,7 @@ export async function GET(request: Request) {
       .eq('kategorie_id', produktinvestitionenCatId)
       .is('abschreibung', null)
       .not('leistungsdatum', 'is', null)
+      .limit(10000)
     if (piErr2) return NextResponse.json({ error: piErr2.message }, { status: 500 })
     piRows = piData ?? []
   }
@@ -500,8 +515,7 @@ export async function GET(request: Request) {
     if (!prd || prd.ust_satz == null || Number(prd.ust_satz) <= 0) continue
     const ustSatz = Number(prd.ust_satz)
     for (const [period, netBase] of periodMap) {
-      // Nettoumsatz × USt-Satz / 100
-      const ust = roundTo2(netBase * ustSatz / 100)
+      const ust = roundTo2(netBase * ustSatz / (100 + ustSatz))
       if (ust === 0) continue
       addTo(ustPrdVals, prdId, period, -ust)
     }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { ArrowUp, ArrowDown, ArrowUpDown, Pencil, Trash2, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -101,6 +101,9 @@ function UmsatzEditRow({
   columnVisibility,
   onInlineUpdate,
   onDelete,
+  selectedCells,
+  onCellMouseDown,
+  onCellMouseEnter,
 }: {
   t: UmsatzTransaktion
   umsatzKategorien: KpiCategory[]
@@ -109,6 +112,9 @@ function UmsatzEditRow({
   columnVisibility: ColumnVisibility
   onInlineUpdate: (id: string, input: Partial<UmsatzTransaktionInput>) => Promise<void>
   onDelete: (id: string) => void
+  selectedCells: Map<string, number>
+  onCellMouseDown: (e: React.MouseEvent, key: string, value: number) => void
+  onCellMouseEnter: (key: string, value: number) => void
 }) {
   const { toast } = useToast()
   const [draft, setDraft] = useState<UmsatzDraft>(() => initDraft(t))
@@ -241,7 +247,11 @@ function UmsatzEditRow({
           onChange={e => setDraft(p => ({ ...p, beschreibung: e.target.value }))}
           onBlur={handleBlur} disabled={saving} placeholder="Optional…" />
       </TableCell>
-      <TableCell className="p-1 text-right">
+      <TableCell
+        className={cn('p-1 text-right', selectedCells.has(`${t.id}_betrag`) && 'bg-blue-100 dark:bg-blue-900/40')}
+        onMouseDown={e => { if (e.ctrlKey || e.metaKey) { e.preventDefault(); onCellMouseDown(e, `${t.id}_betrag`, Number(draft.betrag)) } }}
+        onMouseEnter={() => onCellMouseEnter(`${t.id}_betrag`, Number(draft.betrag))}
+      >
         <input type="number" className={cn(iBase, 'min-w-[80px] text-right', errors.betrag ? iErr : iOk)}
           value={draft.betrag}
           onChange={e => setDraft(p => ({ ...p, betrag: e.target.value }))}
@@ -339,6 +349,48 @@ export function UmsatzTable({
   const optionalCount = [showGruppe, showUntergruppe, showSalesPlattform, showProdukte].filter(Boolean).length
   const totalColumns = 5 + optionalCount
 
+  const [selectedCells, setSelectedCells] = useState<Map<string, number>>(new Map())
+  const summe = Array.from(selectedCells.values()).reduce((a, b) => a + b, 0)
+  const isDragging = useRef(false)
+
+  useEffect(() => { setSelectedCells(new Map()) }, [page])
+
+  useEffect(() => {
+    function onMouseDown(e: MouseEvent) {
+      if (!(e.target as Element).closest('[data-betrag-selektion]')) {
+        setSelectedCells(new Map())
+      }
+    }
+    function onMouseUp() { isDragging.current = false }
+    document.addEventListener('mousedown', onMouseDown)
+    document.addEventListener('mouseup', onMouseUp)
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown)
+      document.removeEventListener('mouseup', onMouseUp)
+    }
+  }, [])
+
+  function handleCellMouseDown(e: React.MouseEvent, key: string, value: number) {
+    e.preventDefault()
+    e.stopPropagation()
+    isDragging.current = true
+    const multi = e.ctrlKey || e.metaKey
+    setSelectedCells(prev => {
+      if (prev.has(key)) {
+        const next = new Map(prev)
+        next.delete(key)
+        return next
+      }
+      if (multi) return new Map([...prev, [key, value]])
+      return new Map([[key, value]])
+    })
+  }
+
+  function handleCellMouseEnter(key: string, value: number) {
+    if (!isDragging.current) return
+    setSelectedCells(prev => prev.has(key) ? prev : new Map([...prev, [key, value]]))
+  }
+
   if (loading && transaktionen.length === 0) {
     return (
       <div className="space-y-2 mt-4">
@@ -359,7 +411,8 @@ export function UmsatzTable({
   }
 
   return (
-    <div className="space-y-4">
+    <>
+    <div data-betrag-selektion="true" className="space-y-4">
       <div className="rounded-md border overflow-x-auto">
         <Table>
           <TableHeader>
@@ -392,6 +445,9 @@ export function UmsatzTable({
                   columnVisibility={columnVisibility}
                   onInlineUpdate={onInlineUpdate}
                   onDelete={onDelete}
+                  selectedCells={selectedCells}
+                  onCellMouseDown={handleCellMouseDown}
+                  onCellMouseEnter={handleCellMouseEnter}
                 />
               ) : (
                 <TableRow key={t.id} className="hover:bg-muted/50">
@@ -412,7 +468,16 @@ export function UmsatzTable({
                   <TableCell className="max-w-xs truncate text-muted-foreground text-sm">
                     {t.beschreibung ?? ''}
                   </TableCell>
-                  <TableCell className="text-right font-medium whitespace-nowrap">
+                  <TableCell
+                    className={cn(
+                      'text-right font-medium whitespace-nowrap cursor-pointer select-none',
+                      selectedCells.has(`${t.id}_betrag`)
+                        ? 'bg-blue-100 dark:bg-blue-900/40'
+                        : 'hover:bg-blue-50 dark:hover:bg-blue-950/20'
+                    )}
+                    onMouseDown={e => handleCellMouseDown(e, `${t.id}_betrag`, Number(t.betrag))}
+                    onMouseEnter={() => handleCellMouseEnter(`${t.id}_betrag`, Number(t.betrag))}
+                  >
                     {formatBetrag(Number(t.betrag))}
                   </TableCell>
                   <TableCell>
@@ -496,5 +561,34 @@ export function UmsatzTable({
         )}
       </div>
     </div>
+
+      {selectedCells.size > 0 && (
+        <div
+          data-betrag-selektion="true"
+          className="fixed bottom-6 right-6 z-50 flex flex-col gap-1 rounded-lg border bg-background px-4 py-2.5 shadow-lg text-sm"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-muted-foreground">{selectedCells.size} Feld{selectedCells.size !== 1 ? 'er' : ''}</span>
+            {pageSize > 0 && totalPages > 1 && (
+              <span className="text-xs text-amber-600 dark:text-amber-400">Seite {page}/{totalPages}</span>
+            )}
+            <div className="h-4 w-px bg-border" />
+            <span className="font-semibold tabular-nums">Summe: {formatBetrag(summe)}</span>
+            <button
+              className="ml-1 text-muted-foreground hover:text-foreground"
+              onClick={() => setSelectedCells(new Map())}
+              aria-label="Auswahl aufheben"
+            >
+              ✕
+            </button>
+          </div>
+          {pageSize > 0 && totalPages > 1 && (
+            <div className="text-xs text-muted-foreground border-t pt-1">
+              Betrag gesamt (alle {total} Zeilen): <span className="font-medium tabular-nums">{formatBetrag(totalBetrag)}</span>
+            </div>
+          )}
+        </div>
+      )}
+    </>
   )
 }

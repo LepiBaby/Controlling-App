@@ -406,5 +406,22 @@ Zwei legitime Rechnungen an denselben Lieferanten am selben Tag über denselben 
 - **Production Ready:** YES
 - **Recommendation:** Deploy
 
+## Post-QA Erweiterungen (2026-05-22)
+
+### Änderungen
+
+1. **Sortierung nach ältestem Leistungsdatum**: `initRows` sortiert geparste Zeilen aufsteigend nach `leistungsdatum` (älteste zuerst).
+
+2. **Standard-Relevanz "Beides"**: Jede Zeile wird mit `relevanz: 'beides'` initialisiert.
+
+3. **Schritt 3 — Duplikat-/Konflikt-Prüfung**: "Alle importieren"-Button in Schritt 2 ersetzt durch "Weiter →". Beim Klick werden alle bestehenden Transaktionen per `GET /api/ausgaben-kosten-transaktionen?pageSize=0` geladen und jede Import-Zeile klassifiziert:
+   - **Neu** (kein Match nach Datum + Kategorie + Bruttobetrag) → immer importiert
+   - **Konflikte** (gleiche Schlüssel, andere Felder) → Vergleichskarte, Nutzer wählt "Neu importieren" oder "Überspringen" (Default: Neu)
+   - **Duplikate** (alle Felder gleich) → nie importiert
+
+4. **Aufteilung (Split)**: Jede Review-Zeile hat ein Scheren-Icon (Scissors). Erster Klick: 2 Subtransaktionen werden direkt darunter eingefügt (50/50-Aufteilung). Jeder weitere Klick: eine weitere Subtransaktion. Subtransaktionen erben Elterndaten als Startwert und sind vollständig editierbar. Die übergeordnete Transaktion zeigt die Bruttosumme aller Subtransaktionen (grün = korrekt, rot = Differenz). Nur Subtransaktionen werden importiert, nicht die übergeordnete. Subtransaktionen werden zu Einzelzeilen für Duplikatprüfung und Import aufgelöst (`flattenRows`).
+
+5. **Horizontales Scrollen der Seite behoben**: `overflow-hidden` auf `DialogContent` verhindert, dass der Dialog-Inhalt über die Seitenbreite hinausläuft.
+
 ## Deployment
 _To be added by /deploy_

@@ -46,10 +46,10 @@ export default async function DashboardPage() {
       </header>
 
       <main className="flex-1 p-6">
-        <div className="mx-auto max-w-2xl space-y-6">
+        <div className="mx-auto max-w-7xl space-y-6">
           <div className="space-y-3">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Datenpflege</h2>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-3">
             <a
               href="/dashboard/kpi-modell"
               className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
@@ -104,7 +104,7 @@ export default async function DashboardPage() {
 
           <div className="space-y-3">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Auswertungen</h2>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-3">
               <a
                 href="/dashboard/rentabilitaet"
                 className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
@@ -145,7 +145,7 @@ export default async function DashboardPage() {
 
           <div className="space-y-3">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Reporting</h2>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-3">
               <a
                 href="/dashboard/reporting/rentabilitaet"
                 className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"

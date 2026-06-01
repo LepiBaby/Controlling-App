@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { BarChart2, ChevronRight, ChevronDown, ChevronsDownUp, ChevronsUpDown } from 'lucide-react'
@@ -272,6 +272,47 @@ export function ReportingLiquiditaetMatrix({ data, loading, hasDateRange }: Prop
     setExpandedIds(allExpanded ? new Set() : new Set(allExpandableIds))
   }
 
+  const [selectedCells, setSelectedCells] = useState<Map<string, number>>(new Map())
+  const isDragging = useRef(false)
+  const selSum = Array.from(selectedCells.values()).reduce((a, b) => a + b, 0)
+
+  useEffect(() => {
+    function onMouseDown(e: MouseEvent) {
+      if (!(e.target as Element).closest('[data-betrag-selektion]')) {
+        setSelectedCells(new Map())
+      }
+    }
+    function onMouseUp() { isDragging.current = false }
+    document.addEventListener('mousedown', onMouseDown)
+    document.addEventListener('mouseup', onMouseUp)
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown)
+      document.removeEventListener('mouseup', onMouseUp)
+    }
+  }, [])
+
+  function handleCellMouseDown(e: React.MouseEvent, key: string, value: number) {
+    if (e.button !== 0) return
+    e.preventDefault()
+    e.stopPropagation()
+    isDragging.current = true
+    const multi = e.ctrlKey || e.metaKey
+    setSelectedCells(prev => {
+      if (prev.has(key)) {
+        const next = new Map(prev)
+        next.delete(key)
+        return next
+      }
+      if (multi) return new Map([...prev, [key, value]])
+      return new Map([[key, value]])
+    })
+  }
+
+  function handleCellMouseEnter(key: string, value: number) {
+    if (!isDragging.current) return
+    setSelectedCells(prev => prev.has(key) ? prev : new Map([...prev, [key, value]]))
+  }
+
   // ── Leerzustände ──────────────────────────────────────────────────────────
 
   if (!hasDateRange) {
@@ -320,7 +361,8 @@ export function ReportingLiquiditaetMatrix({ data, loading, hasDateRange }: Prop
   const perioden = data.perioden
 
   return (
-    <div className="space-y-2">
+    <>
+    <div data-betrag-selektion="true" className="space-y-2">
       {/* Toolbar */}
       {allExpandableIds.size > 0 && (
         <div className="flex justify-end">
@@ -419,6 +461,11 @@ export function ReportingLiquiditaetMatrix({ data, loading, hasDateRange }: Prop
                     ? perioden.map(p => <td key={p} className="px-3 py-2" />)
                     : perioden.map(p => {
                         const value = row.values[p] ?? 0
+                        const cellKey = `${row.id}_${p}`
+                        const isSelected = selectedCells.has(cellKey)
+                        const selBg = isSelected
+                          ? 'bg-blue-100 dark:bg-blue-900/40 cursor-pointer select-none'
+                          : 'hover:bg-blue-50 dark:hover:bg-blue-950/20 cursor-pointer select-none'
                         return (
                           <td
                             key={p}
@@ -427,8 +474,11 @@ export function ReportingLiquiditaetMatrix({ data, loading, hasDateRange }: Prop
                               isBold ? 'font-semibold' : '',
                               isKontostand ? 'text-base' : '',
                               isProdukt ? 'text-xs' : '',
-                              valueColorClass(value),
+                              isSelected ? '' : valueColorClass(value),
+                              selBg,
                             ].filter(Boolean).join(' ')}
+                            onMouseDown={e => handleCellMouseDown(e, cellKey, value)}
+                            onMouseEnter={() => handleCellMouseEnter(cellKey, value)}
                           >
                             {formatBetrag(value)}
                           </td>
@@ -442,5 +492,24 @@ export function ReportingLiquiditaetMatrix({ data, loading, hasDateRange }: Prop
         </table>
       </div>
     </div>
+
+      {selectedCells.size > 0 && (
+        <div
+          data-betrag-selektion="true"
+          className="fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-lg border bg-background px-4 py-2.5 shadow-lg text-sm"
+        >
+          <span className="text-muted-foreground">{selectedCells.size} Feld{selectedCells.size !== 1 ? 'er' : ''}</span>
+          <div className="h-4 w-px bg-border" />
+          <span className="font-semibold tabular-nums">Summe: {formatBetrag(selSum)}</span>
+          <button
+            className="ml-1 text-muted-foreground hover:text-foreground"
+            onClick={() => setSelectedCells(new Map())}
+            aria-label="Auswahl aufheben"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+    </>
   )
 }

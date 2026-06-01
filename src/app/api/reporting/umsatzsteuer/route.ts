@@ -121,13 +121,27 @@ export async function GET(request: Request) {
       .select('leistungsdatum, betrag, kategorie_id, gruppe_id, untergruppe_id, sales_plattform_id, produkt_id')
       .gte('leistungsdatum', vonDate)
       .lte('leistungsdatum', bisDate),
-    supabase
-      .from('ausgaben_kosten_transaktionen')
-      .select('leistungsdatum, ust_betrag, kategorie_id, gruppe_id, untergruppe_id, sales_plattform_id, produkt_id')
-      .not('leistungsdatum', 'is', null)
-      .gt('ust_betrag', 0)
-      .gte('leistungsdatum', vonDate)
-      .lte('leistungsdatum', bisDate),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (async (): Promise<{ data: any[] | null; error: any }> => {
+      const PAGE = 1000
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const all: any[] = []
+      let from = 0
+      for (;;) {
+        const { data, error } = await supabase
+          .from('ausgaben_kosten_transaktionen')
+          .select('leistungsdatum, ust_betrag, kategorie_id, gruppe_id, untergruppe_id, sales_plattform_id, produkt_id')
+          .not('leistungsdatum', 'is', null)
+          .gt('ust_betrag', 0)
+          .gte('leistungsdatum', vonDate)
+          .lte('leistungsdatum', bisDate)
+          .range(from, from + PAGE - 1)
+        if (error) return { data: null, error }
+        if (data) all.push(...data)
+        if (!data || data.length < PAGE) return { data: all, error: null }
+        from += PAGE
+      }
+    })(),
   ])
 
   if (ucErr)  return NextResponse.json({ error: ucErr.message  }, { status: 500 })
@@ -180,7 +194,7 @@ export async function GET(request: Request) {
     const betrag  = isAbzug ? -Number(row.betrag) : Number(row.betrag)
     const period  = dateToPeriod(row.leistungsdatum, granularitaet)
     const ustSatz = Number(prd.ust_satz)
-    const ust = roundTo2(betrag * ustSatz / 100)
+    const ust = roundTo2(betrag * ustSatz / (100 + ustSatz))
 
     addTo(ustCatVals, row.kategorie_id, period, ust)
     if (row.gruppe_id)      addTo(ustGrpVals, row.gruppe_id, period, ust)

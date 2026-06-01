@@ -44,7 +44,8 @@ export async function GET(request: Request) {
   const page                = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10))
   const pageSizeParam        = parseInt(searchParams.get('pageSize') ?? '50', 10)
   const pageSize             = pageSizeParam > 0 ? pageSizeParam : 0
-  const sortColumn          = searchParams.get('sortColumn') === 'betrag_brutto' ? 'betrag_brutto' : 'leistungsdatum'
+  const sortColumnParam     = searchParams.get('sortColumn')
+  const sortColumn          = sortColumnParam === 'betrag_brutto' ? 'betrag_brutto' : sortColumnParam === 'zahlungsdatum' ? 'zahlungsdatum' : 'leistungsdatum'
   const sortAsc             = searchParams.get('sortDirection') === 'asc'
   const von                 = searchParams.get('von')
   const bis                 = searchParams.get('bis')
@@ -57,10 +58,38 @@ export async function GET(request: Request) {
   const produktIds          = searchParams.get('produkt_ids')?.split(',').filter(Boolean) ?? []
   const excludeImportSource = searchParams.get('excludeImportSource')
 
+  // Sellerboard count runs for all sort modes
+  let sellerboardCountQuery = supabase
+    .from('ausgaben_kosten_transaktionen')
+    .select('*', { count: 'exact', head: true })
+    .eq('import_source', 'sellerboard')
+
+  if (von)                      sellerboardCountQuery = sellerboardCountQuery.gte('leistungsdatum', von)
+  if (bis)                      sellerboardCountQuery = sellerboardCountQuery.lte('leistungsdatum', bis)
+  if (zahlungsdatumVon)         sellerboardCountQuery = sellerboardCountQuery.gte('zahlungsdatum', zahlungsdatumVon)
+  if (zahlungsdatumBis)         sellerboardCountQuery = sellerboardCountQuery.lte('zahlungsdatum', zahlungsdatumBis)
+  if (kategorieIds.length)      sellerboardCountQuery = sellerboardCountQuery.in('kategorie_id', kategorieIds)
+  if (gruppeIds.length)         sellerboardCountQuery = sellerboardCountQuery.in('gruppe_id', gruppeIds)
+  if (untergruppeIds.length)    sellerboardCountQuery = sellerboardCountQuery.in('untergruppe_id', untergruppeIds)
+  if (salesPlattformIds.length) sellerboardCountQuery = sellerboardCountQuery.in('sales_plattform_id', salesPlattformIds)
+  if (produktIds.length)        sellerboardCountQuery = sellerboardCountQuery.in('produkt_id', produktIds)
+
+  const { count: sellerboardCount, error: sellerboardError } = await sellerboardCountQuery
+  if (sellerboardError) return NextResponse.json({ error: sellerboardError.message }, { status: 500 })
+
+  // Server-side sort for all columns — zahlungsdatum uses nullsFirst so rows without
+  // payment date always appear at the top, with leistungsdatum as secondary sort.
   let query = supabase
     .from('ausgaben_kosten_transaktionen')
     .select('*', { count: 'exact' })
-    .order(sortColumn, { ascending: sortAsc })
+
+  if (sortColumn === 'zahlungsdatum') {
+    query = query
+      .order('zahlungsdatum', { ascending: sortAsc, nullsFirst: true })
+      .order('leistungsdatum', { ascending: sortAsc })
+  } else {
+    query = query.order(sortColumn, { ascending: sortAsc })
+  }
 
   if (pageSize > 0) {
     const from = (page - 1) * pageSize
@@ -99,25 +128,6 @@ export async function GET(request: Request) {
 
   const { data: sumData, error: sumError } = await sumQuery
   if (sumError) return NextResponse.json({ error: sumError.message }, { status: 500 })
-
-  // Count of Sellerboard transactions under current filters (for toggle visibility + hint text)
-  let sellerboardCountQuery = supabase
-    .from('ausgaben_kosten_transaktionen')
-    .select('*', { count: 'exact', head: true })
-    .eq('import_source', 'sellerboard')
-
-  if (von)                      sellerboardCountQuery = sellerboardCountQuery.gte('leistungsdatum', von)
-  if (bis)                      sellerboardCountQuery = sellerboardCountQuery.lte('leistungsdatum', bis)
-  if (zahlungsdatumVon)         sellerboardCountQuery = sellerboardCountQuery.gte('zahlungsdatum', zahlungsdatumVon)
-  if (zahlungsdatumBis)         sellerboardCountQuery = sellerboardCountQuery.lte('zahlungsdatum', zahlungsdatumBis)
-  if (kategorieIds.length)      sellerboardCountQuery = sellerboardCountQuery.in('kategorie_id', kategorieIds)
-  if (gruppeIds.length)         sellerboardCountQuery = sellerboardCountQuery.in('gruppe_id', gruppeIds)
-  if (untergruppeIds.length)    sellerboardCountQuery = sellerboardCountQuery.in('untergruppe_id', untergruppeIds)
-  if (salesPlattformIds.length) sellerboardCountQuery = sellerboardCountQuery.in('sales_plattform_id', salesPlattformIds)
-  if (produktIds.length)        sellerboardCountQuery = sellerboardCountQuery.in('produkt_id', produktIds)
-
-  const { count: sellerboardCount, error: sellerboardError } = await sellerboardCountQuery
-  if (sellerboardError) return NextResponse.json({ error: sellerboardError.message }, { status: 500 })
 
   const totalBrutto = Math.round((sumData ?? []).reduce((acc, r) => acc + Number(r.betrag_brutto), 0) * 100) / 100
   const totalNetto  = Math.round((sumData ?? []).reduce((acc, r) => acc + Number(r.betrag_netto), 0) * 100) / 100

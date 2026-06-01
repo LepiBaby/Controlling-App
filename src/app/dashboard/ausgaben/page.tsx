@@ -131,7 +131,7 @@ export default function AusgabenPage() {
         leistungsdatum: r.leistungsdatum,
         zahlungsdatum: r.zahlungsdatum || null,
         betrag_brutto: r.betrag_brutto,
-        ust_satz: 'individuell',
+        ust_satz: r.ust_satz,
         ust_betrag: r.ust_betrag,
         kategorie_id: r.kategorieId,
         gruppe_id: r.gruppeId || null,

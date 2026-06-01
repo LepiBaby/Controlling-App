@@ -48,6 +48,8 @@ function makeAgg(overrides: Partial<SellerboardAggregatedRow> = {}): Sellerboard
     refundCommission: -3,
     refundRefundCommission: -1,
     refundPrincipal: -25,
+    refundPromotion: 0,
+    shippingHB: 0,
     ...overrides,
   }
 }
@@ -136,10 +138,18 @@ describe('calculateSellerboardRows', () => {
   })
 
   describe('Rückerstattungen', () => {
-    it('nimmt Absolutwert von refundPrincipal', () => {
+    it('nimmt Absolutwert von refundPrincipal (ohne Refund Promotion)', () => {
       const rows = calculateSellerboardRows(makeInput())
       const row = rows.find(r => r.kpiType === 'rueckerstattungen')!
-      expect(row.betragNetto).toBe(25) // |−25|
+      expect(row.betragNetto).toBe(25) // |−25 + 0|
+    })
+
+    it('zieht Refund Promotion von refundPrincipal ab (Kundenrabatt wird zurückerstattet)', () => {
+      // Kunde zahlte 115 € (120 − 5 Rabatt): refundPrincipal=−120, refundPromotion=+5 → |−120+5|=115
+      const agg = makeAgg({ refundPrincipal: -120, refundPromotion: 6 })
+      const rows = calculateSellerboardRows(makeInput({ aggregatedRows: [agg] }))
+      const row = rows.find(r => r.kpiType === 'rueckerstattungen')!
+      expect(row.betragNetto).toBe(114) // |−120 + 6|
     })
   })
 
@@ -170,13 +180,32 @@ describe('calculateSellerboardRows', () => {
   })
 
   describe('Verkaufsgebühr', () => {
-    it('summiert commission + refundRefundCommission + refundCommission als Absolutwert', () => {
-      // commission=-12, refundRefundCommission=-1, refundCommission=-3 → 16
+    it('berechnet Netto als -(commission + refundCommission + refundRefundCommission + shippingHB)', () => {
+      // -(−12 + (−3) + (−1) + 0) = −(−16) = 16
       const rows = calculateSellerboardRows(makeInput())
       const row = rows.find(r => r.kpiType === 'verkaufsgebuehr')!
       expect(row.betragNetto).toBe(16)
       expect(row.kategorieId).toBe('vtb-1')
       expect(row.gruppeId).toBe('vtb-vk')
+    })
+
+    it('addiert ShippingHB zur Verkaufsgebühr', () => {
+      // -(−12 + (−3) + (−1) + (−2)) = 18
+      const agg = makeAgg({ shippingHB: -2 })
+      const rows = calculateSellerboardRows(makeInput({ aggregatedRows: [agg] }))
+      const row = rows.find(r => r.kpiType === 'verkaufsgebuehr')!
+      expect(row.betragNetto).toBe(18)
+    })
+
+    it('erzeugt negative Ausgabe (Kostengutschrift) wenn Refund Commission die Kosten übersteigt', () => {
+      // commission=0, refundCommission=+18, refundRefundCommission=-3.6 → -(0+18-3.6) = -14.4
+      const agg = makeAgg({ commission: 0, refundCommission: 18, refundRefundCommission: -3.6, shippingHB: 0 })
+      const rows = calculateSellerboardRows(makeInput({ aggregatedRows: [agg] }))
+      const row = rows.find(r => r.kpiType === 'verkaufsgebuehr')!
+      expect(row.betragNetto).toBe(-14.4)
+      expect(row.betragBrutto).toBeCloseTo(-14.4 * 1.19, 2)
+      expect(row.ustBetrag).toBeCloseTo(-14.4 * 0.19, 2)
+      expect(row.hatWarnung).toBe(true)
     })
   })
 

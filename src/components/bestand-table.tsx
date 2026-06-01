@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -18,10 +18,12 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Pencil, Trash2 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { type KpiCategory } from '@/hooks/use-kpi-categories'
 import { type BestandTransaktion, calcEndbestand } from '@/hooks/use-bestand-transaktionen'
 
 const fmtDate = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('de-DE')
+const fmtSumme = (n: number) => new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 }).format(n)
 
 interface Props {
   transaktionen: BestandTransaktion[]
@@ -44,6 +46,48 @@ export function BestandTable({
 }: Props) {
   const [pageSize, setPageSize] = useState(50)
   const [page, setPage] = useState(1)
+  const [selectedCells, setSelectedCells] = useState<Map<string, number>>(new Map())
+  const summe = Array.from(selectedCells.values()).reduce((a, b) => a + b, 0)
+  const isDragging = useRef(false)
+
+  useEffect(() => { setSelectedCells(new Map()) }, [page])
+
+  useEffect(() => {
+    function onMouseDown(e: MouseEvent) {
+      if (!(e.target as Element).closest('[data-betrag-selektion]')) {
+        setSelectedCells(new Map())
+      }
+    }
+    function onMouseUp() { isDragging.current = false }
+    document.addEventListener('mousedown', onMouseDown)
+    document.addEventListener('mouseup', onMouseUp)
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown)
+      document.removeEventListener('mouseup', onMouseUp)
+    }
+  }, [])
+
+  function handleCellMouseDown(e: React.MouseEvent, key: string, value: number) {
+    if (e.button !== 0) return
+    e.preventDefault()
+    e.stopPropagation()
+    isDragging.current = true
+    const multi = e.ctrlKey || e.metaKey
+    setSelectedCells(prev => {
+      if (prev.has(key)) {
+        const next = new Map(prev)
+        next.delete(key)
+        return next
+      }
+      if (multi) return new Map([...prev, [key, value]])
+      return new Map([[key, value]])
+    })
+  }
+
+  function handleCellMouseEnter(key: string, value: number) {
+    if (!isDragging.current) return
+    setSelectedCells(prev => prev.has(key) ? prev : new Map([...prev, [key, value]]))
+  }
 
   if (loading) {
     return <div className="py-8 text-center text-sm text-muted-foreground">Laden…</div>
@@ -72,8 +116,18 @@ export function BestandTable({
     )
   }
 
+  function selClass(key: string) {
+    return cn(
+      'text-right whitespace-nowrap cursor-pointer select-none',
+      selectedCells.has(key)
+        ? 'bg-blue-100 dark:bg-blue-900/40'
+        : 'hover:bg-blue-50 dark:hover:bg-blue-950/20'
+    )
+  }
+
   return (
-    <div className="space-y-3">
+    <>
+    <div data-betrag-selektion="true" className="space-y-3">
     <div className="overflow-x-auto rounded-md border">
       <Table>
         <TableHeader>
@@ -98,22 +152,69 @@ export function BestandTable({
             return (
               <TableRow key={t.id}>
                 <TableCell className="whitespace-nowrap">{fmtDate(t.datum)}</TableCell>
-                <TableCell className="text-right whitespace-nowrap">{t.anfangsbestand}</TableCell>
+                <TableCell
+                  className={selClass(`${t.id}_anfangsbestand`)}
+                  onMouseDown={e => handleCellMouseDown(e, `${t.id}_anfangsbestand`, t.anfangsbestand)}
+                  onMouseEnter={() => handleCellMouseEnter(`${t.id}_anfangsbestand`, t.anfangsbestand)}
+                >
+                  {t.anfangsbestand}
+                </TableCell>
                 {plattformen.map(p => {
-                  const s = t.sendungen.find(s => s.plattform_id === p.id)
+                  const menge = t.sendungen.find(s => s.plattform_id === p.id)?.menge ?? 0
                   return (
-                    <TableCell key={p.id} className="text-right whitespace-nowrap">
-                      {s?.menge ?? 0}
+                    <TableCell
+                      key={p.id}
+                      className={selClass(`${t.id}_plattform_${p.id}`)}
+                      onMouseDown={e => handleCellMouseDown(e, `${t.id}_plattform_${p.id}`, menge)}
+                      onMouseEnter={() => handleCellMouseEnter(`${t.id}_plattform_${p.id}`, menge)}
+                    >
+                      {menge}
                     </TableCell>
                   )
                 })}
-                <TableCell className="text-right whitespace-nowrap">{t.sendungen_manuell}</TableCell>
-                <TableCell className="text-right whitespace-nowrap">{t.einlagerungen}</TableCell>
-                <TableCell className="text-right whitespace-nowrap">{t.anpassungen_positiv}</TableCell>
-                <TableCell className="text-right whitespace-nowrap">{t.anpassungen_negativ}</TableCell>
-                <TableCell className="text-right whitespace-nowrap">{t.warenverluste}</TableCell>
                 <TableCell
-                  className={`text-right whitespace-nowrap font-semibold ${endbestand < 0 ? 'text-destructive' : ''}`}
+                  className={selClass(`${t.id}_sendungen_manuell`)}
+                  onMouseDown={e => handleCellMouseDown(e, `${t.id}_sendungen_manuell`, t.sendungen_manuell)}
+                  onMouseEnter={() => handleCellMouseEnter(`${t.id}_sendungen_manuell`, t.sendungen_manuell)}
+                >
+                  {t.sendungen_manuell}
+                </TableCell>
+                <TableCell
+                  className={selClass(`${t.id}_einlagerungen`)}
+                  onMouseDown={e => handleCellMouseDown(e, `${t.id}_einlagerungen`, t.einlagerungen)}
+                  onMouseEnter={() => handleCellMouseEnter(`${t.id}_einlagerungen`, t.einlagerungen)}
+                >
+                  {t.einlagerungen}
+                </TableCell>
+                <TableCell
+                  className={selClass(`${t.id}_anpassungen_positiv`)}
+                  onMouseDown={e => handleCellMouseDown(e, `${t.id}_anpassungen_positiv`, t.anpassungen_positiv)}
+                  onMouseEnter={() => handleCellMouseEnter(`${t.id}_anpassungen_positiv`, t.anpassungen_positiv)}
+                >
+                  {t.anpassungen_positiv}
+                </TableCell>
+                <TableCell
+                  className={selClass(`${t.id}_anpassungen_negativ`)}
+                  onMouseDown={e => handleCellMouseDown(e, `${t.id}_anpassungen_negativ`, t.anpassungen_negativ)}
+                  onMouseEnter={() => handleCellMouseEnter(`${t.id}_anpassungen_negativ`, t.anpassungen_negativ)}
+                >
+                  {t.anpassungen_negativ}
+                </TableCell>
+                <TableCell
+                  className={selClass(`${t.id}_warenverluste`)}
+                  onMouseDown={e => handleCellMouseDown(e, `${t.id}_warenverluste`, t.warenverluste)}
+                  onMouseEnter={() => handleCellMouseEnter(`${t.id}_warenverluste`, t.warenverluste)}
+                >
+                  {t.warenverluste}
+                </TableCell>
+                <TableCell
+                  className={cn(
+                    selClass(`${t.id}_endbestand`),
+                    'font-semibold',
+                    endbestand < 0 ? 'text-destructive' : ''
+                  )}
+                  onMouseDown={e => handleCellMouseDown(e, `${t.id}_endbestand`, endbestand)}
+                  onMouseEnter={() => handleCellMouseEnter(`${t.id}_endbestand`, endbestand)}
                 >
                   {endbestand}
                 </TableCell>
@@ -175,5 +276,26 @@ export function BestandTable({
       )}
     </div>
     </div>
+
+    {selectedCells.size > 0 && (
+      <div
+        data-betrag-selektion="true"
+        className="fixed bottom-6 right-6 z-50 flex flex-col gap-1 rounded-lg border bg-background px-4 py-2.5 shadow-lg text-sm"
+      >
+        <div className="flex items-center gap-3">
+          <span className="text-muted-foreground">{selectedCells.size} Feld{selectedCells.size !== 1 ? 'er' : ''}</span>
+          <div className="h-4 w-px bg-border" />
+          <span className="font-semibold tabular-nums">Summe: {fmtSumme(summe)}</span>
+          <button
+            className="ml-1 text-muted-foreground hover:text-foreground"
+            onClick={() => setSelectedCells(new Map())}
+            aria-label="Auswahl aufheben"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+    )}
+    </>
   )
 }

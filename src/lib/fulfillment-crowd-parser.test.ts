@@ -23,6 +23,25 @@ function makeDispatchedXlsx(dataRows: unknown[][]): ArrayBuffer {
   ])
 }
 
+// New format: no Product/Quantity columns; dispatch data comes from Stock Movement "Dispatched" rows
+function makeDispatchedXlsxNewFormat(dataRows: unknown[][]): ArrayBuffer {
+  return makeXlsx([
+    ['Report Title', null, null, null, null],
+    ['Generated', '2026-05-01', null, null, null],
+    ['From', '2026-05-01', null, null, null],
+    ['Date Range', null, null, null, null],
+    ['Filter', null, null, null, null],
+    // row 5: header — no Product/Quantity, but has Channel + Actual + Stock Store
+    ['Created', 'Channel', 'Stock Store', 'Stage', 'Reference', 'Alternative Ref', 'Expected ', 'Actual', 'Notes'],
+    ...dataRows,
+  ])
+}
+
+// Helper: make a stock "Dispatched" row; pass transaction to enable direct reference lookup
+function makeStockDispatchedRow(date: string, sku: string, qty: number, transaction = ''): unknown[] {
+  return [date, sku, 'Dispatched', 'Main Warehouse', -qty, transaction, null]
+}
+
 // Stock Movement Report requires 'Date' as the header marker
 function makeStockXlsx(dataRows: unknown[][]): ArrayBuffer {
   return makeXlsx([
@@ -31,8 +50,8 @@ function makeStockXlsx(dataRows: unknown[][]): ArrayBuffer {
     ['To', '2026-05-31', null, null, null],
     ['Generated', '2026-05-01', null, null, null],
     ['Filter', null, null, null, null],
-    // row 5: header — must contain 'Date' as marker
-    ['Date', 'Product', 'Stage', 'Store', 'Quantity', 'Notes'],
+    // row 5: header — must contain 'Date' as marker; Transaction for direct reference lookup
+    ['Date', 'Product', 'Stage', 'Store', 'Quantity', 'Transaction', 'Notes'],
     ...dataRows,
   ])
 }
@@ -81,6 +100,7 @@ const PLATTFORM_AMAZON = makePlattform('plt-amazon', 'Amazon')
 const PLATTFORM_EBAY = makePlattform('plt-ebay', 'eBay')
 
 const EMPTY_DISP = makeDispatchedXlsx([])
+const EMPTY_DISP_NEW = makeDispatchedXlsxNewFormat([]) // new format (no Product/Quantity)
 const EMPTY_STOCK = makeStockXlsx([])
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -171,12 +191,14 @@ describe('parseFulfillmentCrowdExcel', () => {
       expect(entries[0].anpassungen_negativ).toBe(2)
     })
 
-    it('ignores Dispatched stage rows', () => {
+    it('assigns Dispatched stage rows to Amazon when no Transaction match exists', () => {
       const stock = makeStockXlsx([
-        ['2026-05-01', 'SKU-A', 'Dispatched', 'Main Warehouse', 99, null],
+        ['2026-05-01', 'SKU-A', 'Dispatched', 'Main Warehouse', -3, null],
       ])
-      const { entries } = parseFulfillmentCrowdExcel(EMPTY_DISP, stock, [SKU_A], [])
-      expect(entries).toHaveLength(0)
+      const { entries } = parseFulfillmentCrowdExcel(EMPTY_DISP_NEW, stock, [SKU_A], [PLATTFORM_AMAZON])
+      expect(entries).toHaveLength(1)
+      expect(entries[0].sendungenByPlattformId['plt-amazon']).toBe(3)
+      expect(entries[0].sendungen_manuell).toBe(0)
     })
 
     it('ignores Cancelled Requires Restock stage rows', () => {
@@ -288,6 +310,81 @@ describe('parseFulfillmentCrowdExcel', () => {
       const buf = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer
       const { entries } = parseFulfillmentCrowdExcel(buf, EMPTY_STOCK, [SKU_A], [PLATTFORM_AMAZON])
       expect(entries[0].datum).toBe('2026-05-10')
+    })
+  })
+
+  describe('new format (no Product/Quantity columns) — Transaction = Reference lookup', () => {
+    // Stock Movement always uses FC-internal IDs as Transaction.
+    // Dispatched Orders uses platform order numbers (Amazon) as Reference — EXCEPT for
+    // Manually Entered Orders which share the same FC-internal ID in both files.
+    // Rule: Transaction found in Reference → Manually Entered Order (manuell)
+    //       Transaction NOT found in Reference → Amazon order
+
+    it('assigns Manually Entered Order to manuell via Transaction = Reference match', () => {
+      const disp = makeDispatchedXlsxNewFormat([
+        [null, 'Manually Entered Order', 'WH', null, '5142-001', null, null, '2026-05-01', null],
+      ])
+      const stock = makeStockXlsx([
+        makeStockDispatchedRow('2026-05-01', 'SKU-A', 1, '5142-001'),
+      ])
+      const { entries } = parseFulfillmentCrowdExcel(disp, stock, [SKU_A], [PLATTFORM_AMAZON])
+      expect(entries).toHaveLength(1)
+      expect(entries[0].sendungen_manuell).toBe(1)
+      expect(Object.keys(entries[0].sendungenByPlattformId)).toHaveLength(0)
+    })
+
+    it('assigns Amazon channel when Transaction matches a Reference with Amazon channel', () => {
+      const disp = makeDispatchedXlsxNewFormat([
+        [null, 'Amazon DE', 'WH', null, 'AMZ-REF-001', null, null, '2026-05-01', null],
+      ])
+      const stock = makeStockXlsx([
+        makeStockDispatchedRow('2026-05-01', 'SKU-A', 3, 'AMZ-REF-001'),
+      ])
+      const { entries } = parseFulfillmentCrowdExcel(disp, stock, [SKU_A], [PLATTFORM_AMAZON])
+      expect(entries).toHaveLength(1)
+      expect(entries[0].sendungenByPlattformId['plt-amazon']).toBe(3)
+    })
+
+    it('assigns unmatched dispatches (no Transaction match) to Amazon platform', () => {
+      // Stock Movement has no Transaction → no match in Dispatched Orders → Amazon
+      const stock = makeStockXlsx([
+        makeStockDispatchedRow('2026-05-01', 'SKU-A', 1),
+        makeStockDispatchedRow('2026-05-01', 'SKU-A', 1),
+      ])
+      const { entries } = parseFulfillmentCrowdExcel(EMPTY_DISP_NEW, stock, [SKU_A], [PLATTFORM_AMAZON])
+      expect(entries).toHaveLength(1)
+      expect(entries[0].sendungenByPlattformId['plt-amazon']).toBe(2)
+      expect(entries[0].sendungen_manuell).toBe(0)
+    })
+
+    it('mixes manual (matched) and Amazon (unmatched) in the same day', () => {
+      const disp = makeDispatchedXlsxNewFormat([
+        [null, 'Manually Entered Order', 'WH', null, '5142-001', null, null, '2026-05-01', null],
+      ])
+      const stock = makeStockXlsx([
+        makeStockDispatchedRow('2026-05-01', 'SKU-A', 1, '5142-001'), // matched → manuell
+        makeStockDispatchedRow('2026-05-01', 'SKU-A', 1),             // no match → Amazon
+        makeStockDispatchedRow('2026-05-01', 'SKU-A', 1),             // no match → Amazon
+      ])
+      const { entries } = parseFulfillmentCrowdExcel(disp, stock, [SKU_A], [PLATTFORM_AMAZON])
+      expect(entries).toHaveLength(1)
+      expect(entries[0].sendungen_manuell).toBe(1)
+      expect(entries[0].sendungenByPlattformId['plt-amazon']).toBe(2)
+    })
+
+    it('cancellation reversal (qty=+1) offsets a dispatch (qty=-1), net result is 0', () => {
+      // 4 normal dispatches + 1 that was cancelled: one -1 then one +1 = net 0 → total 4
+      const stock = makeStockXlsx([
+        makeStockDispatchedRow('2026-05-01', 'SKU-A', 1), // qty=-1 → +1 dispatch
+        makeStockDispatchedRow('2026-05-01', 'SKU-A', 1), // qty=-1 → +1 dispatch
+        makeStockDispatchedRow('2026-05-01', 'SKU-A', 1), // qty=-1 → +1 dispatch
+        makeStockDispatchedRow('2026-05-01', 'SKU-A', 1), // qty=-1 → +1 dispatch
+        makeStockDispatchedRow('2026-05-01', 'SKU-A', 1), // qty=-1 → the cancelled dispatch
+        ['2026-05-01', 'SKU-A', 'Dispatched', 'Main Warehouse', 1, '', null], // qty=+1 → cancellation reversal
+      ])
+      const { entries } = parseFulfillmentCrowdExcel(EMPTY_DISP_NEW, stock, [SKU_A], [PLATTFORM_AMAZON])
+      expect(entries).toHaveLength(1)
+      expect(entries[0].sendungenByPlattformId['plt-amazon']).toBe(4)
     })
   })
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect, type RefObject } from 'react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { BarChart2, ChevronRight, ChevronDown, ChevronsDownUp, ChevronsUpDown } from 'lucide-react'
@@ -492,6 +492,7 @@ interface Props {
   anzeigemodus: ReportAnzeigemodus
   displayPerioden: string[]
   ohneInvestitionen: boolean
+  scrollContainerRef?: RefObject<HTMLDivElement | null>
 }
 
 export function ReportingRentabilitaetMatrix({
@@ -501,6 +502,7 @@ export function ReportingRentabilitaetMatrix({
   anzeigemodus,
   displayPerioden,
   ohneInvestitionen,
+  scrollContainerRef,
 }: Props) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
 
@@ -556,6 +558,47 @@ export function ReportingRentabilitaetMatrix({
     setExpandedIds(allExpanded ? new Set() : new Set(allExpandableIds))
   }
 
+  const [selectedCells, setSelectedCells] = useState<Map<string, number>>(new Map())
+  const isDragging = useRef(false)
+  const selSum = Array.from(selectedCells.values()).reduce((a, b) => a + b, 0)
+
+  useEffect(() => {
+    function onMouseDown(e: MouseEvent) {
+      if (!(e.target as Element).closest('[data-betrag-selektion]')) {
+        setSelectedCells(new Map())
+      }
+    }
+    function onMouseUp() { isDragging.current = false }
+    document.addEventListener('mousedown', onMouseDown)
+    document.addEventListener('mouseup', onMouseUp)
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown)
+      document.removeEventListener('mouseup', onMouseUp)
+    }
+  }, [])
+
+  function handleCellMouseDown(e: React.MouseEvent, key: string, value: number) {
+    if (e.button !== 0) return
+    e.preventDefault()
+    e.stopPropagation()
+    isDragging.current = true
+    const multi = e.ctrlKey || e.metaKey
+    setSelectedCells(prev => {
+      if (prev.has(key)) {
+        const next = new Map(prev)
+        next.delete(key)
+        return next
+      }
+      if (multi) return new Map([...prev, [key, value]])
+      return new Map([[key, value]])
+    })
+  }
+
+  function handleCellMouseEnter(key: string, value: number) {
+    if (!isDragging.current) return
+    setSelectedCells(prev => prev.has(key) ? prev : new Map([...prev, [key, value]]))
+  }
+
   // Gibt den Vorperioden-Schlüssel für eine angezeigte Periode zurück
   function vorperiodOf(p: string): string | undefined {
     if (!effectiveData) return undefined
@@ -609,7 +652,8 @@ export function ReportingRentabilitaetMatrix({
   const perioden = displayPerioden.length > 0 ? displayPerioden : effectiveData.perioden
 
   return (
-    <div className="space-y-2">
+    <>
+    <div data-betrag-selektion="true" className="space-y-2">
       {/* Hinweis: kein Bruttoumsatz im Prozentual-Modus */}
       {anzeigemodus === 'prozentual' && allesBruttoumsatzNull && (
         <p className="text-sm text-muted-foreground rounded-md border border-dashed px-4 py-2">
@@ -636,7 +680,7 @@ export function ReportingRentabilitaetMatrix({
       )}
 
       {/* Matrix */}
-      <div className="overflow-x-auto rounded-md border">
+      <div ref={scrollContainerRef} className="overflow-x-auto rounded-md border">
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="border-b bg-muted/40">
@@ -704,6 +748,11 @@ export function ReportingRentabilitaetMatrix({
                   {/* Wert-Zellen */}
                   {perioden.map(p => {
                     const value = row.values[p] ?? 0
+                    const cellKey = `${row.id}_${p}`
+                    const isSelected = selectedCells.has(cellKey)
+                    const selBg = isSelected
+                      ? 'bg-blue-100 dark:bg-blue-900/40 cursor-pointer select-none'
+                      : 'hover:bg-blue-50 dark:hover:bg-blue-950/20 cursor-pointer select-none'
 
                     if (anzeigemodus === 'prozentual') {
                       const basis = bruttoumsatzByPeriode?.[p] ?? 0
@@ -714,7 +763,10 @@ export function ReportingRentabilitaetMatrix({
                             'px-3 py-2 text-right tabular-nums whitespace-nowrap',
                             isBold ? 'font-semibold' : '',
                             isLeaf ? 'text-xs' : '',
+                            selBg,
                           ].filter(Boolean).join(' ')}
+                          onMouseDown={e => handleCellMouseDown(e, cellKey, value)}
+                          onMouseEnter={() => handleCellMouseEnter(cellKey, value)}
                         >
                           <div className={basis === 0 ? 'text-muted-foreground' : valueColorClass(value)}>
                             {formatProzentWert(value, basis)}
@@ -735,7 +787,10 @@ export function ReportingRentabilitaetMatrix({
                             'px-3 py-2 text-right tabular-nums whitespace-nowrap',
                             isBold ? 'font-semibold' : '',
                             isLeaf ? 'text-xs' : '',
+                            selBg,
                           ].filter(Boolean).join(' ')}
+                          onMouseDown={e => handleCellMouseDown(e, cellKey, value)}
+                          onMouseEnter={() => handleCellMouseEnter(cellKey, value)}
                         >
                           <div className={wachstumColorClass(wachstum)}>{formatWachstum(wachstum)}</div>
                           <div className="text-xs mt-0.5 text-muted-foreground">{formatBetrag(value)}</div>
@@ -751,8 +806,11 @@ export function ReportingRentabilitaetMatrix({
                           'px-3 py-2 text-right tabular-nums whitespace-nowrap',
                           isBold ? 'font-semibold' : '',
                           isLeaf ? 'text-xs' : '',
-                          valueColorClass(value),
+                          isSelected ? '' : valueColorClass(value),
+                          selBg,
                         ].filter(Boolean).join(' ')}
+                        onMouseDown={e => handleCellMouseDown(e, cellKey, value)}
+                        onMouseEnter={() => handleCellMouseEnter(cellKey, value)}
                       >
                         {formatBetrag(value)}
                       </td>
@@ -765,5 +823,24 @@ export function ReportingRentabilitaetMatrix({
         </table>
       </div>
     </div>
+
+      {selectedCells.size > 0 && (
+        <div
+          data-betrag-selektion="true"
+          className="fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-lg border bg-background px-4 py-2.5 shadow-lg text-sm"
+        >
+          <span className="text-muted-foreground">{selectedCells.size} Feld{selectedCells.size !== 1 ? 'er' : ''}</span>
+          <div className="h-4 w-px bg-border" />
+          <span className="font-semibold tabular-nums">Summe: {formatBetrag(selSum)}</span>
+          <button
+            className="ml-1 text-muted-foreground hover:text-foreground"
+            onClick={() => setSelectedCells(new Map())}
+            aria-label="Auswahl aufheben"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+    </>
   )
 }

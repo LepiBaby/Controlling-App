@@ -2,8 +2,6 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/supabase-server'
 
-const MAX_BATCH_SIZE = 500
-
 const itemSchema = z.object({
   leistungsdatum:     z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Ungültiges Datumsformat (YYYY-MM-DD)'),
   betrag:             z.number().positive('Betrag muss größer als 0 sein'),
@@ -32,13 +30,6 @@ export async function POST(request: Request) {
   if (body.length === 0) {
     return NextResponse.json({ error: 'Array darf nicht leer sein' }, { status: 400 })
   }
-  if (body.length > MAX_BATCH_SIZE) {
-    return NextResponse.json(
-      { error: `Maximal ${MAX_BATCH_SIZE} Transaktionen pro Import erlaubt` },
-      { status: 400 }
-    )
-  }
-
   const validationErrors: { index: number; error: string }[] = []
   const validated: z.infer<typeof itemSchema>[] = []
 

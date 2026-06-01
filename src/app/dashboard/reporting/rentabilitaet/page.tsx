@@ -30,6 +30,34 @@ export default function ReportingRentabilitaetPage() {
   const [ohneInvestitionen, setOhneInvestitionen] = useState(false)
   const [selectedPositionIds, setSelectedPositionIds] = useState<string[]>([])
   const initializedRef = useRef(false)
+  const absatzScrollRef = useRef<HTMLDivElement>(null)
+  const matrixScrollRef = useRef<HTMLDivElement>(null)
+
+  // Horizontales Scroll-Sync zwischen Absatztabelle und Matrix
+  useEffect(() => {
+    const el1 = absatzScrollRef.current
+    const el2 = matrixScrollRef.current
+    if (!el1 || !el2) return
+    let syncing = false
+    function syncFromAbsatz() {
+      if (syncing) return
+      syncing = true
+      el2!.scrollLeft = el1!.scrollLeft
+      syncing = false
+    }
+    function syncFromMatrix() {
+      if (syncing) return
+      syncing = true
+      el1!.scrollLeft = el2!.scrollLeft
+      syncing = false
+    }
+    el1.addEventListener('scroll', syncFromAbsatz)
+    el2.addEventListener('scroll', syncFromMatrix)
+    return () => {
+      el1.removeEventListener('scroll', syncFromAbsatz)
+      el2.removeEventListener('scroll', syncFromMatrix)
+    }
+  }, [data, absatzData])
 
   // Standard-Positionen beim ersten Laden vorauswählen
   useEffect(() => {
@@ -156,6 +184,7 @@ export default function ReportingRentabilitaetPage() {
             loading={absatzLoading}
             hasDateRange={hasValidDateRange}
             displayPerioden={displayPerioden}
+            scrollContainerRef={absatzScrollRef}
           />
 
           {/* Matrix */}
@@ -166,6 +195,7 @@ export default function ReportingRentabilitaetPage() {
             anzeigemodus={anzeigemodus}
             displayPerioden={displayPerioden}
             ohneInvestitionen={ohneInvestitionen}
+            scrollContainerRef={matrixScrollRef}
           />
 
         </div>

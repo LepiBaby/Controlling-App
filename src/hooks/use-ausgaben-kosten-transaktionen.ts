@@ -51,7 +51,7 @@ export interface AusgabenFilter {
   excludeSellerboard?: boolean
 }
 
-export type SortColumn = 'leistungsdatum' | 'betrag_brutto'
+export type SortColumn = 'leistungsdatum' | 'zahlungsdatum' | 'betrag_brutto'
 export type SortDirection = 'asc' | 'desc'
 
 export interface ColumnVisibility {
@@ -74,7 +74,7 @@ export function useAusgabenKostenTransaktionen() {
   const [page, setPageState] = useState(1)
   const [pageSize, setPageSizeState] = useState(50)
   const [filter, setFilterState] = useState<AusgabenFilter>({})
-  const [sortColumn, setSortColumn] = useState<SortColumn>('leistungsdatum')
+  const [sortColumn, setSortColumn] = useState<SortColumn>('zahlungsdatum')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
 
   const fetchData = useCallback(async () => {

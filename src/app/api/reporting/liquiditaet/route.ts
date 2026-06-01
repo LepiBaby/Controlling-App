@@ -151,25 +151,53 @@ export async function GET(request: Request) {
       .select('zahlungsdatum, betrag, kategorie_id, gruppe_id, untergruppe_id, sales_plattform_id, produkt_id')
       .gte('zahlungsdatum', vonDate)
       .lte('zahlungsdatum', bisDate),
-    supabase
-      .from('ausgaben_kosten_transaktionen')
-      .select('zahlungsdatum, betrag_brutto, kategorie_id, gruppe_id, untergruppe_id, sales_plattform_id, produkt_id')
-      .not('zahlungsdatum', 'is', null)
-      .in('relevanz', ['liquiditaet', 'beides'])
-      .gte('zahlungsdatum', vonDate)
-      .lte('zahlungsdatum', bisDate),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (async (): Promise<{ data: any[] | null; error: any }> => {
+      const PAGE = 1000
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const all: any[] = []
+      let from = 0
+      for (;;) {
+        const { data, error } = await supabase
+          .from('ausgaben_kosten_transaktionen')
+          .select('zahlungsdatum, betrag_brutto, kategorie_id, gruppe_id, untergruppe_id, sales_plattform_id, produkt_id')
+          .not('zahlungsdatum', 'is', null)
+          .in('relevanz', ['liquiditaet', 'beides'])
+          .gte('zahlungsdatum', vonDate)
+          .lte('zahlungsdatum', bisDate)
+          .range(from, from + PAGE - 1)
+        if (error) return { data: null, error }
+        if (data) all.push(...data)
+        if (!data || data.length < PAGE) return { data: all, error: null }
+        from += PAGE
+      }
+    })(),
     // Alle Einnahmen vor dem Zeitraum für Anfangsbestand
     supabase
       .from('einnahmen_transaktionen')
       .select('betrag')
       .lt('zahlungsdatum', vonDate),
     // Alle Ausgaben vor dem Zeitraum für Anfangsbestand
-    supabase
-      .from('ausgaben_kosten_transaktionen')
-      .select('betrag_brutto')
-      .not('zahlungsdatum', 'is', null)
-      .in('relevanz', ['liquiditaet', 'beides'])
-      .lt('zahlungsdatum', vonDate),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (async (): Promise<{ data: any[] | null; error: any }> => {
+      const PAGE = 1000
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const all: any[] = []
+      let from = 0
+      for (;;) {
+        const { data, error } = await supabase
+          .from('ausgaben_kosten_transaktionen')
+          .select('betrag_brutto')
+          .not('zahlungsdatum', 'is', null)
+          .in('relevanz', ['liquiditaet', 'beides'])
+          .lt('zahlungsdatum', vonDate)
+          .range(from, from + PAGE - 1)
+        if (error) return { data: null, error }
+        if (data) all.push(...data)
+        if (!data || data.length < PAGE) return { data: all, error: null }
+        from += PAGE
+      }
+    })(),
   ])
 
   if (einKatErr) return NextResponse.json({ error: einKatErr.message }, { status: 500 })

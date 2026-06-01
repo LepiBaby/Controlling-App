@@ -47,6 +47,7 @@ Die Datei enthält eine Kopfzeile und eine Datenzeile pro Datum × SKU:
 | `Refund Principal` | Zahl (negativ) | → Rückerstattungen (Absolutwert) |
 | `Refund RefundCommission` | Zahl (negativ) | → Verkaufsgebühr |
 | `Commission` | Zahl (negativ) | → Verkaufsgebühr |
+| `ShippingHB` | Zahl (negativ, selten) | → Verkaufsgebühr |
 
 Alle anderen Spalten werden ignoriert. Spaltenreihenfolge ist irrelevant — Zuordnung erfolgt anhand des exakten Spaltennamens.
 
@@ -75,7 +76,7 @@ Summiert werden pro (Datum × Produkt): alle numerischen Spalten (Sales, Units, 
 | KPI-Typ | Formel (Netto) | Kategorie → Gruppe |
 |---|---|---|
 | **Amazon Ads** | \|SponsoredProducts + SponsoredDisplay + SponsoredBrands + SponsoredBrandsVideo\| | Marketing → Amazon Ads |
-| **Verkaufsgebühr** | \|Commission + Refund RefundCommission + Refund Commission\| | Vertrieb → Verkaufsgebühren |
+| **Verkaufsgebühr** | \|Commission + Refund RefundCommission + Refund Commission + ShippingHB\| | Vertrieb → Verkaufsgebühren |
 | **Retourenkosten** | Vom Nutzer in Schritt 2 manuell eingegeben (pro Monat × Produkt) | Vertrieb → Retouren |
 
 **Monatliche Einträge** (pro erkanntem Monat, optional, vom Nutzer in Schritt 2 eingegeben):

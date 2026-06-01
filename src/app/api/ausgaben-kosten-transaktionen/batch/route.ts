@@ -2,16 +2,14 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/supabase-server'
 
-const MAX_BATCH_SIZE = 500
-
 const UST_SAETZE = ['100', '19', '7', '0', 'individuell'] as const
 
 const itemSchema = z.object({
   leistungsdatum:     z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Ungültiges Datumsformat (YYYY-MM-DD)'),
   zahlungsdatum:      z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
-  betrag_brutto:      z.number().positive('Bruttobetrag muss größer als 0 sein'),
+  betrag_brutto:      z.number().refine(n => n !== 0, { message: 'Bruttobetrag darf nicht 0 sein' }),
   ust_satz:           z.enum(UST_SAETZE, { message: 'Ungültiger USt-Satz' }),
-  ust_betrag:         z.number().min(0, 'USt-Betrag darf nicht negativ sein'),
+  ust_betrag:         z.number(),
   kategorie_id:       z.string().uuid('Ungültige Kategorie-ID'),
   gruppe_id:          z.string().uuid().nullable().optional(),
   untergruppe_id:     z.string().uuid().nullable().optional(),
@@ -56,13 +54,6 @@ export async function POST(request: Request) {
 
   if (body.length === 0) {
     return NextResponse.json({ error: 'Array darf nicht leer sein' }, { status: 400 })
-  }
-
-  if (body.length > MAX_BATCH_SIZE) {
-    return NextResponse.json(
-      { error: `Maximal ${MAX_BATCH_SIZE} Transaktionen pro Import erlaubt` },
-      { status: 400 }
-    )
   }
 
   // Validate each item

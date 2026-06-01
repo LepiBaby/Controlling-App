@@ -26,6 +26,7 @@ interface ConflictItem {
   existingBetrag: number
   existingBeschreibung: string | null
   existingLeistungsdatum: string
+  existingRelevanz: string | null
 }
 
 type ConflictDecision = 'keep_old' | 'keep_new' | 'keep_both'
@@ -167,14 +168,14 @@ export function SellerboardImportWizard({
   // Visible / hidden counts for Step 3
   const { visibleRows, hiddenCount } = useMemo(() => {
     const hidden = importRows.filter(r => r.betragNetto === 0 && !r.hatWarnung)
-    const visible = showHidden ? importRows : importRows.filter(r => r.betragNetto > 0 || r.hatWarnung)
+    const visible = showHidden ? importRows : importRows.filter(r => r.betragNetto !== 0 || r.hatWarnung)
     return { visibleRows: visible, hiddenCount: hidden.length }
   }, [importRows, showHidden])
 
   const umsatzCount = useMemo(() => importRows.filter(r => r.rowType === 'umsatz' && r.betragNetto > 0).length, [importRows])
-  const ausgabenCount = useMemo(() => importRows.filter(r => r.rowType === 'ausgaben' && r.betragNetto > 0).length, [importRows])
-  const errorCount = useMemo(() => importRows.filter(r => r.hatFehler && r.betragNetto > 0).length, [importRows])
-  const allValid = errorCount === 0 && importRows.some(r => r.betragNetto > 0)
+  const ausgabenCount = useMemo(() => importRows.filter(r => r.rowType === 'ausgaben' && r.betragNetto !== 0).length, [importRows])
+  const errorCount = useMemo(() => importRows.filter(r => r.hatFehler && r.betragNetto !== 0).length, [importRows])
+  const allValid = errorCount === 0 && importRows.some(r => r.betragNetto !== 0)
 
   // ── File processing ──────────────────────────────────────────────────────
 
@@ -282,7 +283,7 @@ export function SellerboardImportWizard({
       setStep(4)
       setConflicts([])
       setDuplicates([])
-      setNewTransactions(importRows.filter(r => r.betragNetto > 0))
+      setNewTransactions(importRows.filter(r => r.betragNetto !== 0))
       return
     }
     setLoadingConflicts(true)
@@ -298,7 +299,7 @@ export function SellerboardImportWizard({
         fetchAllPages('/api/ausgaben-kosten-transaktionen', von, bis),
       ])
 
-      const activeRows = importRows.filter(r => r.betragNetto > 0)
+      const activeRows = importRows.filter(r => r.betragNetto !== 0)
       const foundConflicts: ConflictItem[] = []
       const foundDuplicates: SellerboardImportRow[] = []
       const foundNew: SellerboardImportRow[] = []
@@ -330,6 +331,7 @@ export function SellerboardImportWizard({
               existingBetrag: existingBetragNetto,
               existingBeschreibung: (match.beschreibung as string) ?? null,
               existingLeistungsdatum: match.leistungsdatum as string,
+              existingRelevanz: (match.relevanz as string) ?? null,
             })
             defaultDecisions[row._id] = 'keep_new'
           }
@@ -366,7 +368,7 @@ export function SellerboardImportWizard({
     setImportError(null)
     try {
       // Determine which rows to import and which to delete
-      const activeRows = importRows.filter(r => r.betragNetto > 0)
+      const activeRows = importRows.filter(r => r.betragNetto !== 0)
       const toImport = activeRows.filter(r => {
         const decision = conflictDecisions[r._id]
         return !decision || decision === 'keep_new' || decision === 'keep_both'
@@ -409,8 +411,8 @@ export function SellerboardImportWizard({
         umsatzSuccess = d.successCount ?? umsatzRows.length
       }
 
-      // Batch import Ausgaben
-      const ausgabenRows = toImport.filter(r => r.rowType === 'ausgaben')
+      // Batch import Ausgaben (skip zero-brutto rows, but allow negative = Gutschriften)
+      const ausgabenRows = toImport.filter(r => r.rowType === 'ausgaben' && r.betragBrutto !== 0)
       let ausgabenSuccess = 0
       if (ausgabenRows.length > 0) {
         const res = await fetch('/api/ausgaben-kosten-transaktionen/batch', {
@@ -1136,6 +1138,9 @@ function Step4Conflicts({
                 <Button variant="outline" size="sm" onClick={() => onGlobalDecision('keep_old')}>
                   Alle bestehenden behalten
                 </Button>
+                <Button variant="outline" size="sm" onClick={() => onGlobalDecision('keep_both')}>
+                  Alle beide behalten
+                </Button>
               </div>
               <div className="space-y-3">
                 {conflicts.map(c => (
@@ -1152,6 +1157,9 @@ function Step4Conflicts({
                       <div className="rounded bg-muted/40 p-2 space-y-0.5">
                         <p className="font-medium text-muted-foreground">Bestehend</p>
                         <p>{EUR.format(c.existingBetrag)} €</p>
+                        {c.existingRelevanz && (
+                          <p className="text-muted-foreground">{{ rentabilitaet: 'Rentabilität', liquiditaet: 'Liquidität', beides: 'Beides' }[c.existingRelevanz] ?? c.existingRelevanz}</p>
+                        )}
                         {c.existingBeschreibung && (
                           <p className="text-muted-foreground truncate">{c.existingBeschreibung}</p>
                         )}

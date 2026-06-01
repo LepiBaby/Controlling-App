@@ -1,6 +1,7 @@
 'use client'
 
 import { Fragment, useState } from 'react'
+import type React from 'react'
 import { ChevronRight, ChevronDown } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { AbsatzData } from '@/hooks/use-reporting-absatz'
@@ -23,9 +24,10 @@ interface Props {
   loading: boolean
   hasDateRange: boolean
   displayPerioden: string[]
+  scrollContainerRef?: React.RefObject<HTMLDivElement | null>
 }
 
-export function AbsatzTable({ data, loading, hasDateRange, displayPerioden }: Props) {
+export function AbsatzTable({ data, loading, hasDateRange, displayPerioden, scrollContainerRef }: Props) {
   const [gesamtExpanded, setGesamtExpanded] = useState(false)
   const [expandedProduktIds, setExpandedProduktIds] = useState<Set<string>>(new Set())
 
@@ -49,7 +51,7 @@ export function AbsatzTable({ data, loading, hasDateRange, displayPerioden }: Pr
       {loading ? (
         <Skeleton className="h-12 w-full rounded-md" />
       ) : (
-        <div className="overflow-x-auto rounded-md border">
+        <div ref={scrollContainerRef} className="overflow-x-auto rounded-md border">
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="border-b bg-muted/40">

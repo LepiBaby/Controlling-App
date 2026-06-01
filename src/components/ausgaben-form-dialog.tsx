@@ -110,7 +110,7 @@ export function AusgabenFormDialog({
 
   const individuellInvalid =
     ustSatz === 'individuell' &&
-    (Number(ustBetragIndividuell) <= 0 || Number(ustBetragIndividuell) >= brutto)
+    (Number(ustBetragIndividuell) <= 0 || Number(ustBetragIndividuell) > brutto)
 
   const isValid =
     !!leistungsdatum &&
@@ -118,7 +118,7 @@ export function AusgabenFormDialog({
     !!ustSatz &&
     !!kategorieId &&
     !!relevanz &&
-    (ustSatz !== 'individuell' || (Number(ustBetragIndividuell) > 0 && Number(ustBetragIndividuell) < brutto)) &&
+    (ustSatz !== 'individuell' || (Number(ustBetragIndividuell) > 0 && Number(ustBetragIndividuell) <= brutto)) &&
     (!showGruppe || !!gruppeId) &&
     (!showUntergruppe || !!untergruppeId) &&
     (!showSalesPlattform || !!salesPlattformId) &&
@@ -365,8 +365,8 @@ export function AusgabenFormDialog({
               />
               {individuellInvalid && ustBetragIndividuell && (
                 <p className="text-xs text-destructive">
-                  {Number(ustBetragIndividuell) >= brutto
-                    ? 'USt-Betrag darf nicht größer oder gleich dem Bruttobetrag sein.'
+                  {Number(ustBetragIndividuell) > brutto
+                    ? 'USt-Betrag darf nicht größer als der Bruttobetrag sein.'
                     : 'USt-Betrag muss größer als 0 sein.'}
                 </p>
               )}
