@@ -63,7 +63,8 @@
 | PROJ-40 | Betragsselektion in Transaktionstabellen | Deployed | [PROJ-40-betragsselektion-tabellen.md](PROJ-40-betragsselektion-tabellen.md) | 2026-05-22 |
 
 | PROJ-41 | Bereichswechsler — Plattform-Navigation | Approved | [PROJ-41-bereichswechsler.md](PROJ-41-bereichswechsler.md) | 2026-06-01 |
+| PROJ-42 | Absatzeinstellungen — Kurzfristige Planung | Planned | [PROJ-42-absatzeinstellungen.md](PROJ-42-absatzeinstellungen.md) | 2026-06-01 |
 
 <!-- Add features above this line -->
 
-## Next Available ID: PROJ-42
+## Next Available ID: PROJ-43
