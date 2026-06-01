@@ -1,6 +1,6 @@
 # PROJ-44: Versandausgaben-Einstellungen — Kurzfristige Planung
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-06-01
 **Last Updated:** 2026-06-01
 
@@ -277,6 +277,26 @@ PUT  /api/versandausgaben-allgemein-einstellungen
 | Speichern | Auto-Save (onBlur / onChange je Feld) | Kein globaler Submit-Button — einheitlich mit allen anderen Einstellungsseiten im Projekt |
 | Dezimalzahl (Versandgebühr) | NUMERIC(10,2) | Erlaubt Werte wie 4.99 €; 10 Stellen inkl. 2 Nachkommastellen reichen für Versandgebühren |
 | Neue Packages | Keine | Tabs, Select, Table, Input — alles bereits in shadcn/ui installiert |
+
+## Implementation Notes (Frontend — 2026-06-01)
+
+### Neue Dateien
+- `src/hooks/use-versandausgaben-einstellungen.ts` — Typ `VersandausgabenEinstellung`, Hook `useVersandausgabenEinstellungen(plattformId)` mit Laden, optimistischem Upsert und Rollback
+- `src/hooks/use-versandausgaben-allgemein-einstellungen.ts` — Typ `VersandausgabenAllgemeinEinstellungen`, Konstanten `GRUPPIERUNGEN` und `GRUPPIERUNG_LABELS`, Hook `useVersandausgabenAllgemeinEinstellungen()` mit Laden und Upsert
+- `src/components/versandausgaben-einstellungen-tabelle.tsx` — Vier Komponenten: `VersandausgabenEinstellungZeile` (lokaler State, Auto-Save onBlur), `PlattformTabelle` (pro Plattform mit eigenem Hook-Aufruf), `AllgemeinForm` (Gruppierung Select + Zahlungsziel Input, useRef für Initialisierung), `VersandausgabenEinstellungenTabelle` (Export, lädt Plattformen + Produkte, rendert Tabs inkl. festem Allgemein-Tab)
+- `src/app/dashboard/kurzfristige-planung/versandausgaben-einstellungen/page.tsx` — Client Component, Page-Header + `VersandausgabenEinstellungenTabelle`
+
+### Geänderte Dateien
+- `src/components/nav-sheet.tsx` — Eintrag „Versandausgaben-Einstellungen" zur bestehenden Gruppe „Kurzfristige Planung" ergänzt
+- `src/app/dashboard/kurzfristige-planung/page.tsx` — Kachel „Versandausgaben-Einstellungen" zum Kachelraster hinzugefügt
+
+### Designentscheidungen
+- `AllgemeinForm` nutzt einen `useRef`-Guard (`initializedRef`) um den lokalen `zahlungszielStr`-State genau einmal beim ersten vollständigen Laden zu initialisieren — verhindert Überschreiben von Nutzereingaben durch verzögerte API-Antworten
+- Zahlungsziel-Wert wird auf `Math.round()` gerundet damit Dezimalzahlen korrekt auf Integer gemappt werden
+- „Allgemein"-Tab ist immer der letzte Tab; `defaultValue="allgemein"` wenn keine Plattformen im KPI-Modell gepflegt sind
+
+### Build
+- `npm run build` ✅ — alle 54 Routen korrekt, `/dashboard/kurzfristige-planung/versandausgaben-einstellungen` in der Route-Liste
 
 ## QA Test Results
 _To be added by /qa_
