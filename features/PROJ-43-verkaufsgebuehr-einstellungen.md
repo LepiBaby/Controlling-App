@@ -222,6 +222,22 @@ PUT  /api/verkaufsgebuehr-einstellungen
 ### Build
 - `npm run build` ✅ — neue Route `/dashboard/kurzfristige-planung/verkaufsgebuehr-einstellungen` in der Route-Liste
 
+## Implementation Notes (Backend — 2026-06-01)
+
+### Datenbankmigrierung
+- Migration `proj43_verkaufsgebuehr_einstellungen` erfolgreich auf Supabase-Projekt `kdmpghtdoguppfqhdscq` angewendet
+- Tabelle `verkaufsgebuehr_einstellungen` angelegt mit: UUID-PK, FKs zu `kpi_categories` (ON DELETE CASCADE) und `auth.users` (ON DELETE CASCADE), NUMERIC(6,2) für den Gebührenwert (nullable), UNIQUE-Constraint `(sales_plattform_id, produkt_id, user_id)`
+- RLS aktiviert mit 4 Policies: SELECT/INSERT/UPDATE/DELETE — jeder Nutzer sieht und schreibt nur eigene Einträge
+- Index `idx_verkaufsgebuehr_einstellungen_plattform_user` auf `(sales_plattform_id, user_id)` für performante GET-Abfragen
+
+### API-Routen
+- `GET /api/verkaufsgebuehr-einstellungen?plattform_id=<UUID>` — lädt alle Einstellungen des eingeloggten Nutzers für eine Plattform; UUID-Validierung via Regex; `.limit(500)`
+- `PUT /api/verkaufsgebuehr-einstellungen` — Upsert via Supabase `onConflict: 'sales_plattform_id,produkt_id,user_id'`; Zod-Schema validiert `verkaufsgebuehr_prozent` als Zahl ≥ 0 oder null
+
+### Tests
+- `src/app/api/verkaufsgebuehr-einstellungen/route.test.ts` — 16 Tests (Vitest): 6 für GET, 10 für PUT
+- Alle 16 Tests bestehen ✅
+
 ## QA Test Results
 _To be added by /qa_
 
