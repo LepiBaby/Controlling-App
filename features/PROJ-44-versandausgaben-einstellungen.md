@@ -1,6 +1,6 @@
 # PROJ-44: Versandausgaben-Einstellungen — Kurzfristige Planung
 
-## Status: In Progress
+## Status: In Review
 **Created:** 2026-06-01
 **Last Updated:** 2026-06-01
 
@@ -298,27 +298,47 @@ PUT  /api/versandausgaben-allgemein-einstellungen
 ### Build
 - `npm run build` ✅ — alle 54 Routen korrekt, `/dashboard/kurzfristige-planung/versandausgaben-einstellungen` in der Route-Liste
 
-## Implementation Notes (Backend — 2026-06-01)
+## Implementation Notes (Backend — 2026-06-01, v1)
 
-### Datenbankmigrierung
+### Datenbankmigrierung (v1)
 - Migration `proj44_versandausgaben_einstellungen` erfolgreich auf Supabase-Projekt `kdmpghtdoguppfqhdscq` angewendet
-- Tabelle `versandausgaben_einstellungen` angelegt mit: UUID-PK, FKs zu `kpi_categories` (ON DELETE CASCADE) und `auth.users` (ON DELETE CASCADE), NUMERIC(10,2) für den Gebührenwert (nullable), UNIQUE-Constraint `(sales_plattform_id, produkt_id, user_id)`
-- Tabelle `versandausgaben_allgemein_einstellungen` angelegt mit: UUID-PK, FK zu `auth.users` (ON DELETE CASCADE), TEXT mit CHECK-Constraint auf 3 erlaubte Werte (DEFAULT 'monatlich'), INTEGER CHECK (≥ 0) für Zahlungsziel, UNIQUE-Constraint `(user_id)` — ein Eintrag pro Nutzer
-- RLS aktiviert mit je 4 Policies (SELECT/INSERT/UPDATE/DELETE) auf beiden Tabellen
-- Indexes: `idx_versandausgaben_einstellungen_plattform_user` auf `(sales_plattform_id, user_id)`, `idx_versandausgaben_allgemein_user` auf `(user_id)`
+- Tabelle `versandausgaben_einstellungen` angelegt (mit `versandgebuehr_euro_netto`, NUMERIC(10,2))
+- Tabelle `versandausgaben_allgemein_einstellungen` angelegt (Gruppierung + Zahlungsziel, pro Nutzer)
+- RLS, Indexes, Constraints — siehe v2-Notes unten für aktuellen Stand
 
-### API-Routen
-- `GET /api/versandausgaben-einstellungen?plattform_id=<UUID>` — UUID-Validierung via Regex; `.limit(500)`; gibt Array oder leeres Array zurück
-- `PUT /api/versandausgaben-einstellungen` — Upsert via `onConflict: 'sales_plattform_id,produkt_id,user_id'`; Zod validiert `versandgebuehr_euro_netto` als Zahl ≥ 0 oder null
-- `GET /api/versandausgaben-allgemein-einstellungen` — `.maybeSingle()`; gibt Objekt oder null zurück
-- `PUT /api/versandausgaben-allgemein-einstellungen` — Fetch-then-merge-Pattern: liest aktuelle Werte, merged mit den gesendeten Feldern, dann Upsert via `onConflict: 'user_id'`; `'zahlungsziel_tage' in body`-Check ermöglicht explizites Setzen auf null vs. Feld-nicht-gesendet
+### Abweichungen von der Spec (v1 → v2 Redesign)
+Auf Wunsch des Nutzers wurde das Design nach der v1-Implementierung komplett restrukturiert:
 
-### Abweichungen von der Spec
-- Keine
+1. **Kein „Allgemein"-Tab mehr** — `versandausgaben_allgemein_einstellungen`-Tabelle und alle zugehörigen Dateien wurden entfernt
+2. **Gruppierung + Zahlungsziel jetzt pro Sales-Plattform** — neue Tabelle `versandausgaben_plattform_einstellungen`; die zwei Felder erscheinen oben in jedem Plattform-Tab
+3. **Versandgebühr-Spalte aufgeteilt** — aus einer Spalte `versandgebuehr_euro_netto` wurden drei: `versandgebuehr_spediteur` (editierbar), `versandgebuehr_3pl` (editierbar), Summe (read-only, automatisch berechnet)
 
-### Tests
-- `src/app/api/versandausgaben-einstellungen/route.test.ts` — 14 Tests (Vitest): 6 für GET, 8 für PUT — alle bestanden ✅
-- `src/app/api/versandausgaben-allgemein-einstellungen/route.test.ts` — 17 Tests (Vitest): 4 für GET, 13 für PUT — alle bestanden ✅
+## Implementation Notes (Backend — 2026-06-01, v2 Redesign)
+
+### Datenbankmigrierung (v2)
+- Migration `proj44_versandausgaben_v2_restructure` auf Supabase angewendet:
+  - Alte Tabellen `versandausgaben_einstellungen` und `versandausgaben_allgemein_einstellungen` gedroppt
+  - Neue Tabelle `versandausgaben_einstellungen` angelegt mit `versandgebuehr_spediteur` NUMERIC(10,4) und `versandgebuehr_3pl` NUMERIC(10,4) (beide nullable), UNIQUE `(sales_plattform_id, produkt_id, user_id)`
+  - Neue Tabelle `versandausgaben_plattform_einstellungen` angelegt mit `gruppierung` TEXT (DEFAULT 'monatlich', CHECK auf 3 Werte) und `zahlungsziel_tage` INTEGER (CHECK ≥ 0), UNIQUE `(sales_plattform_id, user_id)`
+  - RLS mit je 4 Policies (SELECT/INSERT/UPDATE/DELETE) auf beiden Tabellen
+  - Indexes: `idx_ve_plattform_user` auf `versandausgaben_einstellungen(sales_plattform_id, user_id)`, `idx_vpe_plattform_user` auf `versandausgaben_plattform_einstellungen(sales_plattform_id, user_id)`
+
+### API-Routen (v2)
+- `GET /api/versandausgaben-einstellungen?plattform_id=<UUID>` — gibt Array mit `id, sales_plattform_id, produkt_id, versandgebuehr_spediteur, versandgebuehr_3pl` zurück
+- `PUT /api/versandausgaben-einstellungen` — Upsert via `onConflict: 'sales_plattform_id,produkt_id,user_id'`; Zod validiert beide Gebührenfelder als Zahl ≥ 0 oder null; beide Felder werden immer zusammen gesendet (blur eines Felds sendet aktuellen Wert des anderen mit)
+- `GET /api/versandausgaben-plattform-einstellungen?plattform_id=<UUID>` — gibt `{ gruppierung, zahlungsziel_tage }` oder null zurück
+- `PUT /api/versandausgaben-plattform-einstellungen` — Fetch-then-merge-Pattern; `'zahlungsziel_tage' in body`-Check für explizites null vs. nicht-gesendet; Upsert via `onConflict: 'sales_plattform_id,user_id'`
+
+### Gelöschte Dateien (v1 → v2)
+- `src/hooks/use-versandausgaben-allgemein-einstellungen.ts` — ersetzt durch `use-versandausgaben-plattform-einstellungen.ts`
+- `src/app/api/versandausgaben-allgemein-einstellungen/route.ts` — ersetzt durch `versandausgaben-plattform-einstellungen/route.ts`
+
+### Tests (v2)
+- `src/app/api/versandausgaben-einstellungen/route.test.ts` — 24 Tests (Vitest): 5 GET, 10 PUT — alle bestanden ✅
+- `src/app/api/versandausgaben-plattform-einstellungen/route.test.ts` — 15 Tests (Vitest): 5 GET, 10 PUT — alle bestanden ✅
+
+### Build (v2)
+- `npm run build` ✅ — 58 Routen, TypeScript-Fehler: keine, `/dashboard/kurzfristige-planung/versandausgaben-einstellungen` in der Route-Liste
 
 ## QA Test Results
 _To be added by /qa_

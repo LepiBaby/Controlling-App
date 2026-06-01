@@ -6,7 +6,8 @@ export interface VersandausgabenEinstellung {
   id?: string
   sales_plattform_id: string
   produkt_id: string
-  versandgebuehr_euro_netto: number | null
+  versandgebuehr_spediteur: number | null
+  versandgebuehr_3pl: number | null
 }
 
 export function useVersandausgabenEinstellungen(plattformId: string | null) {
@@ -36,12 +37,18 @@ export function useVersandausgabenEinstellungen(plattformId: string | null) {
   const getEinstellung = useCallback(
     (produktId: string): VersandausgabenEinstellung => {
       if (!plattformId)
-        return { sales_plattform_id: '', produkt_id: produktId, versandgebuehr_euro_netto: null }
+        return {
+          sales_plattform_id: '',
+          produkt_id: produktId,
+          versandgebuehr_spediteur: null,
+          versandgebuehr_3pl: null,
+        }
       return (
         einstellungen.find(e => e.produkt_id === produktId) ?? {
           sales_plattform_id: plattformId,
           produkt_id: produktId,
-          versandgebuehr_euro_netto: null,
+          versandgebuehr_spediteur: null,
+          versandgebuehr_3pl: null,
         }
       )
     },

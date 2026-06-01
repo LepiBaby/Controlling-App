@@ -7,7 +7,8 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 const putSchema = z.object({
   sales_plattform_id: z.string().uuid(),
   produkt_id: z.string().uuid(),
-  versandgebuehr_euro_netto: z.number().min(0).nullable().optional(),
+  versandgebuehr_spediteur: z.number().min(0).nullable().optional(),
+  versandgebuehr_3pl: z.number().min(0).nullable().optional(),
 })
 
 export async function GET(request: Request) {
@@ -27,7 +28,7 @@ export async function GET(request: Request) {
 
   const { data, error: dbErr } = await supabase
     .from('versandausgaben_einstellungen')
-    .select('id, sales_plattform_id, produkt_id, versandgebuehr_euro_netto')
+    .select('id, sales_plattform_id, produkt_id, versandgebuehr_spediteur, versandgebuehr_3pl')
     .eq('user_id', user!.id)
     .eq('sales_plattform_id', plattformId)
     .limit(500)
@@ -49,7 +50,12 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
   }
 
-  const { sales_plattform_id, produkt_id, versandgebuehr_euro_netto = null } = parsed.data
+  const {
+    sales_plattform_id,
+    produkt_id,
+    versandgebuehr_spediteur = null,
+    versandgebuehr_3pl = null,
+  } = parsed.data
 
   const { data, error: dbErr } = await supabase
     .from('versandausgaben_einstellungen')
@@ -57,13 +63,14 @@ export async function PUT(request: Request) {
       {
         sales_plattform_id,
         produkt_id,
-        versandgebuehr_euro_netto: versandgebuehr_euro_netto ?? null,
+        versandgebuehr_spediteur: versandgebuehr_spediteur ?? null,
+        versandgebuehr_3pl: versandgebuehr_3pl ?? null,
         user_id: user!.id,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'sales_plattform_id,produkt_id,user_id' }
     )
-    .select('id, sales_plattform_id, produkt_id, versandgebuehr_euro_netto')
+    .select('id, sales_plattform_id, produkt_id, versandgebuehr_spediteur, versandgebuehr_3pl')
     .single()
 
   if (dbErr || !data) {

@@ -23,7 +23,8 @@ const MOCK_EINSTELLUNG = {
   id: EINTRAG_ID,
   sales_plattform_id: PLATTFORM_ID,
   produkt_id: PRODUKT_ID,
-  versandgebuehr_euro_netto: 4.99,
+  versandgebuehr_spediteur: 4.99,
+  versandgebuehr_3pl: 2.50,
 }
 
 beforeEach(() => {
@@ -44,67 +45,39 @@ describe('GET /api/versandausgaben-einstellungen', () => {
   it('returns 400 when plattform_id is not a valid UUID', async () => {
     const res = await GET(req('http://localhost/api/versandausgaben-einstellungen?plattform_id=not-a-uuid'))
     expect(res.status).toBe(400)
-    const body = await res.json()
-    expect(body.error).toMatch(/plattform_id/)
   })
 
   it('returns 200 with empty array when no einstellungen exist', async () => {
     mockFrom.mockReturnValueOnce({
-      select: () => ({
-        eq: () => ({
-          eq: () => ({
-            limit: () => ({ data: [], error: null }),
-          }),
-        }),
-      }),
+      select: () => ({ eq: () => ({ eq: () => ({ limit: () => ({ data: [], error: null }) }) }) }),
     })
-
     const res = await GET(req(`http://localhost/api/versandausgaben-einstellungen?plattform_id=${PLATTFORM_ID}`))
     expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body).toEqual([])
+    expect(await res.json()).toEqual([])
   })
 
-  it('returns 200 with einstellungen for the given plattform', async () => {
+  it('returns 200 with both versandgebühr fields', async () => {
     mockFrom.mockReturnValueOnce({
-      select: () => ({
-        eq: () => ({
-          eq: () => ({
-            limit: () => ({ data: [MOCK_EINSTELLUNG], error: null }),
-          }),
-        }),
-      }),
+      select: () => ({ eq: () => ({ eq: () => ({ limit: () => ({ data: [MOCK_EINSTELLUNG], error: null }) }) }) }),
     })
-
     const res = await GET(req(`http://localhost/api/versandausgaben-einstellungen?plattform_id=${PLATTFORM_ID}`))
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body).toHaveLength(1)
-    expect(body[0].versandgebuehr_euro_netto).toBe(4.99)
-    expect(body[0].sales_plattform_id).toBe(PLATTFORM_ID)
+    expect(body[0].versandgebuehr_spediteur).toBe(4.99)
+    expect(body[0].versandgebuehr_3pl).toBe(2.50)
   })
 
   it('returns 401 when unauthenticated', async () => {
     const { requireAuth } = await import('@/lib/supabase-server')
-    vi.mocked(requireAuth).mockResolvedValueOnce({
-      user: null, supabase: null as never,
-      error: new Response('Unauthorized', { status: 401 }),
-    })
+    vi.mocked(requireAuth).mockResolvedValueOnce({ user: null, supabase: null as never, error: new Response('Unauthorized', { status: 401 }) })
     const res = await GET(req(`http://localhost/api/versandausgaben-einstellungen?plattform_id=${PLATTFORM_ID}`))
     expect(res.status).toBe(401)
   })
 
   it('returns 500 when db query fails', async () => {
     mockFrom.mockReturnValueOnce({
-      select: () => ({
-        eq: () => ({
-          eq: () => ({
-            limit: () => ({ data: null, error: { message: 'DB error' } }),
-          }),
-        }),
-      }),
+      select: () => ({ eq: () => ({ eq: () => ({ limit: () => ({ data: null, error: { message: 'DB error' } }) }) }) }),
     })
-
     const res = await GET(req(`http://localhost/api/versandausgaben-einstellungen?plattform_id=${PLATTFORM_ID}`))
     expect(res.status).toBe(500)
   })
@@ -113,91 +86,69 @@ describe('GET /api/versandausgaben-einstellungen', () => {
 // ─── PUT ──────────────────────────────────────────────────────────────────────
 
 describe('PUT /api/versandausgaben-einstellungen', () => {
-  function upsertMock(
-    returnData: Record<string, unknown> | null,
-    returnError: { message: string } | null = null
-  ) {
+  function upsertMock(data: Record<string, unknown> | null, error: { message: string } | null = null) {
     mockFrom.mockReturnValueOnce({
-      upsert: () => ({
-        select: () => ({
-          single: () => ({ data: returnData, error: returnError }),
-        }),
-      }),
+      upsert: () => ({ select: () => ({ single: () => ({ data, error }) }) }),
     })
   }
 
-  it('returns 200 on upsert with a positive decimal value', async () => {
+  it('returns 200 with both versandgebühr fields', async () => {
     upsertMock(MOCK_EINSTELLUNG)
-
     const res = await PUT(req('http://localhost/api/versandausgaben-einstellungen', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sales_plattform_id: PLATTFORM_ID,
-        produkt_id: PRODUKT_ID,
-        versandgebuehr_euro_netto: 4.99,
-      }),
+      body: JSON.stringify({ sales_plattform_id: PLATTFORM_ID, produkt_id: PRODUKT_ID, versandgebuehr_spediteur: 4.99, versandgebuehr_3pl: 2.50 }),
     }))
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.versandgebuehr_euro_netto).toBe(4.99)
+    expect(body.versandgebuehr_spediteur).toBe(4.99)
+    expect(body.versandgebuehr_3pl).toBe(2.50)
   })
 
-  it('returns 200 on upsert with null (clearing the value)', async () => {
-    upsertMock({ ...MOCK_EINSTELLUNG, versandgebuehr_euro_netto: null })
-
+  it('returns 200 with only spediteur (3pl treated as null)', async () => {
+    upsertMock({ ...MOCK_EINSTELLUNG, versandgebuehr_3pl: null })
     const res = await PUT(req('http://localhost/api/versandausgaben-einstellungen', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sales_plattform_id: PLATTFORM_ID,
-        produkt_id: PRODUKT_ID,
-        versandgebuehr_euro_netto: null,
-      }),
-    }))
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.versandgebuehr_euro_netto).toBeNull()
-  })
-
-  it('returns 200 on upsert without versandgebuehr field (treated as null)', async () => {
-    upsertMock({ ...MOCK_EINSTELLUNG, versandgebuehr_euro_netto: null })
-
-    const res = await PUT(req('http://localhost/api/versandausgaben-einstellungen', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sales_plattform_id: PLATTFORM_ID,
-        produkt_id: PRODUKT_ID,
-      }),
+      body: JSON.stringify({ sales_plattform_id: PLATTFORM_ID, produkt_id: PRODUKT_ID, versandgebuehr_spediteur: 4.99 }),
     }))
     expect(res.status).toBe(200)
   })
 
-  it('returns 200 on upsert with value 0 (valid)', async () => {
-    upsertMock({ ...MOCK_EINSTELLUNG, versandgebuehr_euro_netto: 0 })
-
+  it('returns 200 with null values (clearing both fields)', async () => {
+    upsertMock({ ...MOCK_EINSTELLUNG, versandgebuehr_spediteur: null, versandgebuehr_3pl: null })
     const res = await PUT(req('http://localhost/api/versandausgaben-einstellungen', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sales_plattform_id: PLATTFORM_ID,
-        produkt_id: PRODUKT_ID,
-        versandgebuehr_euro_netto: 0,
-      }),
+      body: JSON.stringify({ sales_plattform_id: PLATTFORM_ID, produkt_id: PRODUKT_ID, versandgebuehr_spediteur: null, versandgebuehr_3pl: null }),
     }))
     expect(res.status).toBe(200)
   })
 
-  it('returns 400 when versandgebuehr_euro_netto is negative', async () => {
+  it('returns 200 with value 0 (valid)', async () => {
+    upsertMock({ ...MOCK_EINSTELLUNG, versandgebuehr_spediteur: 0 })
     const res = await PUT(req('http://localhost/api/versandausgaben-einstellungen', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sales_plattform_id: PLATTFORM_ID,
-        produkt_id: PRODUKT_ID,
-        versandgebuehr_euro_netto: -1.5,
-      }),
+      body: JSON.stringify({ sales_plattform_id: PLATTFORM_ID, produkt_id: PRODUKT_ID, versandgebuehr_spediteur: 0 }),
+    }))
+    expect(res.status).toBe(200)
+  })
+
+  it('returns 400 when versandgebuehr_spediteur is negative', async () => {
+    const res = await PUT(req('http://localhost/api/versandausgaben-einstellungen', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sales_plattform_id: PLATTFORM_ID, produkt_id: PRODUKT_ID, versandgebuehr_spediteur: -1 }),
+    }))
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 400 when versandgebuehr_3pl is negative', async () => {
+    const res = await PUT(req('http://localhost/api/versandausgaben-einstellungen', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sales_plattform_id: PLATTFORM_ID, produkt_id: PRODUKT_ID, versandgebuehr_3pl: -0.5 }),
     }))
     expect(res.status).toBe(400)
   })
@@ -206,11 +157,7 @@ describe('PUT /api/versandausgaben-einstellungen', () => {
     const res = await PUT(req('http://localhost/api/versandausgaben-einstellungen', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sales_plattform_id: 'not-a-uuid',
-        produkt_id: PRODUKT_ID,
-        versandgebuehr_euro_netto: 5,
-      }),
+      body: JSON.stringify({ sales_plattform_id: 'not-a-uuid', produkt_id: PRODUKT_ID }),
     }))
     expect(res.status).toBe(400)
   })
@@ -219,10 +166,7 @@ describe('PUT /api/versandausgaben-einstellungen', () => {
     const res = await PUT(req('http://localhost/api/versandausgaben-einstellungen', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sales_plattform_id: PLATTFORM_ID,
-        versandgebuehr_euro_netto: 5,
-      }),
+      body: JSON.stringify({ sales_plattform_id: PLATTFORM_ID }),
     }))
     expect(res.status).toBe(400)
   })
@@ -238,39 +182,21 @@ describe('PUT /api/versandausgaben-einstellungen', () => {
 
   it('returns 401 when unauthenticated', async () => {
     const { requireAuth } = await import('@/lib/supabase-server')
-    vi.mocked(requireAuth).mockResolvedValueOnce({
-      user: null, supabase: null as never,
-      error: new Response('Unauthorized', { status: 401 }),
-    })
+    vi.mocked(requireAuth).mockResolvedValueOnce({ user: null, supabase: null as never, error: new Response('Unauthorized', { status: 401 }) })
     const res = await PUT(req('http://localhost/api/versandausgaben-einstellungen', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sales_plattform_id: PLATTFORM_ID,
-        produkt_id: PRODUKT_ID,
-        versandgebuehr_euro_netto: 5,
-      }),
+      body: JSON.stringify({ sales_plattform_id: PLATTFORM_ID, produkt_id: PRODUKT_ID }),
     }))
     expect(res.status).toBe(401)
   })
 
   it('returns 500 when db upsert fails', async () => {
-    mockFrom.mockReturnValueOnce({
-      upsert: () => ({
-        select: () => ({
-          single: () => ({ data: null, error: { message: 'DB constraint violated' } }),
-        }),
-      }),
-    })
-
+    upsertMock(null, { message: 'DB error' })
     const res = await PUT(req('http://localhost/api/versandausgaben-einstellungen', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sales_plattform_id: PLATTFORM_ID,
-        produkt_id: PRODUKT_ID,
-        versandgebuehr_euro_netto: 5,
-      }),
+      body: JSON.stringify({ sales_plattform_id: PLATTFORM_ID, produkt_id: PRODUKT_ID }),
     }))
     expect(res.status).toBe(500)
   })

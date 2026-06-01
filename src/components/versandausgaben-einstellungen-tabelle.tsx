@@ -26,12 +26,117 @@ import {
   type VersandausgabenEinstellung,
 } from '@/hooks/use-versandausgaben-einstellungen'
 import {
-  useVersandausgabenAllgemeinEinstellungen,
+  useVersandausgabenPlattformEinstellungen,
   GRUPPIERUNGEN,
   GRUPPIERUNG_LABELS,
   type Gruppierung,
-} from '@/hooks/use-versandausgaben-allgemein-einstellungen'
+} from '@/hooks/use-versandausgaben-plattform-einstellungen'
 import { useToast } from '@/hooks/use-toast'
+
+// --- Plattform-Einstellungsformular (Gruppierung + Zahlungsziel) ---
+
+function PlattformEinstellungenForm({ plattformId }: { plattformId: string }) {
+  const { einstellungen, loading, error, upsert } =
+    useVersandausgabenPlattformEinstellungen(plattformId)
+  const { toast } = useToast()
+  const [zahlungszielStr, setZahlungszielStr] = useState('')
+  const initializedRef = useRef(false)
+
+  useEffect(() => {
+    if (!loading && !initializedRef.current) {
+      initializedRef.current = true
+      setZahlungszielStr(
+        einstellungen.zahlungsziel_tage != null
+          ? String(einstellungen.zahlungsziel_tage)
+          : ''
+      )
+    }
+  }, [loading, einstellungen.zahlungsziel_tage])
+
+  async function handleGruppierungChange(value: string) {
+    try {
+      await upsert({ gruppierung: value as Gruppierung })
+    } catch {
+      toast({
+        title: 'Fehler',
+        description: 'Einstellung konnte nicht gespeichert werden.',
+        variant: 'destructive',
+      })
+    }
+  }
+
+  async function handleZahlungszielBlur() {
+    const trimmed = zahlungszielStr.trim()
+    const parsed = trimmed === '' ? null : Math.round(parseFloat(trimmed))
+    if (parsed !== null && (isNaN(parsed) || parsed < 0)) return
+    if (parsed === (einstellungen.zahlungsziel_tage ?? null)) return
+    try {
+      await upsert({ zahlungsziel_tage: parsed })
+    } catch {
+      setZahlungszielStr(
+        einstellungen.zahlungsziel_tage != null
+          ? String(einstellungen.zahlungsziel_tage)
+          : ''
+      )
+      toast({
+        title: 'Fehler',
+        description: 'Einstellung konnte nicht gespeichert werden.',
+        variant: 'destructive',
+      })
+    }
+  }
+
+  if (loading) {
+    return <div className="text-sm text-muted-foreground py-2">Laden…</div>
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-lg border border-destructive bg-destructive/10 p-3 text-sm text-destructive">
+        {error}
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-lg border bg-muted/20 p-4">
+      <div className="grid gap-4 sm:grid-cols-2 max-w-lg">
+        <div className="space-y-1.5">
+          <Label htmlFor={`gruppierung-${plattformId}`}>Gruppierung</Label>
+          <Select
+            value={einstellungen.gruppierung}
+            onValueChange={handleGruppierungChange}
+          >
+            <SelectTrigger id={`gruppierung-${plattformId}`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {GRUPPIERUNGEN.map(g => (
+                <SelectItem key={g} value={g}>
+                  {GRUPPIERUNG_LABELS[g]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor={`zahlungsziel-${plattformId}`}>Zahlungsziel (Tage)</Label>
+          <Input
+            id={`zahlungsziel-${plattformId}`}
+            type="number"
+            min={0}
+            step={1}
+            value={zahlungszielStr}
+            onChange={e => setZahlungszielStr(e.target.value)}
+            onBlur={handleZahlungszielBlur}
+            placeholder="—"
+            className="w-32"
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
 
 // --- Einzelne Produktzeile ---
 
@@ -47,33 +152,44 @@ function VersandausgabenEinstellungZeile({
   onSave: (patch: Omit<VersandausgabenEinstellung, 'id'>) => Promise<void>
 }) {
   const { toast } = useToast()
-  const [localValue, setLocalValue] = useState<string>(
-    einstellung.versandgebuehr_euro_netto !== null
-      ? einstellung.versandgebuehr_euro_netto.toString()
+  const [spediteurStr, setSpediteurStr] = useState<string>(
+    einstellung.versandgebuehr_spediteur !== null
+      ? einstellung.versandgebuehr_spediteur.toString()
+      : ''
+  )
+  const [tplStr, setTplStr] = useState<string>(
+    einstellung.versandgebuehr_3pl !== null
+      ? einstellung.versandgebuehr_3pl.toString()
       : ''
   )
   const [saving, setSaving] = useState(false)
 
-  async function handleBlur() {
-    const parsed = localValue === '' ? null : parseFloat(localValue)
-    if (parsed !== null && (isNaN(parsed) || parsed < 0)) return
+  const spediteurNum =
+    spediteurStr !== '' && !isNaN(parseFloat(spediteurStr)) ? parseFloat(spediteurStr) : null
+  const tplNum =
+    tplStr !== '' && !isNaN(parseFloat(tplStr)) ? parseFloat(tplStr) : null
+  const summe =
+    spediteurNum === null && tplNum === null
+      ? null
+      : (spediteurNum ?? 0) + (tplNum ?? 0)
 
-    const current = einstellung.versandgebuehr_euro_netto
-    const next = parsed
-
-    if (current === next) return
-    if (current === null && next === null) return
-
-    const prevValue = localValue
+  async function handleSave(
+    newSpediteur: number | null,
+    newTpl: number | null
+  ) {
+    const prevSpediteur = spediteurStr
+    const prevTpl = tplStr
     setSaving(true)
     try {
       await onSave({
         sales_plattform_id: plattformId,
         produkt_id: produkt.id,
-        versandgebuehr_euro_netto: next,
+        versandgebuehr_spediteur: newSpediteur,
+        versandgebuehr_3pl: newTpl,
       })
     } catch {
-      setLocalValue(prevValue)
+      setSpediteurStr(prevSpediteur)
+      setTplStr(prevTpl)
       toast({
         title: 'Fehler',
         description: 'Einstellung konnte nicht gespeichert werden.',
@@ -84,6 +200,20 @@ function VersandausgabenEinstellungZeile({
     }
   }
 
+  function handleSpediteurBlur() {
+    const parsed = spediteurStr === '' ? null : parseFloat(spediteurStr)
+    if (parsed !== null && (isNaN(parsed) || parsed < 0)) return
+    if (parsed === einstellung.versandgebuehr_spediteur) return
+    handleSave(parsed, einstellung.versandgebuehr_3pl)
+  }
+
+  function handleTplBlur() {
+    const parsed = tplStr === '' ? null : parseFloat(tplStr)
+    if (parsed !== null && (isNaN(parsed) || parsed < 0)) return
+    if (parsed === einstellung.versandgebuehr_3pl) return
+    handleSave(einstellung.versandgebuehr_spediteur, parsed)
+  }
+
   return (
     <TableRow className={saving ? 'opacity-60' : ''}>
       <TableCell className="font-medium">{produkt.name}</TableCell>
@@ -92,14 +222,31 @@ function VersandausgabenEinstellungZeile({
           type="number"
           min={0}
           step={0.01}
-          value={localValue}
-          onChange={e => setLocalValue(e.target.value)}
-          onBlur={handleBlur}
-          className="w-36"
+          value={spediteurStr}
+          onChange={e => setSpediteurStr(e.target.value)}
+          onBlur={handleSpediteurBlur}
+          className="w-32"
           disabled={saving}
           placeholder="—"
-          aria-label={`Versandgebühr für ${produkt.name}`}
+          aria-label={`Versandausgaben Spediteur für ${produkt.name}`}
         />
+      </TableCell>
+      <TableCell>
+        <Input
+          type="number"
+          min={0}
+          step={0.01}
+          value={tplStr}
+          onChange={e => setTplStr(e.target.value)}
+          onBlur={handleTplBlur}
+          className="w-32"
+          disabled={saving}
+          placeholder="—"
+          aria-label={`Versandausgaben 3PL für ${produkt.name}`}
+        />
+      </TableCell>
+      <TableCell className="text-muted-foreground tabular-nums">
+        {summe !== null ? summe.toFixed(2) : '—'}
       </TableCell>
     </TableRow>
   )
@@ -118,7 +265,7 @@ function PlattformTabelle({
     useVersandausgabenEinstellungen(plattformId)
 
   if (loading) {
-    return <div className="py-8 text-center text-sm text-muted-foreground">Laden…</div>
+    return <div className="py-6 text-center text-sm text-muted-foreground">Laden…</div>
   }
 
   if (error) {
@@ -150,8 +297,10 @@ function PlattformTabelle({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-48">Produkt</TableHead>
-            <TableHead className="w-44">Versandgebühr (€ netto)</TableHead>
+            <TableHead className="w-44">Produkt</TableHead>
+            <TableHead className="w-40">Versandausgaben Spediteur (€ netto)</TableHead>
+            <TableHead className="w-36">Versandausgaben 3PL (€ netto)</TableHead>
+            <TableHead className="w-32">Versandausgaben (€ netto)</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -166,112 +315,6 @@ function PlattformTabelle({
           ))}
         </TableBody>
       </Table>
-    </div>
-  )
-}
-
-// --- Allgemein-Formular ---
-
-function AllgemeinForm() {
-  const { einstellungen, loading, error, upsert } = useVersandausgabenAllgemeinEinstellungen()
-  const { toast } = useToast()
-  const [zahlungszielStr, setZahlungszielStr] = useState('')
-  const initializedRef = useRef(false)
-
-  useEffect(() => {
-    if (!loading && !initializedRef.current) {
-      initializedRef.current = true
-      setZahlungszielStr(
-        einstellungen.zahlungsziel_tage !== null
-          ? String(einstellungen.zahlungsziel_tage)
-          : ''
-      )
-    }
-  }, [loading, einstellungen.zahlungsziel_tage])
-
-  async function handleGruppierungChange(value: string) {
-    try {
-      await upsert({ gruppierung: value as Gruppierung })
-    } catch {
-      toast({
-        title: 'Fehler',
-        description: 'Einstellung konnte nicht gespeichert werden.',
-        variant: 'destructive',
-      })
-    }
-  }
-
-  async function handleZahlungszielBlur() {
-    const trimmed = zahlungszielStr.trim()
-    const parsed = trimmed === '' ? null : Math.round(parseFloat(trimmed))
-    if (parsed !== null && (isNaN(parsed) || parsed < 0)) return
-
-    if (parsed === einstellungen.zahlungsziel_tage) return
-
-    try {
-      await upsert({ zahlungsziel_tage: parsed })
-    } catch {
-      setZahlungszielStr(
-        einstellungen.zahlungsziel_tage !== null
-          ? String(einstellungen.zahlungsziel_tage)
-          : ''
-      )
-      toast({
-        title: 'Fehler',
-        description: 'Einstellung konnte nicht gespeichert werden.',
-        variant: 'destructive',
-      })
-    }
-  }
-
-  if (loading) {
-    return <div className="py-8 text-center text-sm text-muted-foreground">Laden…</div>
-  }
-
-  if (error) {
-    return (
-      <div className="rounded-lg border border-destructive bg-destructive/10 p-4 text-sm text-destructive">
-        {error}
-      </div>
-    )
-  }
-
-  return (
-    <div className="rounded-lg border p-6">
-      <div className="grid gap-6 sm:grid-cols-2 max-w-lg">
-        <div className="space-y-2">
-          <Label htmlFor="gruppierung">Gruppierung</Label>
-          <Select
-            value={einstellungen.gruppierung}
-            onValueChange={handleGruppierungChange}
-          >
-            <SelectTrigger id="gruppierung">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {GRUPPIERUNGEN.map(g => (
-                <SelectItem key={g} value={g}>
-                  {GRUPPIERUNG_LABELS[g]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="zahlungsziel">Zahlungsziel (Tage)</Label>
-          <Input
-            id="zahlungsziel"
-            type="number"
-            min={0}
-            step={1}
-            value={zahlungszielStr}
-            onChange={e => setZahlungszielStr(e.target.value)}
-            onBlur={handleZahlungszielBlur}
-            placeholder="—"
-            className="w-32"
-          />
-        </div>
-      </div>
     </div>
   )
 }
@@ -306,30 +349,39 @@ export function VersandausgabenEinstellungenTabelle() {
     return <div className="py-8 text-center text-sm text-muted-foreground">Laden…</div>
   }
 
-  const defaultTab = sortedPlattformen.length > 0 ? sortedPlattformen[0].id : 'allgemein'
+  if (sortedPlattformen.length === 0) {
+    return (
+      <div className="rounded-lg border bg-muted/30 p-8 text-center space-y-3">
+        <p className="font-medium">Keine Sales-Plattformen definiert</p>
+        <p className="text-sm text-muted-foreground">
+          Bitte zuerst Sales-Plattformen im KPI-Modell anlegen, bevor Versandausgaben gepflegt
+          werden können.
+        </p>
+        <a href="/dashboard/kpi-modell">
+          <Button variant="outline" size="sm" className="mt-2">
+            Zum KPI-Modell
+          </Button>
+        </a>
+      </div>
+    )
+  }
 
   return (
-    <Tabs defaultValue={defaultTab} className="space-y-4">
+    <Tabs defaultValue={sortedPlattformen[0].id} className="space-y-4">
       <TabsList className="w-full h-auto">
         {sortedPlattformen.map(p => (
           <TabsTrigger key={p.id} value={p.id} className="flex-1">
             {p.name}
           </TabsTrigger>
         ))}
-        <TabsTrigger value="allgemein" className="flex-1">
-          Allgemein
-        </TabsTrigger>
       </TabsList>
 
       {sortedPlattformen.map(p => (
-        <TabsContent key={p.id} value={p.id} className="mt-0">
+        <TabsContent key={p.id} value={p.id} className="mt-0 space-y-4">
+          <PlattformEinstellungenForm plattformId={p.id} />
           <PlattformTabelle plattformId={p.id} produkte={sortedProdukte} />
         </TabsContent>
       ))}
-
-      <TabsContent value="allgemein" className="mt-0">
-        <AllgemeinForm />
-      </TabsContent>
     </Tabs>
   )
 }
