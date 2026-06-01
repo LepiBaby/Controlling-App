@@ -63,8 +63,9 @@
 | PROJ-40 | Betragsselektion in Transaktionstabellen | Deployed | [PROJ-40-betragsselektion-tabellen.md](PROJ-40-betragsselektion-tabellen.md) | 2026-05-22 |
 
 | PROJ-41 | Bereichswechsler — Plattform-Navigation | Approved | [PROJ-41-bereichswechsler.md](PROJ-41-bereichswechsler.md) | 2026-06-01 |
-| PROJ-42 | Absatzeinstellungen — Kurzfristige Planung | In Progress | [PROJ-42-absatzeinstellungen.md](PROJ-42-absatzeinstellungen.md) | 2026-06-01 |
+| PROJ-42 | Absatzeinstellungen — Kurzfristige Planung | In Review | [PROJ-42-absatzeinstellungen.md](PROJ-42-absatzeinstellungen.md) | 2026-06-01 |
+| PROJ-43 | Verkaufsgebühr-Einstellungen — Kurzfristige Planung | Planned | [PROJ-43-verkaufsgebuehr-einstellungen.md](PROJ-43-verkaufsgebuehr-einstellungen.md) | 2026-06-01 |
 
 <!-- Add features above this line -->
 
-## Next Available ID: PROJ-43
+## Next Available ID: PROJ-44
