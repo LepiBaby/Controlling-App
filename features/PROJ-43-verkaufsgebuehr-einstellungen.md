@@ -1,6 +1,6 @@
 # PROJ-43: Verkaufsgebühr-Einstellungen — Kurzfristige Planung
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-06-01
 **Last Updated:** 2026-06-01
 
@@ -106,7 +106,107 @@ Die Einstellungen werden in der Datenbank persistiert und können später in Ber
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Komponentenstruktur
+
+```
+/dashboard/kurzfristige-planung  (bestehende Kachelseite — aus PROJ-42)
++-- Kachelraster  (bereits vorhanden)
+    +-- Kachel: "Absatzeinstellungen"  (bereits vorhanden)
+    +-- Kachel: "Verkaufsgebühr-Einstellungen" (NEU) → /dashboard/kurzfristige-planung/verkaufsgebuehr-einstellungen
+
+/dashboard/kurzfristige-planung/verkaufsgebuehr-einstellungen  (NEUE Seite)
++-- Page-Header (identische Struktur wie andere Seiten)
++-- VerkaufsgebuehrEinstellungenTabelle  (NEUE Hauptkomponente)
+    +-- Tabs  [shadcn — eine Tab je Sales-Plattform aus KPI-Modell]
+    |   +-- Tab: "Plattform A"
+    |   +-- Tab: "Plattform B"
+    |   +-- ...
+    +-- Leerzustand A: keine Plattformen → Hinweis + Link zu KPI-Modell
+    +-- (je aktivem Tab) Leerzustand B: keine Produkte → Hinweis + Link zu KPI-Modell
+    +-- (je aktivem Tab) Table  [shadcn]
+        +-- TableHeader: Produkt | Verkaufsgebühr (%)
+        +-- TableBody: eine Zeile je Produkt
+            +-- VerkaufsgebuehrEinstellungZeile  (NEUE Zeilen-Komponente)
+                +-- Produktname  (read-only Text)
+                +-- Input: Verkaufsgebühr %  (Dezimalzahl ≥ 0, Auto-Save onBlur)
+```
+
+### Datenmodell
+
+**Neue Tabelle `verkaufsgebuehr_einstellungen`:**
+
+| Feld | Typ | Beschreibung |
+|---|---|---|
+| `id` | UUID | Primärschlüssel |
+| `sales_plattform_id` | UUID FK | Verknüpfung mit `kpi_categories` (type = sales_plattformen) — ON DELETE CASCADE |
+| `produkt_id` | UUID FK | Verknüpfung mit `kpi_categories` (type = produkte, level = 1) — ON DELETE CASCADE |
+| `verkaufsgebuehr_prozent` | NUMERIC(6,2) nullable | Prozentualer Gebührenwert (z. B. 15.00); NULL = noch nicht gepflegt |
+| `user_id` | UUID FK | Dateneigentümer — RLS: jeder Nutzer sieht nur eigene Einträge |
+
+Unique-Constraint: `(sales_plattform_id, produkt_id, user_id)` — eine Einstellung pro Kombination pro Nutzer.
+
+### Datenfluss
+
+```
+Seite öffnet sich
+  → Hook lädt alle Sales-Plattformen aus kpi_categories (type = sales_plattformen)
+  → Hook lädt alle Produkte aus kpi_categories (type = produkte, level = 1)
+  → Erster Plattform-Tab wird automatisch aktiviert
+  → Hook lädt verkaufsgebuehr_einstellungen für aktive Plattform per GET
+
+Nutzer wechselt Tab
+  → Hook lädt Einstellungen für neue Plattform (falls noch nicht gecacht)
+
+Nutzer ändert Gebühren-Feld und verlässt es (onBlur)
+  → Optimistisches Update in der UI (sofort sichtbar)
+  → PUT /api/verkaufsgebuehr-einstellungen (Upsert)
+  → Bei Fehler: Rollback auf vorherigen Wert + Toast-Fehlermeldung
+
+Nutzer löscht Feld und verlässt es (onBlur)
+  → Upsert mit verkaufsgebuehr_prozent = null
+  → Feld wird leer dargestellt
+```
+
+### API-Endpunkte
+
+```
+GET  /api/verkaufsgebuehr-einstellungen?plattform_id=<UUID>
+  → Alle Einstellungen des Nutzers für eine Plattform
+  → Response: Array von { produkt_id, verkaufsgebuehr_prozent }
+
+PUT  /api/verkaufsgebuehr-einstellungen
+  → Upsert einer Plattform-Produkt-Kombination
+  → Body: { sales_plattform_id, produkt_id, verkaufsgebuehr_prozent }
+  → Zod-Validierung: verkaufsgebuehr_prozent muss Zahl ≥ 0 oder null sein
+  → Response 400 bei ungültigen Werten
+```
+
+### Neue Dateien
+
+| Datei | Zweck |
+|---|---|
+| `src/app/dashboard/kurzfristige-planung/verkaufsgebuehr-einstellungen/page.tsx` | Neue Seite (Client Component mit Auth-Guard) |
+| `src/components/verkaufsgebuehr-einstellungen-tabelle.tsx` | Hauptkomponente: Tabs, Tabelle, Zeilen, Auto-Save-Logik |
+| `src/hooks/use-verkaufsgebuehr-einstellungen.ts` | State-Management: laden, upsert, optimistic update, rollback |
+| `src/app/api/verkaufsgebuehr-einstellungen/route.ts` | GET + PUT (Upsert) mit Zod + requireAuth() |
+
+### Geänderte Dateien
+
+| Datei | Änderung |
+|---|---|
+| `src/components/nav-sheet.tsx` | Eintrag „Verkaufsgebühr-Einstellungen" zur bestehenden Gruppe „Kurzfristige Planung" ergänzen |
+| `src/app/dashboard/kurzfristige-planung/page.tsx` | Kachel „Verkaufsgebühr-Einstellungen" zum bestehenden Kachelraster hinzufügen |
+
+### Tech-Entscheidungen
+
+| Entscheidung | Gewählt | Warum |
+|---|---|---|
+| Muster | Identisch zu PROJ-42 | Gleiche Seite, gleiche Datenhaltung — Konsistenz spart Entwicklungszeit |
+| Speichern | Auto-Save (onBlur) | Kein globaler Submit-Button — einheitlich mit allen anderen Einstellungsseiten |
+| Dezimalzahl | NUMERIC(6,2) | Erlaubt Werte wie 15.75 %; 6 Stellen inkl. 2 Nachkommastellen reichen für Gebühren |
+| Obergrenze | Keine | Addierte Plattformgebühren können > 100 % sein; UI-Validierung wäre hier irreführend |
+| Neue Packages | Keine | Tabs, Table, Input — alles bereits in shadcn/ui installiert |
 
 ## Implementation Notes
 _To be added by /frontend and /backend_
