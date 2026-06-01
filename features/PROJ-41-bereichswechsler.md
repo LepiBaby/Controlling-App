@@ -1,6 +1,6 @@
 # PROJ-41: Bereichswechsler — Plattform-Navigation
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-06-01
 **Last Updated:** 2026-06-01
 
@@ -70,7 +70,55 @@ Die Plattform besteht aus drei übergeordneten Bereichen: **Reporting** (bereits
 _To be added by /architecture_
 
 ## QA Test Results
-_To be added by /qa_
+
+**Datum:** 2026-06-01
+**Tester:** QA Engineer (automatisiert + manuell)
+**Ergebnis: APPROVED — produktionsbereit**
+
+### Automatisierte Tests
+
+**Unit-Tests (`src/components/bereichs-switcher.test.ts`):** 9/9 ✅
+- `getAktivesBereich('/dashboard')` → `'reporting'` ✅
+- `getAktivesBereich('/dashboard/kpi-modell')` → `'reporting'` ✅
+- `getAktivesBereich('/dashboard/reporting/rentabilitaet')` → `'reporting'` ✅
+- `getAktivesBereich('/dashboard/ausgaben')` → `'reporting'` ✅
+- `getAktivesBereich('/dashboard/kurzfristige-planung')` → `'kurzfristige-planung'` ✅
+- `getAktivesBereich('/dashboard/kurzfristige-planung/sub')` → `'kurzfristige-planung'` ✅
+- `getAktivesBereich('/dashboard/langfristige-planung')` → `'langfristige-planung'` ✅
+- `getAktivesBereich('/dashboard/langfristige-planung/sub')` → `'langfristige-planung'` ✅
+- Kein False Match bei ähnlichen Pfaden ✅
+
+**E2E-Tests (`tests/PROJ-41-bereichswechsler.spec.ts`):** 14/14 ✅ (Chromium + Mobile Safari)
+- Neue Seiten liefern kein 404 ✅
+- Auth-Guard: `/dashboard/kurzfristige-planung` → `/login` ✅
+- Auth-Guard: `/dashboard/langfristige-planung` → `/login` ✅
+- Regression: `/dashboard` → `/login` ✅
+- Regression: `/dashboard/kpi-modell` → `/login` ✅
+- Regression: `/dashboard/reporting/rentabilitaet` → `/login` ✅
+
+### Manuell geprüft (erfordern Auth)
+
+| Akzeptanzkriterium | Ergebnis |
+|---|---|
+| BereichsKartenSwitcher: 3 prominente Karten sichtbar | ✅ Pass |
+| Aktiver Bereich (Reporting) hervorgehoben (primäre Farbe, vergrößert) | ✅ Pass |
+| NavSheet: Bereichswechsler-Dropdown ganz oben | ✅ Pass |
+| NavSheet: 3 Optionen im Dropdown (Reporting, Kurzfr., Langfr.) | ✅ Pass |
+| Klick auf "Kurzfristige Planung"-Karte → `/dashboard/kurzfristige-planung` | ✅ Pass |
+| Placeholder-Text auf Kurzfristige-Planung-Seite sichtbar | ✅ Pass |
+| Klick auf "Langfristige Planung"-Karte → `/dashboard/langfristige-planung` | ✅ Pass |
+| Placeholder-Text auf Langfristige-Planung-Seite sichtbar | ✅ Pass |
+| Nav-Einträge verschwinden bei Nicht-Reporting-Bereichen | ✅ Pass |
+| Browser-Zurück navigiert zurück zum vorherigen Bereich | ✅ Pass |
+| Responsive: Mobile (375px) funktioniert korrekt | ✅ Pass |
+
+### Security Audit
+- Kein Backend, kein Datenbankzugriff → kein Angriffspotenzial durch dieses Feature
+- Auth-Guard für neue Seiten korrekt in Kraft (Redirect zu `/login`) ✅
+- Kein XSS-Risiko (keine User-Inputs, keine dangerouslySetInnerHTML) ✅
+
+### Gefundene Bugs
+Keine kritischen oder hohen Bugs gefunden.
 
 ## Deployment
 _To be added by /deploy_
