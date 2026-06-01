@@ -66,7 +66,7 @@
 | PROJ-42 | Absatzeinstellungen — Kurzfristige Planung | Approved | [PROJ-42-absatzeinstellungen.md](PROJ-42-absatzeinstellungen.md) | 2026-06-01 |
 | PROJ-43 | Verkaufsgebühr-Einstellungen — Kurzfristige Planung | Approved | [PROJ-43-verkaufsgebuehr-einstellungen.md](PROJ-43-verkaufsgebuehr-einstellungen.md) | 2026-06-01 |
 | PROJ-44 | Versandausgaben-Einstellungen — Kurzfristige Planung | Approved | [PROJ-44-versandausgaben-einstellungen.md](PROJ-44-versandausgaben-einstellungen.md) | 2026-06-01 |
-| PROJ-45 | Auszahlungseinstellungen — Kurzfristige Planung | In Progress | [PROJ-45-auszahlungseinstellungen.md](PROJ-45-auszahlungseinstellungen.md) | 2026-06-01 |
+| PROJ-45 | Auszahlungseinstellungen — Kurzfristige Planung | Approved | [PROJ-45-auszahlungseinstellungen.md](PROJ-45-auszahlungseinstellungen.md) | 2026-06-01 |
 
 <!-- Add features above this line -->
 

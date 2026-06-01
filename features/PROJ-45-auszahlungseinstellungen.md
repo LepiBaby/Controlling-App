@@ -1,6 +1,6 @@
 # PROJ-45: Auszahlungseinstellungen — Kurzfristige Planung
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-06-01
 **Last Updated:** 2026-06-01
 
@@ -355,7 +355,104 @@ PUT  /api/auszahlungs-einstellungen
 - Alle 19 Tests bestehen ✅
 
 ## QA Test Results
-_To be added by /qa_
+
+**Datum:** 2026-06-01
+**Status: APPROVED — Produktionsbereit**
+
+### Automated Tests
+
+| Test Suite | Ergebnis |
+|---|---|
+| Vitest API-Integration (`route.test.ts`) | ✅ 19/19 bestanden |
+| Vitest Unit (`use-auszahlungs-einstellungen.test.ts`) | ✅ 9/9 bestanden |
+| Playwright E2E (`PROJ-45-auszahlungseinstellungen.spec.ts`) | ✅ 14/14 bestanden |
+
+### Acceptance Criteria
+
+#### Navigation & Einstieg
+| Kriterium | Status |
+|---|---|
+| Linke Navigation enthält „Auszahlungseinstellungen" → `/dashboard/kurzfristige-planung/auszahlungseinstellungen` | ✅ Bestanden |
+| Kachel „Auszahlungseinstellungen" auf `/dashboard/kurzfristige-planung` vorhanden | ✅ Bestanden |
+| Auth-Guard: nicht eingeloggte Nutzer → Redirect zu `/login` | ✅ Bestanden (Playwright) |
+
+#### Reiter-Navigation (Sales-Plattformen)
+| Kriterium | Status |
+|---|---|
+| Sales-Plattformen aus KPI-Modell als Tabs dargestellt (sortiert nach sort_order) | ✅ Bestanden (manuell) |
+| Erster Reiter automatisch aktiv | ✅ Bestanden (manuell) |
+| Leerzustand: Hinweis + Link zu KPI-Modell wenn keine Plattformen | ✅ Bestanden (manuell) |
+
+#### Formular pro Plattform
+| Kriterium | Status |
+|---|---|
+| Auszahlungsrhythmus-Dropdown mit 4 Optionen | ✅ Bestanden (manuell) |
+| Standardwert: „Wöchentlich" | ✅ Bestanden (manuell) |
+| Nächste Auszahlungswoche: Datepicker-Button (Calendar Popover) | ✅ Bestanden (manuell) |
+| KW-Subtitle unter Label zeigt berechnete Woche | ✅ Bestanden (manuell) |
+| Kalender zeigt Wochennummern an | ✅ Bestanden (manuell) |
+| „Auswahl löschen" Button löscht Basis | ✅ Bestanden (manuell) |
+| Retouren-Checkbox | ✅ Bestanden (manuell) |
+| Marketing-Checkbox | ✅ Bestanden (manuell) |
+| Standardwerte: Checkboxen nicht angehakt | ✅ Bestanden (manuell) |
+
+#### Berechnungslogik
+| Kriterium | Status |
+|---|---|
+| Angezeigter Datepicker zeigt nächste berechnete Auszahlungswoche | ✅ Bestanden (manuell + Vitest) |
+| Basis in der Vergangenheit → korrekt vorgerückt | ✅ Bestanden (Vitest) |
+| Jahresüberlauf (52 und 53 ISO-Wochen) korrekt behandelt | ✅ Bestanden (Vitest) |
+
+#### Auto-Save & Datenpersistenz
+| Kriterium | Status |
+|---|---|
+| Rhythmus-Änderung → sofortiges Speichern | ✅ Bestanden (manuell) |
+| Datum-Auswahl im Kalender → sofortiges Speichern | ✅ Bestanden (manuell) |
+| Checkbox-Änderung → sofortiges Speichern | ✅ Bestanden (manuell) |
+| Werte nach Seitenneuladen noch vorhanden | ✅ Bestanden (manuell) |
+| Optimistisches Update mit Rollback bei Fehler | ✅ Bestanden (Vitest) |
+
+#### Datenbank & API
+| Kriterium | Status |
+|---|---|
+| Tabelle `auszahlungs_einstellungen` mit UNIQUE (sales_plattform_id, user_id) | ✅ Bestanden |
+| RLS: Nutzer sieht nur eigene Einträge | ✅ Bestanden (Vitest) |
+| GET 401 bei nicht eingeloggtem Nutzer | ✅ Bestanden (Vitest) |
+| PUT 401 bei nicht eingeloggtem Nutzer | ✅ Bestanden (Vitest) |
+| PUT 400 bei nur KW ohne Jahr (oder umgekehrt) | ✅ Bestanden (Vitest) |
+| PUT 400 bei ungültigem Rhythmus-Wert | ✅ Bestanden (Vitest) |
+
+### Edge Cases
+| Edge Case | Status |
+|---|---|
+| Keine Sales-Plattformen: Hinweis + Link | ✅ Bestanden (manuell) |
+| Basis-KW weit in der Vergangenheit → korrekt vorgerückt | ✅ Bestanden (Vitest) |
+| Jahresüberlauf (53-Wochen-Jahre) | ✅ Bestanden (Vitest) |
+
+### Bugs gefunden
+
+**Keine kritischen oder high-severity Bugs.**
+
+**Befunde (low):**
+- Die Feature-Spec enthält ein falsches Beispiel für den Jahreswechsel (setzt 2026 = 52 Wochen, tatsächlich 53). Die Implementierung ist korrekt — nur das Spec-Beispiel ist ungenau. Kein Handlungsbedarf.
+- Die Feature-Spec beschreibt „Zwei separate KW/Jahr-Eingabefelder" — wurde durch Calendar Picker ersetzt (bessere UX, gleiches Datenmodell). Kein Bug, bewusste UX-Verbesserung.
+
+### Responsive & Cross-Browser
+- Desktop (Chromium) ✅
+- Mobile Safari ✅
+
+### Security Audit
+- Auth-Guard auf Seite und API-Route: ✅ 401 für unauthentifizierte Requests (Vitest)
+- RLS auf DB-Ebene: ✅ Nutzer sieht nur eigene Datensätze
+- Zod-Validierung: ✅ Alle ungültigen Inputs werden mit 400 abgelehnt
+- KW+Jahr-Cross-Field-Validation: ✅ DB-Constraint `chk_kw_jahr_both_or_neither` als zweite Sicherungsebene
+- Kein XSS-Risiko: alle Eingaben via Select/Datepicker (kein Freitext-Input)
+
+### Regression
+- ✅ `/dashboard/kurzfristige-planung/absatzeinstellungen` — weiterhin erreichbar
+- ✅ `/dashboard/kurzfristige-planung/verkaufsgebuehr-einstellungen` — weiterhin erreichbar
+- ✅ `/dashboard/kurzfristige-planung/versandausgaben-einstellungen` — weiterhin erreichbar
+- ✅ Auth-Guard anderer Reporting-Seiten — unverändert
 
 ## Deployment
 _To be added by /deploy_
