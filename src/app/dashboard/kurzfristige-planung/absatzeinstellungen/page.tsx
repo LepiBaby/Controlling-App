@@ -21,14 +21,7 @@ export default function AbsatzeinstellungenPage() {
       </header>
 
       <main className="flex-1 p-6">
-        <div className="mx-auto max-w-7xl space-y-6">
-          <div>
-            <h2 className="text-base font-semibold">Absatzberechnungsmethode je Plattform &amp; Produkt</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Wähle für jede Sales-Plattform und jedes Produkt die Methode zur Absatzberechnung.
-              Bei gewichtetem Mittelwert müssen die drei Drittelsgewichtungen zusammen 100 % ergeben.
-            </p>
-          </div>
+        <div className="mx-auto max-w-7xl">
           <AbsatzeinstellungenTabelle />
         </div>
       </main>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Table,
@@ -36,12 +36,16 @@ function AbsatzEinstellungZeile({
   produkt,
   plattformId,
   einstellung,
+  showGewichtungsSpalten,
   onSave,
+  onBerechnungsartChange,
 }: {
   produkt: KpiCategory
   plattformId: string
   einstellung: AbsatzEinstellung
+  showGewichtungsSpalten: boolean
   onSave: (patch: Omit<AbsatzEinstellung, 'id'>) => Promise<void>
+  onBerechnungsartChange: (art: Berechnungsart) => void
 }) {
   const { toast } = useToast()
 
@@ -65,6 +69,7 @@ function AbsatzEinstellungZeile({
     const willBeGewichtet = isGewichtet(art)
 
     setBerechnungsart(art)
+    onBerechnungsartChange(art)
     if (!willBeGewichtet) {
       setW1('')
       setW2('')
@@ -83,6 +88,7 @@ function AbsatzEinstellungZeile({
       })
     } catch {
       setBerechnungsart(prevArt)
+      onBerechnungsartChange(prevArt)
       toast({
         title: 'Fehler',
         description: 'Einstellung konnte nicht gespeichert werden.',
@@ -138,64 +144,72 @@ function AbsatzEinstellungZeile({
             </SelectContent>
           </Select>
         </TableCell>
-        <TableCell>
-          {gewichtetAktiv && (
-            <Input
-              type="number"
-              min={0}
-              max={100}
-              step={1}
-              value={w1}
-              onChange={e => setW1(e.target.value)}
-              onBlur={handleWeightBlur}
-              className="w-20"
-              disabled={saving}
-              aria-label="Gewichtung 1. Drittel"
-            />
-          )}
-        </TableCell>
-        <TableCell>
-          {gewichtetAktiv && (
-            <Input
-              type="number"
-              min={0}
-              max={100}
-              step={1}
-              value={w2}
-              onChange={e => setW2(e.target.value)}
-              onBlur={handleWeightBlur}
-              className="w-20"
-              disabled={saving}
-              aria-label="Gewichtung 2. Drittel"
-            />
-          )}
-        </TableCell>
-        <TableCell>
-          {gewichtetAktiv && (
-            <Input
-              type="number"
-              min={0}
-              max={100}
-              step={1}
-              value={w3}
-              onChange={e => setW3(e.target.value)}
-              onBlur={handleWeightBlur}
-              className="w-20"
-              disabled={saving}
-              aria-label="Gewichtung 3. Drittel"
-            />
-          )}
-        </TableCell>
+        {showGewichtungsSpalten && (
+          <TableCell>
+            {gewichtetAktiv && (
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                step={1}
+                value={w1}
+                onChange={e => setW1(e.target.value)}
+                onBlur={handleWeightBlur}
+                className="w-20"
+                disabled={saving}
+                aria-label="Gewichtung 1. Drittel"
+              />
+            )}
+          </TableCell>
+        )}
+        {showGewichtungsSpalten && (
+          <TableCell>
+            {gewichtetAktiv && (
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                step={1}
+                value={w2}
+                onChange={e => setW2(e.target.value)}
+                onBlur={handleWeightBlur}
+                className="w-20"
+                disabled={saving}
+                aria-label="Gewichtung 2. Drittel"
+              />
+            )}
+          </TableCell>
+        )}
+        {showGewichtungsSpalten && (
+          <TableCell>
+            {gewichtetAktiv && (
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                step={1}
+                value={w3}
+                onChange={e => setW3(e.target.value)}
+                onBlur={handleWeightBlur}
+                className="w-20"
+                disabled={saving}
+                aria-label="Gewichtung 3. Drittel"
+              />
+            )}
+          </TableCell>
+        )}
       </TableRow>
       {gewichtetAktiv && gewichtungEingegeben && !gewichtungGueltig && (
         <TableRow className="hover:bg-transparent">
           <TableCell />
           <TableCell />
-          <TableCell colSpan={3} className="pb-2 pt-0">
-            <p className="text-xs text-destructive">
-              Die Summe muss 100 % ergeben (aktuell: {summe} %)
-            </p>
-          </TableCell>
+          {showGewichtungsSpalten && (
+            <TableCell colSpan={3} className="pb-2 pt-0">
+              <p className="text-xs text-destructive">
+                Die Summe muss 100 % ergeben (aktuell: {summe} %)
+              </p>
+            </TableCell>
+          )}
         </TableRow>
       )}
     </>
@@ -212,6 +226,23 @@ function PlattformTabelle({
   produkte: KpiCategory[]
 }) {
   const { loading, error, getEinstellung, upsert } = useAbsatzEinstellungen(plattformId)
+  const [localArten, setLocalArten] = useState<Record<string, Berechnungsart>>({})
+  const initializedRef = useRef(false)
+
+  useEffect(() => {
+    if (!loading && !initializedRef.current) {
+      initializedRef.current = true
+      const map: Record<string, Berechnungsart> = {}
+      produkte.forEach(p => { map[p.id] = getEinstellung(p.id).berechnungsart })
+      setLocalArten(map)
+    }
+  }, [loading, produkte, getEinstellung])
+
+  const showGewichtungsSpalten = Object.values(localArten).some(isGewichtet)
+
+  function handleRowBerechnungsartChange(produktId: string, art: Berechnungsart) {
+    setLocalArten(prev => ({ ...prev, [produktId]: art }))
+  }
 
   if (loading) {
     return (
@@ -250,9 +281,9 @@ function PlattformTabelle({
           <TableRow>
             <TableHead className="w-48">Produkt</TableHead>
             <TableHead className="w-72">Berechnungsart</TableHead>
-            <TableHead className="w-24">1. Drittel %</TableHead>
-            <TableHead className="w-24">2. Drittel %</TableHead>
-            <TableHead className="w-24">3. Drittel %</TableHead>
+            {showGewichtungsSpalten && <TableHead className="w-24">1. Drittel %</TableHead>}
+            {showGewichtungsSpalten && <TableHead className="w-24">2. Drittel %</TableHead>}
+            {showGewichtungsSpalten && <TableHead className="w-24">3. Drittel %</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -262,7 +293,9 @@ function PlattformTabelle({
               produkt={produkt}
               plattformId={plattformId}
               einstellung={getEinstellung(produkt.id)}
+              showGewichtungsSpalten={showGewichtungsSpalten}
               onSave={upsert}
+              onBerechnungsartChange={art => handleRowBerechnungsartChange(produkt.id, art)}
             />
           ))}
         </TableBody>
@@ -319,15 +352,13 @@ export function AbsatzeinstellungenTabelle() {
 
   return (
     <Tabs defaultValue={sortedPlattformen[0]?.id} className="space-y-4">
-      <div className="overflow-x-auto">
-        <TabsList className="flex-wrap h-auto gap-1">
-          {sortedPlattformen.map(p => (
-            <TabsTrigger key={p.id} value={p.id}>
-              {p.name}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </div>
+      <TabsList className="w-full h-auto">
+        {sortedPlattformen.map(p => (
+          <TabsTrigger key={p.id} value={p.id} className="flex-1">
+            {p.name}
+          </TabsTrigger>
+        ))}
+      </TabsList>
       {sortedPlattformen.map(p => (
         <TabsContent key={p.id} value={p.id} className="mt-0">
           <PlattformTabelle plattformId={p.id} produkte={sortedProdukte} />
