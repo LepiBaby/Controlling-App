@@ -272,6 +272,28 @@ PUT  /api/absatz-einstellungen
 ### Build
 - `npm run build` ✅ — alle 50 Routen korrekt, `/dashboard/kurzfristige-planung/absatzeinstellungen` in Route-Liste
 
+## Implementation Notes (Backend — 2026-06-01)
+
+### Datenbankmigrierung
+- Migration `proj42_absatz_einstellungen` erfolgreich auf Supabase-Projekt `kdmpghtdoguppfqhdscq` angewendet
+- Tabelle `absatz_einstellungen` angelegt mit: UUID-PK, FKs zu `kpi_categories` (ON DELETE CASCADE) und `auth.users` (ON DELETE CASCADE), CHECK-Constraint auf `berechnungsart`, INTEGER CHECK (0–100) für Gewichtungsfelder, UNIQUE-Constraint `(sales_plattform_id, produkt_id, user_id)`
+- RLS aktiviert mit 4 Policies: SELECT/INSERT/UPDATE/DELETE — jeder Nutzer sieht und schreibt nur eigene Einträge
+- Index `idx_absatz_einstellungen_plattform_user` auf `(sales_plattform_id, user_id)` für performante GET-Abfragen
+
+### API-Routen
+- `GET /api/absatz-einstellungen?plattform_id=<UUID>` — lädt alle Einstellungen des eingeloggten Nutzers für eine Plattform; Zod-Validierung der UUID via Regex; `.limit(500)`
+- `PUT /api/absatz-einstellungen` — Upsert via Supabase `onConflict: 'sales_plattform_id,produkt_id,user_id'`; Zod-Schema validiert alle 8 erlaubten Berechnungsarten; `superRefine` prüft Summe = 100 wenn alle drei Gewichtungsfelder angegeben und gewichtete Methode aktiv
+
+### Abweichungen von der Spec
+- Fehlerstatus bei ungültiger Gewichtungssumme: Spec nannte 422, implementiert als 400 (Zod-Validierungsfehler werden einheitlich als 400 zurückgegeben — konsistent mit allen anderen API-Routen im Projekt)
+- Intermediärer Zustand (gewichtete Methode gewählt, Gewichtungsfelder noch leer/null): API akzeptiert diesen Zustand ohne Fehler (Summenprüfung läuft nur wenn alle drei Werte nicht-null) — verhindert Speicherfehler beim Tab-Wechsel während der Eingabe
+
+### Tests
+- `src/app/api/absatz-einstellungen/route.test.ts` — 18 Tests (Vitest): 6 für GET, 12 für PUT
+- Alle 18 Tests bestehen ✅
+- Test-UUIDs im Zod-v4-kompatiblen Format (Version-Bits in Gruppe 3, Variant-Bits in Gruppe 4)
+- 8 Pre-existing Failures im gesamten Test-Suite — nicht durch PROJ-42 verursacht
+
 ## QA Test Results
 _To be added by /qa_
 
