@@ -1,6 +1,6 @@
 # PROJ-44: Versandausgaben-Einstellungen — Kurzfristige Planung
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-06-01
 **Last Updated:** 2026-06-01
 
@@ -142,7 +142,141 @@ Die Seite ist Teil des Bereichs „Kurzfristige Planung", über die linke Naviga
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Komponentenstruktur
+
+```
+/dashboard/kurzfristige-planung  (bestehende Kachelseite — aus PROJ-42)
++-- Kachelraster  (bereits vorhanden)
+    +-- Kachel: "Absatzeinstellungen"  (bereits vorhanden)
+    +-- Kachel: "Verkaufsgebühr-Einstellungen"  (bereits vorhanden)
+    +-- Kachel: "Versandausgaben-Einstellungen" (NEU) → /dashboard/kurzfristige-planung/versandausgaben-einstellungen
+
+/dashboard/kurzfristige-planung/versandausgaben-einstellungen  (NEUE Seite)
++-- Page-Header (identische Struktur wie andere Seiten)
++-- VersandausgabenEinstellungenTabelle  (NEUE Hauptkomponente)
+    +-- Tabs  [shadcn — dynamische Plattform-Tabs + fester "Allgemein"-Tab]
+    |   +-- Tab: "Plattform A"
+    |   +-- Tab: "Plattform B"
+    |   +-- ...
+    |   +-- Tab: "Allgemein"  (immer sichtbar, immer am Ende)
+    +-- Leerzustand: keine Plattformen → nur "Allgemein"-Tab sichtbar
+    +-- (je aktivem Plattform-Tab) Leerzustand B: keine Produkte → Hinweis + Link zu KPI-Modell
+    +-- (je aktivem Plattform-Tab) Table  [shadcn]
+    |   +-- TableHeader: Produkt | Versandgebühr (€ netto)
+    |   +-- TableBody: eine Zeile je Produkt
+    |       +-- VersandausgabenEinstellungZeile  (NEUE Zeilen-Komponente)
+    |           +-- Produktname  (read-only Text)
+    |           +-- Input: Versandgebühr €  (Dezimalzahl ≥ 0, Auto-Save onBlur)
+    +-- (bei aktivem "Allgemein"-Tab) VersandausgabenAllgemeinForm  (NEUE Formular-Komponente)
+        +-- Feld: Gruppierung  [shadcn Select — 3 Optionen]
+        +-- Feld: Zahlungsziel  [shadcn Input type="number", ganzzahlig ≥ 0]
+```
+
+### Datenmodell
+
+**Neue Tabelle `versandausgaben_einstellungen`** — eine Zeile pro Plattform-Produkt-Kombination pro Nutzer:
+
+| Feld | Typ | Beschreibung |
+|---|---|---|
+| `id` | UUID | Primärschlüssel |
+| `sales_plattform_id` | UUID FK | Verknüpfung mit `kpi_categories` (type = sales_plattformen) — ON DELETE CASCADE |
+| `produkt_id` | UUID FK | Verknüpfung mit `kpi_categories` (type = produkte, level = 1) — ON DELETE CASCADE |
+| `versandgebuehr_euro_netto` | NUMERIC(10,2) nullable | Netto-Versandgebühr in Euro (z. B. 4.99); NULL = noch nicht gepflegt |
+| `user_id` | UUID FK | Dateneigentümer — RLS: jeder Nutzer sieht nur eigene Einträge |
+
+Unique-Constraint: `(sales_plattform_id, produkt_id, user_id)` — eine Einstellung pro Kombination pro Nutzer.
+
+**Neue Tabelle `versandausgaben_allgemein_einstellungen`** — genau eine Zeile pro Nutzer:
+
+| Feld | Typ | Beschreibung |
+|---|---|---|
+| `id` | UUID | Primärschlüssel |
+| `user_id` | UUID FK | Dateneigentümer — ON DELETE CASCADE; UNIQUE — ein Eintrag pro Nutzer |
+| `gruppierung` | TEXT NOT NULL | Einer von: `woechentlich`, `monatlich`, `quartalsweise`; Default: `monatlich` |
+| `zahlungsziel_tage` | INTEGER nullable (≥ 0) | Zahlungsziel in Tagen; NULL = noch nicht gepflegt |
+
+### Datenfluss
+
+```
+Seite öffnet sich
+  → Komponente lädt alle Sales-Plattformen aus kpi_categories (type = sales_plattformen)
+  → Komponente lädt alle Produkte aus kpi_categories (type = produkte, level = 1)
+  → Erster Plattform-Tab wird aktiv (oder "Allgemein" wenn keine Plattformen)
+  → Hook lädt versandausgaben_einstellungen für aktive Plattform per GET
+
+Nutzer wechselt auf Plattform-Tab
+  → Hook lädt Einstellungen für neue Plattform (falls noch nicht gecacht)
+
+Nutzer ändert Versandgebühr-Feld und verlässt es (onBlur)
+  → Optimistisches Update in der UI (sofort sichtbar)
+  → PUT /api/versandausgaben-einstellungen (Upsert)
+  → Bei Fehler: Rollback auf vorherigen Wert + Toast-Fehlermeldung
+
+Nutzer wechselt auf "Allgemein"-Tab
+  → Hook lädt versandausgaben_allgemein_einstellungen per GET
+  → Zeigt Gruppierung (Default: Monatlich wenn kein Eintrag) und Zahlungsziel
+
+Nutzer ändert Gruppierung (onChange)
+  → Sofortiger Upsert: PUT /api/versandausgaben-allgemein-einstellungen
+
+Nutzer ändert Zahlungsziel und verlässt Feld (onBlur)
+  → Upsert: PUT /api/versandausgaben-allgemein-einstellungen
+```
+
+### API-Endpunkte
+
+```
+GET  /api/versandausgaben-einstellungen?plattform_id=<UUID>
+  → Alle Einstellungen des Nutzers für eine Plattform
+  → Response: Array von { produkt_id, versandgebuehr_euro_netto }
+
+PUT  /api/versandausgaben-einstellungen
+  → Upsert einer Plattform-Produkt-Kombination
+  → Body: { sales_plattform_id, produkt_id, versandgebuehr_euro_netto }
+  → Validierung: versandgebuehr_euro_netto muss Zahl ≥ 0 oder null sein
+  → Response 400 bei ungültigen Werten
+
+GET  /api/versandausgaben-allgemein-einstellungen
+  → Allgemein-Einstellungen des eingeloggten Nutzers
+  → Response: { gruppierung, zahlungsziel_tage } (oder null wenn noch kein Eintrag)
+
+PUT  /api/versandausgaben-allgemein-einstellungen
+  → Upsert der Allgemein-Einstellungen des Nutzers
+  → Body: { gruppierung?, zahlungsziel_tage? }
+  → Validierung: gruppierung ∈ {'woechentlich','monatlich','quartalsweise'};
+    zahlungsziel_tage muss Integer ≥ 0 oder null sein
+  → Response 400 bei ungültigen Werten
+```
+
+### Neue Dateien
+
+| Datei | Zweck |
+|---|---|
+| `src/app/dashboard/kurzfristige-planung/versandausgaben-einstellungen/page.tsx` | Neue Seite (Client Component mit Auth-Guard) |
+| `src/components/versandausgaben-einstellungen-tabelle.tsx` | Hauptkomponente: Tabs (Plattform + Allgemein), Tabelle, Formular, Auto-Save-Logik |
+| `src/hooks/use-versandausgaben-einstellungen.ts` | State-Management Plattform-Tab: laden, upsert, optimistic update, rollback |
+| `src/hooks/use-versandausgaben-allgemein-einstellungen.ts` | State-Management Allgemein-Tab: laden + upsert der globalen Felder |
+| `src/app/api/versandausgaben-einstellungen/route.ts` | GET + PUT (Upsert) für Plattform-Produkt-Einstellungen mit Zod + requireAuth() |
+| `src/app/api/versandausgaben-allgemein-einstellungen/route.ts` | GET + PUT (Upsert) für Allgemein-Einstellungen mit Zod + requireAuth() |
+
+### Geänderte Dateien
+
+| Datei | Änderung |
+|---|---|
+| `src/components/nav-sheet.tsx` | Eintrag „Versandausgaben-Einstellungen" zur bestehenden Gruppe „Kurzfristige Planung" ergänzen |
+| `src/app/dashboard/kurzfristige-planung/page.tsx` | Kachel „Versandausgaben-Einstellungen" zum bestehenden Kachelraster hinzufügen |
+
+### Tech-Entscheidungen
+
+| Entscheidung | Gewählt | Warum |
+|---|---|---|
+| Muster | Identisch zu PROJ-43 | Gleiche Seiten-Struktur und Datenhaltung — Konsistenz, weniger neue Komplexität |
+| „Allgemein"-Tab | Fester Tab am Ende der Tab-Leiste | Klare Trennung: plattformspezifische Daten vs. globale Einstellungen; Tab-UI ist für Nutzer bereits vertraut |
+| Allgemein-Daten | Separate Tabelle + separater Hook/API | Anderer Datentyp (1:1 pro Nutzer vs. N:M Plattform × Produkt) — Mischen würde das Schema verkomplizieren |
+| Speichern | Auto-Save (onBlur / onChange je Feld) | Kein globaler Submit-Button — einheitlich mit allen anderen Einstellungsseiten im Projekt |
+| Dezimalzahl (Versandgebühr) | NUMERIC(10,2) | Erlaubt Werte wie 4.99 €; 10 Stellen inkl. 2 Nachkommastellen reichen für Versandgebühren |
+| Neue Packages | Keine | Tabs, Select, Table, Input — alles bereits in shadcn/ui installiert |
 
 ## QA Test Results
 _To be added by /qa_
