@@ -11,8 +11,9 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet'
 import { usePathname } from 'next/navigation'
+import { BereichsSwitcher, getAktivesBereich } from '@/components/bereichs-switcher'
 
-const NAV_GROUPS = [
+const REPORTING_NAV_GROUPS = [
   {
     label: 'Datenpflege',
     items: [
@@ -48,10 +49,18 @@ const NAV_GROUPS = [
   },
 ]
 
+const NAV_GROUPS_BY_AREA: Record<string, typeof REPORTING_NAV_GROUPS> = {
+  reporting: REPORTING_NAV_GROUPS,
+  'kurzfristige-planung': [],
+  'langfristige-planung': [],
+}
+
 export function NavSheet() {
   const [open, setOpen] = useState(false)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const pathname = usePathname()
+  const aktiv = getAktivesBereich(pathname)
+  const navGroups = NAV_GROUPS_BY_AREA[aktiv] ?? []
 
   function toggleGroup(label: string) {
     setCollapsed((prev) => ({ ...prev, [label]: !prev[label] }))
@@ -73,9 +82,15 @@ export function NavSheet() {
             </a>
           </SheetTitle>
         </SheetHeader>
+        <div className="border-b px-3 py-3">
+          <p className="mb-1.5 px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Bereich
+          </p>
+          <BereichsSwitcher className="w-full" />
+        </div>
         <nav className="flex-1 overflow-y-auto px-3 py-4">
           <div className="flex flex-col gap-4">
-            {NAV_GROUPS.map((group) => {
+            {navGroups.map((group) => {
               const isCollapsed = collapsed[group.label] ?? false
               return (
                 <div key={group.label}>

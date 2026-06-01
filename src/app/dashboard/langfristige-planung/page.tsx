@@ -1,0 +1,33 @@
+import { NavSheet } from '@/components/nav-sheet'
+import { BereichsSwitcher } from '@/components/bereichs-switcher'
+import { LogoutButton } from '@/components/logout-button'
+
+export default function LangfristigePlanungPage() {
+  return (
+    <div className="flex min-h-screen flex-col">
+      <header className="border-b bg-background px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <NavSheet />
+            <h1 className="text-lg font-semibold">Controlling App</h1>
+          </div>
+          <div className="flex items-center gap-4">
+            <LogoutButton />
+          </div>
+        </div>
+      </header>
+      <main className="flex-1 p-6">
+        <div className="mx-auto max-w-7xl space-y-6">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Bereich</span>
+            <BereichsSwitcher className="w-64" />
+          </div>
+          <div className="flex flex-col items-center justify-center py-24 text-center">
+            <p className="text-lg font-medium text-muted-foreground">Langfristige Planung</p>
+            <p className="mt-2 text-sm text-muted-foreground">Dieser Bereich wird in Kürze verfügbar sein.</p>
+          </div>
+        </div>
+      </main>
+    </div>
+  )
+}

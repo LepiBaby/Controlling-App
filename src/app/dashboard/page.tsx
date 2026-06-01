@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { LogoutButton } from '@/components/logout-button'
 import { NavSheet } from '@/components/nav-sheet'
+import { BereichsSwitcher } from '@/components/bereichs-switcher'
 
 export default async function DashboardPage() {
   const cookieStore = await cookies()
@@ -47,6 +48,10 @@ export default async function DashboardPage() {
 
       <main className="flex-1 p-6">
         <div className="mx-auto max-w-7xl space-y-6">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Bereich</span>
+            <BereichsSwitcher className="w-64" />
+          </div>
           <div className="space-y-3">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Datenpflege</h2>
           <div className="grid gap-3 sm:grid-cols-3">
