@@ -55,6 +55,7 @@ Eine interne Controlling-Plattform für das Finanzreporting eines E-Commerce Unt
 | P0 | PROJ-41: Bereichswechsler — Plattform-Navigation | Planned |
 | P1 | PROJ-42: Absatzeinstellungen — Kurzfristige Planung | Planned |
 | P1 | PROJ-43: Verkaufsgebühr-Einstellungen — Kurzfristige Planung | Planned |
+| P1 | PROJ-44: Versandausgaben-Einstellungen — Kurzfristige Planung | Planned |
 
 ## Success Metrics
 - Alle Finanzdaten werden in einer zentralen Plattform erfasst (kein Excel-Chaos)
