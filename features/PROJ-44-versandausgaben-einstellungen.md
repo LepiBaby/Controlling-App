@@ -298,6 +298,28 @@ PUT  /api/versandausgaben-allgemein-einstellungen
 ### Build
 - `npm run build` ✅ — alle 54 Routen korrekt, `/dashboard/kurzfristige-planung/versandausgaben-einstellungen` in der Route-Liste
 
+## Implementation Notes (Backend — 2026-06-01)
+
+### Datenbankmigrierung
+- Migration `proj44_versandausgaben_einstellungen` erfolgreich auf Supabase-Projekt `kdmpghtdoguppfqhdscq` angewendet
+- Tabelle `versandausgaben_einstellungen` angelegt mit: UUID-PK, FKs zu `kpi_categories` (ON DELETE CASCADE) und `auth.users` (ON DELETE CASCADE), NUMERIC(10,2) für den Gebührenwert (nullable), UNIQUE-Constraint `(sales_plattform_id, produkt_id, user_id)`
+- Tabelle `versandausgaben_allgemein_einstellungen` angelegt mit: UUID-PK, FK zu `auth.users` (ON DELETE CASCADE), TEXT mit CHECK-Constraint auf 3 erlaubte Werte (DEFAULT 'monatlich'), INTEGER CHECK (≥ 0) für Zahlungsziel, UNIQUE-Constraint `(user_id)` — ein Eintrag pro Nutzer
+- RLS aktiviert mit je 4 Policies (SELECT/INSERT/UPDATE/DELETE) auf beiden Tabellen
+- Indexes: `idx_versandausgaben_einstellungen_plattform_user` auf `(sales_plattform_id, user_id)`, `idx_versandausgaben_allgemein_user` auf `(user_id)`
+
+### API-Routen
+- `GET /api/versandausgaben-einstellungen?plattform_id=<UUID>` — UUID-Validierung via Regex; `.limit(500)`; gibt Array oder leeres Array zurück
+- `PUT /api/versandausgaben-einstellungen` — Upsert via `onConflict: 'sales_plattform_id,produkt_id,user_id'`; Zod validiert `versandgebuehr_euro_netto` als Zahl ≥ 0 oder null
+- `GET /api/versandausgaben-allgemein-einstellungen` — `.maybeSingle()`; gibt Objekt oder null zurück
+- `PUT /api/versandausgaben-allgemein-einstellungen` — Fetch-then-merge-Pattern: liest aktuelle Werte, merged mit den gesendeten Feldern, dann Upsert via `onConflict: 'user_id'`; `'zahlungsziel_tage' in body`-Check ermöglicht explizites Setzen auf null vs. Feld-nicht-gesendet
+
+### Abweichungen von der Spec
+- Keine
+
+### Tests
+- `src/app/api/versandausgaben-einstellungen/route.test.ts` — 14 Tests (Vitest): 6 für GET, 8 für PUT — alle bestanden ✅
+- `src/app/api/versandausgaben-allgemein-einstellungen/route.test.ts` — 17 Tests (Vitest): 4 für GET, 13 für PUT — alle bestanden ✅
+
 ## QA Test Results
 _To be added by /qa_
 
