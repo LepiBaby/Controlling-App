@@ -1,6 +1,6 @@
 # PROJ-43: Verkaufsgebühr-Einstellungen — Kurzfristige Planung
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-06-01
 **Last Updated:** 2026-06-01
 
@@ -238,8 +238,86 @@ PUT  /api/verkaufsgebuehr-einstellungen
 - `src/app/api/verkaufsgebuehr-einstellungen/route.test.ts` — 16 Tests (Vitest): 6 für GET, 10 für PUT
 - Alle 16 Tests bestehen ✅
 
-## QA Test Results
-_To be added by /qa_
+## QA Test Results (2026-06-01)
+
+### Zusammenfassung
+- **Acceptance Criteria:** 16/16 bestanden ✅
+- **Edge Cases:** 9/9 bestanden ✅
+- **Bugs gefunden:** 0
+- **Security-Audit:** Keine Findings
+- **Production-ready:** JA
+
+### Automatisierte Tests
+
+| Suite | Tests | Ergebnis |
+|---|---|---|
+| Vitest (API) `route.test.ts` | 16 | ✅ alle bestanden |
+| Playwright E2E | 12 (Chromium + Mobile Safari) | ✅ alle bestanden |
+
+### Acceptance Criteria — Prüfprotokoll
+
+**Navigation & Einstieg**
+- [x] Linke Navigation im Bereich „Kurzfristige Planung" enthält Eintrag „Verkaufsgebühr-Einstellungen" ✅
+- [x] Kachel „Verkaufsgebühr-Einstellungen" auf `/dashboard/kurzfristige-planung` vorhanden ✅
+- [x] Auth-Guard: Unauthentifizierter Zugriff → Redirect zu `/login` ✅ (E2E-Test)
+
+**Reiter (Sales-Plattformen)**
+- [x] Alle Sales-Plattformen als Tabs dargestellt, sortiert nach `sort_order` ✅ (manuell + Code-Review)
+- [x] Erster Reiter automatisch aktiv ✅ (manuell)
+- [x] Leerzustand bei keinen Plattformen: Hinweis + Link zum KPI-Modell ✅ (Code-Review)
+
+**Tabelle (Produkte)**
+- [x] Zeile pro Produkt (`level=1, type=produkte`), sortiert nach `sort_order` ✅ (manuell + Code-Review)
+- [x] Spalten: Produkt (read-only) + Verkaufsgebühr (%) ✅ (manuell)
+- [x] Leerzustand bei keinen Produkten: Hinweis + Link zum KPI-Modell ✅ (Code-Review)
+
+**Verkaufsgebühr-Feld**
+- [x] Akzeptiert Dezimalzahlen ≥ 0 (z. B. 19.5) ✅ (manuell + API-Test)
+- [x] Keine Obergrenze — Werte > 100 % erlaubt ✅ (API-Test: Wert 120 → 200)
+- [x] Standard bei ungepflegten Kombinationen: leer ✅ (manuell)
+- [x] Auto-Save per `onBlur` ✅ (manuell)
+- [x] Optimistisches Update + Rollback bei Fehler ✅ (Code-Review)
+
+**Datenpersistenz**
+- [x] Separate DB-Einträge pro Plattform-Produkt-Kombination ✅ (DB-Schema + API-Test)
+- [x] Tab-Wechsel lädt Daten des neuen Reiters ✅ (manuell + Code-Review)
+- [x] Erste Kombination ohne DB-Eintrag → leer ✅ (manuell)
+
+**Datenbank**
+- [x] Tabelle `verkaufsgebuehr_einstellungen` mit korrektem Schema ✅ (Migration erfolgreich)
+- [x] RLS aktiviert mit 4 Policies ✅ (Migration)
+- [x] UNIQUE-Constraint `(sales_plattform_id, produkt_id, user_id)` ✅ (Migration)
+- [x] ON DELETE CASCADE für beide FKs ✅ (Migration)
+
+**API**
+- [x] `GET /api/verkaufsgebuehr-einstellungen?plattform_id=<UUID>` → 200 mit Array ✅ (API-Test)
+- [x] `PUT /api/verkaufsgebuehr-einstellungen` → Upsert ✅ (API-Test)
+- [x] Ungültige Eingaben → 400 ✅ (API-Test: negativer Wert, fehlende IDs, ungültige UUID)
+- [x] Unauthentifiziert → 401 ✅ (API-Test)
+- [x] DB-Fehler → 500 ✅ (API-Test)
+
+### Edge Cases — Prüfprotokoll
+- [x] Keine Sales-Plattformen → Hinweis-Zustand ✅ (Code-Review)
+- [x] Keine Produkte → Hinweis-Zustand ✅ (Code-Review)
+- [x] Feld leeren + onBlur → null wird gespeichert, Feld bleibt leer ✅ (Code-Review + manuell)
+- [x] Plattform gelöscht → ON DELETE CASCADE entfernt Einstellungen ✅ (DB-Schema)
+- [x] Produkt gelöscht → ON DELETE CASCADE entfernt Einstellungen ✅ (DB-Schema)
+- [x] Neue Plattform/Produkt → erscheint bei nächstem Aufruf mit leerem Feld ✅ (Code-Review)
+- [x] API-Fehler beim Auto-Save → Toast + Rollback ✅ (Code-Review)
+- [x] Viele Produkte (>20) → Tabelle scrollbar ✅ (kein explizites max-height, Browser-Scroll)
+- [x] Viele Plattformen (>5) → TabsList scrollbar (overflow-x: auto) ✅ (shadcn Tabs)
+
+### Security-Audit
+- **Auth-Bypass:** API gibt 401 für unauthentifizierte Requests ✅
+- **IDOR:** RLS-Policies stellen sicher, dass Nutzer nur eigene Einträge sehen/schreiben ✅
+- **Input Injection:** Zod-Validierung auf Server-Seite; Supabase verwendet parametrisierte Queries ✅
+- **Negative Werte:** API blockiert `verkaufsgebuehr_prozent < 0` mit 400 ✅
+- **Keine Secrets in API-Response:** Response enthält nur `id, sales_plattform_id, produkt_id, verkaufsgebuehr_prozent` ✅
+
+### Regressionstest
+- [x] `/dashboard/kurzfristige-planung/absatzeinstellungen` weiterhin erreichbar ✅ (E2E-Test)
+- [x] `/dashboard/reporting/rentabilitaet` Auth-Guard weiterhin aktiv ✅ (E2E-Test)
+- [x] Kachel „Absatzeinstellungen" weiterhin auf kurzfristige-planung-Dashboard ✅ (Code-Review)
 
 ## Deployment
 _To be added by /deploy_
