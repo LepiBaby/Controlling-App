@@ -336,6 +336,24 @@ PUT  /api/auszahlungs-einstellungen
 ### Hinweis Backend
 - DB-Tabelle `auszahlungs_einstellungen` noch nicht migriert → `/backend` muss die Migration durchführen, bevor die API produktiv funktioniert
 
+## Implementation Notes (Backend — 2026-06-01)
+
+### Datenbankmigrierung
+- Migration `proj45_auszahlungs_einstellungen` erfolgreich auf Supabase-Projekt `kdmpghtdoguppfqhdscq` angewendet
+- Tabelle `auszahlungs_einstellungen` angelegt mit: UUID-PK, FK zu `kpi_categories` (ON DELETE CASCADE), CHECK-Constraint auf `auszahlungsrhythmus` (4 Werte), INTEGER-CHECK (KW: 1–53, Jahr: ≥ 2024), BOOLEAN-Defaults für `retouren_inkludiert`/`marketing_inkludiert`, FK zu `auth.users` (ON DELETE CASCADE)
+- CHECK-Constraint `chk_kw_jahr_both_or_neither`: KW und Jahr müssen gemeinsam gesetzt oder beide NULL sein — DB-seitige Durchsetzung der Spec-Anforderung
+- UNIQUE-Constraint `(sales_plattform_id, user_id)` — ein Eintrag pro Plattform pro Nutzer
+- RLS aktiviert mit 4 Policies (SELECT / INSERT / UPDATE / DELETE) — Nutzer sieht und schreibt nur eigene Einträge
+- Index `idx_auszahlungs_einstellungen_plattform_user` auf `(sales_plattform_id, user_id)` für performante GET-Abfragen
+
+### API-Route
+- `GET /api/auszahlungs-einstellungen?plattform_id=<UUID>`: `maybeSingle()` — gibt `null` zurück wenn kein Eintrag (unterscheidet sich von anderen Einstellungsseiten, die Arrays zurückgeben)
+- `PUT /api/auszahlungs-einstellungen`: Upsert via `onConflict: 'sales_plattform_id,user_id'`; `superRefine` in Zod prüft KW+Jahr beide gesetzt oder beide null
+
+### Tests
+- `src/app/api/auszahlungs-einstellungen/route.test.ts` — 19 Tests (Vitest): 6 für GET, 13 für PUT
+- Alle 19 Tests bestehen ✅
+
 ## QA Test Results
 _To be added by /qa_
 
