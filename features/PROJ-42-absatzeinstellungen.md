@@ -1,6 +1,6 @@
 # PROJ-42: Absatzeinstellungen — Kurzfristige Planung
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-06-01
 **Last Updated:** 2026-06-01
 
@@ -138,7 +138,119 @@ Die Einstellungen werden in der Datenbank persistiert, da sie später in der Abs
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Komponentenstruktur
+
+```
+/dashboard/kurzfristige-planung  (Landing-Seite — aktuell Placeholder)
++-- BereichsKartenSwitcher (bereits vorhanden)
++-- Kachelraster (NEU — ersetzt Placeholder-Text)
+    +-- Kachel: "Absatzeinstellungen" → /dashboard/kurzfristige-planung/absatzeinstellungen
+
+/dashboard/kurzfristige-planung/absatzeinstellungen  (NEUE Seite)
++-- Page-Header (identische Struktur wie andere Seiten)
++-- AbsatzeinstellungenTabelle  (NEUE Hauptkomponente)
+    +-- Tabs  [shadcn — eine Tab je Sales-Plattform aus KPI-Modell]
+    |   +-- Tab: "Plattform A"
+    |   +-- Tab: "Plattform B"
+    |   +-- ...
+    +-- Leerzustand A: keine Plattformen → Hinweis + Link zu KPI-Modell
+    +-- (je aktivem Tab) Leerzustand B: keine Produkte → Hinweis + Link zu KPI-Modell
+    +-- (je aktivem Tab) Table  [shadcn]
+        +-- TableHeader: Produkt | Berechnungsart | 1. Drittel % | 2. Drittel % | 3. Drittel %
+        +-- TableBody: eine Zeile je Produkt
+            +-- AbsatzEinstellungZeile  (NEUE Zeilen-Komponente)
+                +-- Produktname  (read-only Text)
+                +-- Select  [shadcn — 8 Optionen]
+                +-- Gewichtungsfelder  (nur sichtbar bei gewichtetem Mittelwert)
+                |   +-- Input: 1. Drittel %  (0–100, ganze Zahl)
+                |   +-- Input: 2. Drittel %  (0–100, ganze Zahl)
+                |   +-- Input: 3. Drittel %  (0–100, ganze Zahl)
+                +-- Validierungshinweis: "Summe muss 100 % ergeben (aktuell: X %)"
+```
+
+### Datenmodell
+
+**Neue Tabelle `absatz_einstellungen`:**
+
+| Feld | Typ | Beschreibung |
+|---|---|---|
+| `id` | UUID | Primärschlüssel |
+| `sales_plattform_id` | UUID FK | Verknüpfung mit `kpi_categories` (type = sales_plattformen) — ON DELETE CASCADE |
+| `produkt_id` | UUID FK | Verknüpfung mit `kpi_categories` (type = produkte, level = 1) — ON DELETE CASCADE |
+| `berechnungsart` | Text | Einer von 8 Werten: mittelwert_14/30/60/90, gewichtet_30/60/90, keine |
+| `gewichtung_erstes_drittel` | Integer 0–100 (nullable) | Nur befüllt bei gewichtetem Mittelwert |
+| `gewichtung_zweites_drittel` | Integer 0–100 (nullable) | Nur befüllt bei gewichtetem Mittelwert |
+| `gewichtung_drittes_drittel` | Integer 0–100 (nullable) | Nur befüllt bei gewichtetem Mittelwert |
+| `user_id` | UUID FK | Dateneigentümer — RLS: jeder Nutzer sieht nur eigene Einträge |
+
+Unique-Constraint: `(sales_plattform_id, produkt_id, user_id)` — eine Einstellung pro Kombination pro Nutzer.
+
+### Datenfluss
+
+```
+Seite öffnet sich
+  → Hook lädt alle Sales-Plattformen aus kpi_categories (type = sales_plattformen)
+  → Hook lädt alle Produkte aus kpi_categories (type = produkte, level = 1)
+  → Erster Plattform-Tab wird automatisch aktiviert
+  → Hook lädt absatz_einstellungen für aktive Plattform per GET
+
+Nutzer wechselt Tab
+  → Hook lädt absatz_einstellungen für neue Plattform (falls noch nicht gecacht)
+
+Nutzer ändert Berechnungsart in einer Zeile
+  → Optimistisches Update in der UI (sofort sichtbar)
+  → PUT /api/absatz-einstellungen (Upsert)
+  → Bei Fehler: Rollback auf vorherigen Wert + Toast-Fehlermeldung
+
+Nutzer ändert Gewichtungsfelder
+  → Lokale Echtzeit-Validierung: Summe der drei Felder = 100?
+  → Nein: Fehlermeldung in Zeile sichtbar, kein API-Aufruf
+  → Ja: PUT /api/absatz-einstellungen nach onBlur
+```
+
+### API-Endpunkte
+
+```
+GET  /api/absatz-einstellungen?plattform_id=<UUID>
+  → Alle Einstellungen des Nutzers für eine Plattform
+  → Response: Array von { produkt_id, berechnungsart, gewichtung_* }
+
+PUT  /api/absatz-einstellungen
+  → Upsert (anlegen oder aktualisieren) einer Plattform-Produkt-Kombination
+  → Body: { sales_plattform_id, produkt_id, berechnungsart, gewichtung_*? }
+  → Serverseitige Validierung (Zod):
+      berechnungsart ∈ 8 erlaubter Werte
+      Bei gewichtet_*: alle drei Gewichtungsfelder vorhanden, integer 0–100, Summe = 100
+      Bei nicht-gewichtet: Gewichtungsfelder werden auf NULL gesetzt
+  → Response 422 wenn Summe ≠ 100 bei gewichteter Methode
+```
+
+### Neue Dateien
+
+| Datei | Zweck |
+|---|---|
+| `src/app/dashboard/kurzfristige-planung/absatzeinstellungen/page.tsx` | Neue Seite (Server Component mit Auth-Guard) |
+| `src/components/absatzeinstellungen-tabelle.tsx` | Hauptkomponente: Tabs, Tabelle, Zeilen, Auto-Save-Logik |
+| `src/hooks/use-absatz-einstellungen.ts` | State-Management: laden, upsert, optimistic update, rollback |
+| `src/app/api/absatz-einstellungen/route.ts` | GET + PUT (Upsert) mit Zod + requireAuth() |
+
+### Geänderte Dateien
+
+| Datei | Änderung |
+|---|---|
+| `src/components/nav-sheet.tsx` | `kurzfristige-planung`-Array: Gruppe „Kurzfristige Planung" mit Eintrag „Absatzeinstellungen" ergänzen |
+| `src/app/dashboard/kurzfristige-planung/page.tsx` | Placeholder-Text durch echtes Kachelraster ersetzen (analog Reporting-Dashboard) |
+
+### Tech-Entscheidungen
+
+| Entscheidung | Gewählt | Warum |
+|---|---|---|
+| API-Strategie | Einzelner Upsert-Endpunkt (PUT) | Neue Kombinationen existieren noch nicht in der DB; Upsert vermeidet separate POST/PATCH-Logik |
+| Tab-Zustand | React-State (kein URL-Parameter) | Plattformwechsel ist rein lokal; keine Anforderung an Deep-Links auf Plattformebene |
+| Gewichtungsfelder im DOM | Immer vorhanden, konditionell sichtbar | Stabiles Tabellen-Layout ohne Spaltenbreiten-Sprünge |
+| Speichern | Auto-Save (onBlur/onChange je Feld) | Kein globaler Submit-Button — einheitlich mit anderen Einstellungsseiten im Projekt |
+| Neue Packages | Keine | Tabs, Select, Table, Input — alles bereits in shadcn/ui installiert |
 
 ## QA Test Results
 _To be added by /qa_
