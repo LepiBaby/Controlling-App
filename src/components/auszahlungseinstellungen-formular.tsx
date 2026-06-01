@@ -1,12 +1,15 @@
 'use client'
 
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useMemo } from 'react'
+import { CalendarIcon } from 'lucide-react'
+import { de } from 'date-fns/locale'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
+import { Calendar } from '@/components/ui/calendar'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useKpiCategories } from '@/hooks/use-kpi-categories'
 import {
   useAuszahlungsEinstellungen,
@@ -20,18 +23,34 @@ import {
 } from '@/hooks/use-auszahlungs-einstellungen'
 import { useToast } from '@/hooks/use-toast'
 
+/** Montag der ISO-Woche (kw, jahr) als Date-Objekt */
+function getMondayOfISOWeek(kw: number, jahr: number): Date {
+  const jan4 = new Date(jahr, 0, 4) // 4. Jan liegt immer in KW1
+  const dayOfWeek = jan4.getDay() || 7 // Mo=1 … So=7
+  const kw1Monday = new Date(jan4)
+  kw1Monday.setDate(jan4.getDate() - (dayOfWeek - 1))
+  const result = new Date(kw1Monday)
+  result.setDate(kw1Monday.getDate() + (kw - 1) * 7)
+  return result
+}
+
+/** ISO-Woche + Jahr aus einem Date ableiten */
+function getISOWeekAndYear(date: Date): { kw: number; jahr: number } {
+  const d = new Date(date)
+  d.setHours(12, 0, 0, 0)
+  d.setDate(d.getDate() + 4 - (d.getDay() || 7))
+  const yearStart = new Date(d.getFullYear(), 0, 1)
+  const kw = Math.ceil(((d.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7)
+  return { kw, jahr: d.getFullYear() }
+}
+
 // --- Form für eine einzelne Plattform ---
 
 function AuszahlungseinstellungenPlatformForm({ plattformId }: { plattformId: string }) {
   const { einstellung, loading, error, upsert } = useAuszahlungsEinstellungen(plattformId)
   const { toast } = useToast()
   const [saving, setSaving] = useState(false)
-
-  // Lokaler State für KW/Jahr-Felder
-  const [localKw, setLocalKw] = useState<string>('')
-  const [localJahr, setLocalJahr] = useState<string>('')
-  const [kwJahrError, setKwJahrError] = useState<string | null>(null)
-  const containerFocusedRef = useRef(false)
+  const [calendarOpen, setCalendarOpen] = useState(false)
 
   // Berechnete nächste Auszahlungswoche aus gespeicherter Basis + Rhythmus
   const displayedKw = useMemo(() => {
@@ -51,12 +70,10 @@ function AuszahlungseinstellungenPlatformForm({ plattformId }: { plattformId: st
     )
   }, [einstellung])
 
-  // Sync lokale KW/Jahr-Felder wenn displayedKw sich ändert (Laden oder nach Speichern)
-  useEffect(() => {
-    if (!containerFocusedRef.current) {
-      setLocalKw(displayedKw?.kw?.toString() ?? '')
-      setLocalJahr(displayedKw?.jahr?.toString() ?? '')
-    }
+  // Das ausgewählte Datum für den Kalender (Montag der angezeigten KW)
+  const selectedDate = useMemo(() => {
+    if (!displayedKw) return undefined
+    return getMondayOfISOWeek(displayedKw.kw, displayedKw.jahr)
   }, [displayedKw])
 
   const current: AuszahlungsEinstellung = einstellung ?? {
@@ -83,46 +100,17 @@ function AuszahlungseinstellungenPlatformForm({ plattformId }: { plattformId: st
     }
   }
 
-  async function handleKwJahrContainerBlur(e: React.FocusEvent<HTMLDivElement>) {
-    // Focus bleibt im Container (z. B. von KW zu Jahr) → nicht speichern
-    if (e.currentTarget.contains(e.relatedTarget as Node)) return
-    containerFocusedRef.current = false
-    await saveKwJahr()
-  }
-
-  async function saveKwJahr() {
-    setKwJahrError(null)
-    const kwStr = localKw.trim()
-    const jahrStr = localJahr.trim()
-
-    // Beide leer → Basis löschen
-    if (!kwStr && !jahrStr) {
-      await handleSave({
+  function handleDateSelect(date: Date | undefined) {
+    setCalendarOpen(false)
+    if (!date) {
+      handleSave({
         naechste_auszahlung_basis_kw: null,
         naechste_auszahlung_basis_jahr: null,
       })
       return
     }
-
-    // Beide müssen befüllt sein
-    if (!kwStr || !jahrStr) {
-      setKwJahrError('KW und Jahr müssen gemeinsam befüllt oder beide leer sein.')
-      return
-    }
-
-    const kw = parseInt(kwStr, 10)
-    const jahr = parseInt(jahrStr, 10)
-
-    if (isNaN(kw) || kw < 1 || kw > 53) {
-      setKwJahrError('Ungültige KW — erlaubt: 1 bis 53.')
-      return
-    }
-    if (isNaN(jahr) || jahr < 2024) {
-      setKwJahrError('Ungültiges Jahr — erlaubt: ab 2024.')
-      return
-    }
-
-    await handleSave({
+    const { kw, jahr } = getISOWeekAndYear(date)
+    handleSave({
       naechste_auszahlung_basis_kw: kw,
       naechste_auszahlung_basis_jahr: jahr,
     })
@@ -164,50 +152,51 @@ function AuszahlungseinstellungenPlatformForm({ plattformId }: { plattformId: st
       </div>
 
       {/* Nächste Auszahlungswoche */}
-      <div className="flex flex-col gap-1.5">
-        <div className="flex items-center gap-6">
-          <Label className="w-56 shrink-0 text-sm font-medium">Nächste Auszahlungswoche</Label>
-          <div
-            className="flex items-center gap-2"
-            onFocus={() => { containerFocusedRef.current = true }}
-            onBlur={handleKwJahrContainerBlur}
-          >
-            <div className="flex items-center gap-1.5">
-              <span className="text-sm text-muted-foreground">KW</span>
-              <Input
-                type="number"
-                min={1}
-                max={53}
-                value={localKw}
-                onChange={e => {
-                  setLocalKw(e.target.value)
-                  setKwJahrError(null)
-                }}
-                className="w-20"
-                disabled={saving}
-                placeholder="—"
-                aria-label="Kalenderwoche"
-              />
-            </div>
-            <span className="text-sm text-muted-foreground">/</span>
-            <Input
-              type="number"
-              min={2024}
-              value={localJahr}
-              onChange={e => {
-                setLocalJahr(e.target.value)
-                setKwJahrError(null)
-              }}
-              className="w-24"
-              disabled={saving}
-              placeholder="—"
-              aria-label="Jahr"
-            />
-          </div>
+      <div className="flex items-center gap-6">
+        <div className="w-56 shrink-0">
+          <Label className="text-sm font-medium">Nächste Auszahlungswoche</Label>
+          {displayedKw && (
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              KW {displayedKw.kw} / {displayedKw.jahr}
+            </p>
+          )}
         </div>
-        {kwJahrError && (
-          <p className="ml-[248px] text-xs text-destructive">{kwJahrError}</p>
-        )}
+        <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              disabled={saving}
+              className="w-48 justify-start gap-2 font-normal"
+            >
+              <CalendarIcon className="size-4 text-muted-foreground" />
+              {selectedDate
+                ? selectedDate.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                : <span className="text-muted-foreground">Datum wählen</span>
+              }
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={handleDateSelect}
+              locale={de}
+              showWeekNumber
+            />
+            {selectedDate && (
+              <div className="border-t p-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full text-muted-foreground"
+                  onClick={() => handleDateSelect(undefined)}
+                >
+                  Auswahl löschen
+                </Button>
+              </div>
+            )}
+          </PopoverContent>
+        </Popover>
       </div>
 
       {/* Retouren */}
