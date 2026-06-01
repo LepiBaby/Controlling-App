@@ -1,6 +1,6 @@
 # PROJ-45: Auszahlungseinstellungen — Kurzfristige Planung
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-06-01
 **Last Updated:** 2026-06-01
 
@@ -179,7 +179,138 @@ Die angezeigte Auszahlungswoche wird **bei jedem Seitenaufruf im Frontend dynami
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Komponentenstruktur
+
+```
+/dashboard/kurzfristige-planung  (bestehende Kachelseite)
++-- Kachelraster  (bereits vorhanden)
+    +-- Kachel: "Absatzeinstellungen"  (bereits vorhanden)
+    +-- Kachel: "Verkaufsgebühr-Einstellungen"  (bereits vorhanden)
+    +-- Kachel: "Versandausgaben-Einstellungen"  (bereits vorhanden)
+    +-- Kachel: "Auszahlungseinstellungen" (NEU) → /dashboard/kurzfristige-planung/auszahlungseinstellungen
+
+/dashboard/kurzfristige-planung/auszahlungseinstellungen  (NEUE Seite)
++-- Page-Header (identische Struktur wie andere Seiten)
++-- AuszahlungseinstellungenFormular  (NEUE Hauptkomponente)
+    +-- Tabs  [shadcn — eine Tab je Sales-Plattform aus KPI-Modell]
+    |   +-- Tab: "Plattform A"
+    |   +-- Tab: "Plattform B"
+    |   +-- ...
+    +-- Leerzustand: keine Plattformen → Hinweis + Link zu KPI-Modell
+    +-- (je aktivem Tab) AuszahlungseinstellungenPlatformForm  (NEUE Formular-Komponente)
+        +-- Zeile 1: Auszahlungsrhythmus  [shadcn Select — 4 Optionen]
+        +-- Zeile 2: Nächste Auszahlungswoche
+        |   +-- Input: KW  [shadcn Input type="number", min=1 max=53]
+        |   +-- Input: Jahr  [shadcn Input type="number", min=2024]
+        |   +-- Validierungshinweis: "KW und Jahr müssen gemeinsam befüllt oder leer sein"
+        +-- Zeile 3: Retouren  [shadcn Checkbox]
+        +-- Zeile 4: Marketing  [shadcn Checkbox]
+```
+
+### Datenmodell
+
+**Neue Tabelle `auszahlungs_einstellungen`** — eine Zeile pro Plattform pro Nutzer:
+
+| Feld | Typ | Beschreibung |
+|---|---|---|
+| `id` | UUID | Primärschlüssel |
+| `sales_plattform_id` | UUID FK | Verknüpfung mit `kpi_categories` (type = sales_plattformen) — ON DELETE CASCADE |
+| `auszahlungsrhythmus` | TEXT NOT NULL | Einer von: `woechentlich`, `alle_zwei_wochen`, `alle_drei_wochen`, `alle_vier_wochen`; Default: `woechentlich` |
+| `naechste_auszahlung_basis_kw` | INTEGER nullable (1–53) | Anker-Kalenderwoche; NULL wenn noch nicht gepflegt |
+| `naechste_auszahlung_basis_jahr` | INTEGER nullable (≥ 2024) | Ankerjahr; NULL wenn noch nicht gepflegt (immer zusammen mit basis_kw) |
+| `retouren_inkludiert` | BOOLEAN NOT NULL | Default: false |
+| `marketing_inkludiert` | BOOLEAN NOT NULL | Default: false |
+| `user_id` | UUID FK | Dateneigentümer — RLS: jeder Nutzer sieht nur eigene Einträge; ON DELETE CASCADE |
+
+Unique-Constraint: `(sales_plattform_id, user_id)` — eine Einstellung pro Plattform pro Nutzer.
+
+**Wichtiger Unterschied zu PROJ-42/43/44:** Kein Produkt-Bezug — die Einstellungen gelten auf Plattformebene. Daher kein `produkt_id`-Feld und keine Tabelle mit Produktzeilen.
+
+### Datenfluss & Berechnungslogik
+
+```
+Seite öffnet sich
+  → Komponente lädt alle Sales-Plattformen aus kpi_categories (type = sales_plattformen)
+  → Erster Plattform-Tab wird aktiv
+  → Hook lädt auszahlungs_einstellungen für aktive Plattform per GET
+  → Frontend berechnet die angezeigte KW:
+      calculateNextPayoutWeek(basis_kw, basis_jahr, rhythmus_wochen, aktuelle_kw, aktuelles_jahr)
+  → KW/Jahr-Felder zeigen das berechnete Ergebnis an (nicht den rohen DB-Wert)
+
+Nutzer wechselt Plattform-Tab
+  → Hook lädt Einstellungen der neuen Plattform (falls noch nicht gecacht)
+
+Nutzer ändert Rhythmus-Dropdown (onChange)
+  → Optimistisches Update in der UI
+  → PUT /api/auszahlungs-einstellungen (Upsert)
+  → Bei Fehler: Rollback + Toast
+
+Nutzer bearbeitet KW oder Jahr und verlässt das Feld (onBlur)
+  → Validierung: KW und Jahr müssen beide befüllt oder beide leer sein
+  → Bei ungültiger Kombination: Validierungshinweis, kein API-Aufruf
+  → Bei gültiger Eingabe: eingegebener Wert wird als neue Basis gespeichert
+    PUT /api/auszahlungs-einstellungen mit neuen basis_kw und basis_jahr
+  → Anzeige neu berechnen auf Basis des neuen Ankers
+
+Nutzer ändert Checkbox Retouren oder Marketing (onChange)
+  → Optimistisches Update in der UI
+  → PUT /api/auszahlungs-einstellungen (Upsert)
+  → Bei Fehler: Rollback + Toast
+```
+
+**Berechnungslogik `calculateNextPayoutWeek` (Frontend-Utility, kein DB-Aufruf):**
+
+Die Funktion nimmt Anker-KW, Ankerjahr, Rhythmus (in Wochen) und die aktuelle KW/Jahr und gibt die nächste zukünftige Auszahlungswoche zurück. Sie rückt den Anker-Zeitpunkt um den Rhythmus vor, bis sie eine Woche ≥ aktueller Woche erreicht. Jahresgrenzen (52 oder 53 ISO-Wochen) werden korrekt behandelt — analog zur bestehenden `isoWeekKey`-Logik in der Liquiditäts-API. Keine externe Bibliothek nötig; eine kleine Pure-Function reicht.
+
+### API-Endpunkte
+
+```
+GET  /api/auszahlungs-einstellungen?plattform_id=<UUID>
+  → Einstellungen des eingeloggten Nutzers für eine Plattform
+  → Response: { auszahlungsrhythmus, naechste_auszahlung_basis_kw,
+                naechste_auszahlung_basis_jahr, retouren_inkludiert,
+                marketing_inkludiert } oder null wenn noch kein Eintrag
+
+PUT  /api/auszahlungs-einstellungen
+  → Upsert (anlegen oder aktualisieren) einer Plattform-Einstellung
+  → Body: { sales_plattform_id, auszahlungsrhythmus?, naechste_auszahlung_basis_kw?,
+             naechste_auszahlung_basis_jahr?, retouren_inkludiert?, marketing_inkludiert? }
+  → Zod-Validierung:
+      auszahlungsrhythmus ∈ 4 erlaubter Werte
+      basis_kw: Integer 1–53 oder null
+      basis_jahr: Integer ≥ 2024 oder null
+      basis_kw und basis_jahr müssen gemeinsam gesetzt oder gemeinsam null sein
+  → Response 400 bei ungültigen Werten
+```
+
+### Neue Dateien
+
+| Datei | Zweck |
+|---|---|
+| `src/app/dashboard/kurzfristige-planung/auszahlungseinstellungen/page.tsx` | Neue Seite (Client Component mit Auth-Guard) |
+| `src/components/auszahlungseinstellungen-formular.tsx` | Hauptkomponente: Tabs (Plattformen), Formular mit 4 Zeilen, KW-Berechnungslogik |
+| `src/hooks/use-auszahlungs-einstellungen.ts` | State-Management: laden, upsert, optimistisches Update, Rollback; enthält `calculateNextPayoutWeek`-Utility |
+| `src/app/api/auszahlungs-einstellungen/route.ts` | GET + PUT (Upsert) mit Zod + requireAuth() |
+
+### Geänderte Dateien
+
+| Datei | Änderung |
+|---|---|
+| `src/components/nav-sheet.tsx` | Eintrag „Auszahlungseinstellungen" zur bestehenden Gruppe „Kurzfristige Planung" ergänzen |
+| `src/app/dashboard/kurzfristige-planung/page.tsx` | Kachel „Auszahlungseinstellungen" zum bestehenden Kachelraster hinzufügen |
+
+### Tech-Entscheidungen
+
+| Entscheidung | Gewählt | Warum |
+|---|---|---|
+| Muster | Identisch zu PROJ-43 (Hook + Hauptkomponente) | Gleiche Seiten-Infrastruktur — Konsistenz, weniger neue Komplexität |
+| Kein Produkt-Bezug | Plattform-Level-Einstellungen | Auszahlungsrhythmus gilt für die ganze Plattform, nicht pro Produkt |
+| KW-Berechnung | Frontend-Only (kein DB-Update) | DB speichert nur den Anker; die Anzeige wird bei jedem Laden neu berechnet — kein Hintergrundjob nötig |
+| ISO-Wochen | Native JS Pure-Function (kein date-fns) | date-fns ist nicht im Projekt; die Berechnung ist in 10–15 Zeilen native JS lösbar (analog zu liquiditaet/route.ts) |
+| KW + Jahr getrennt | Zwei INTEGER-Spalten | Explizit und einfach; kein DATE-Typ nötig, kein Timezone-Risiko |
+| Speichern | Auto-Save (onChange für Dropdown+Checkboxen, onBlur für KW/Jahr) | Einheitlich mit allen anderen Einstellungsseiten im Projekt |
+| Neue Packages | Keine | Tabs, Select, Input, Checkbox — alles bereits in shadcn/ui installiert |
 
 ## QA Test Results
 _To be added by /qa_
