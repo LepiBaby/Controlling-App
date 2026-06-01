@@ -20,9 +20,22 @@ export default function KurzfristigePlanungPage() {
       <main className="flex-1 p-6">
         <div className="mx-auto max-w-7xl space-y-8">
           <BereichsKartenSwitcher />
-          <div className="flex flex-col items-center justify-center py-24 text-center">
-            <p className="text-lg font-medium text-muted-foreground">Kurzfristige Planung</p>
-            <p className="mt-2 text-sm text-muted-foreground">Dieser Bereich wird in Kürze verfügbar sein.</p>
+
+          <div className="space-y-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              Kurzfristige Planung
+            </h2>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <a
+                href="/dashboard/kurzfristige-planung/absatzeinstellungen"
+                className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+              >
+                <p className="font-medium">Absatzeinstellungen</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Absatzberechnungsmethode je Plattform &amp; Produkt konfigurieren
+                </p>
+              </a>
+            </div>
           </div>
         </div>
       </main>

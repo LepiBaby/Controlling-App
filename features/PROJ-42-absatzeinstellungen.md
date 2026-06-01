@@ -1,6 +1,6 @@
 # PROJ-42: Absatzeinstellungen — Kurzfristige Planung
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-06-01
 **Last Updated:** 2026-06-01
 
@@ -251,6 +251,26 @@ PUT  /api/absatz-einstellungen
 | Gewichtungsfelder im DOM | Immer vorhanden, konditionell sichtbar | Stabiles Tabellen-Layout ohne Spaltenbreiten-Sprünge |
 | Speichern | Auto-Save (onBlur/onChange je Feld) | Kein globaler Submit-Button — einheitlich mit anderen Einstellungsseiten im Projekt |
 | Neue Packages | Keine | Tabs, Select, Table, Input — alles bereits in shadcn/ui installiert |
+
+## Implementation Notes (Frontend — 2026-06-01)
+
+### Neue Dateien
+- `src/hooks/use-absatz-einstellungen.ts` — Typen (`Berechnungsart`, `AbsatzEinstellung`), Konstanten (`BERECHNUNGSARTEN`, `BERECHNUNGSART_LABELS`, `isGewichtet`), Hook `useAbsatzEinstellungen(plattformId)` mit Laden, optimistischem Upsert und Rollback
+- `src/components/absatzeinstellungen-tabelle.tsx` — Drei Komponenten: `AbsatzEinstellungZeile` (lokaler State für Gewichtungsfelder, Auto-Save mit Validierung), `PlattformTabelle` (pro Plattform mit eigenem Hook-Aufruf), `AbsatzeinstellungenTabelle` (Export, lädt Plattformen + Produkte, rendert Tabs)
+- `src/app/dashboard/kurzfristige-planung/absatzeinstellungen/page.tsx` — Client Component, Page-Header + Beschreibungstext + `AbsatzeinstellungenTabelle`
+
+### Geänderte Dateien
+- `src/components/nav-sheet.tsx` — `KURZFRISTIGE_PLANUNG_NAV_GROUPS` mit Eintrag „Absatzeinstellungen" → `/dashboard/kurzfristige-planung/absatzeinstellungen` ergänzt; `NAV_GROUPS_BY_AREA['kurzfristige-planung']` auf neue Gruppe gesetzt
+- `src/app/dashboard/kurzfristige-planung/page.tsx` — Placeholder-Text durch echtes Kachelraster ersetzt: Gruppe „Kurzfristige Planung" mit Kachel „Absatzeinstellungen"
+
+### Designentscheidungen
+- `PlattformTabelle` ruft `useAbsatzEinstellungen` eigenständig auf: jede Plattform lädt ihre Daten beim Tab-Wechsel nach; kein externer Caching-Mechanismus nötig
+- Gewichtungsfelder: Fragment-Pattern (`<>...</>`) erlaubt eine optionale Fehlerzeile direkt nach der Produktzeile — kein Austritt aus der Tabellen-Struktur nötig
+- Fehlerzeile erscheint nur wenn: gewichtet aktiv + Nutzer hat bereits eingegeben + Summe ≠ 100
+- Berechnungsart-Wechsel speichert sofort (mit Gewichtung = null); Gewichtungsfelder speichern erst bei onBlur wenn Summe = 100
+
+### Build
+- `npm run build` ✅ — alle 50 Routen korrekt, `/dashboard/kurzfristige-planung/absatzeinstellungen` in Route-Liste
 
 ## QA Test Results
 _To be added by /qa_

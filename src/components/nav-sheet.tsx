@@ -49,9 +49,18 @@ const REPORTING_NAV_GROUPS = [
   },
 ]
 
+const KURZFRISTIGE_PLANUNG_NAV_GROUPS = [
+  {
+    label: 'Kurzfristige Planung',
+    items: [
+      { href: '/dashboard/kurzfristige-planung/absatzeinstellungen', label: 'Absatzeinstellungen' },
+    ],
+  },
+]
+
 const NAV_GROUPS_BY_AREA: Record<string, typeof REPORTING_NAV_GROUPS> = {
   reporting: REPORTING_NAV_GROUPS,
-  'kurzfristige-planung': [],
+  'kurzfristige-planung': KURZFRISTIGE_PLANUNG_NAV_GROUPS,
   'langfristige-planung': [],
 }
 
