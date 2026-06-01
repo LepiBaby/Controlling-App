@@ -1,6 +1,6 @@
 # PROJ-45: Auszahlungseinstellungen — Kurzfristige Planung
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-06-01
 **Last Updated:** 2026-06-01
 
@@ -311,6 +311,30 @@ PUT  /api/auszahlungs-einstellungen
 | KW + Jahr getrennt | Zwei INTEGER-Spalten | Explizit und einfach; kein DATE-Typ nötig, kein Timezone-Risiko |
 | Speichern | Auto-Save (onChange für Dropdown+Checkboxen, onBlur für KW/Jahr) | Einheitlich mit allen anderen Einstellungsseiten im Projekt |
 | Neue Packages | Keine | Tabs, Select, Input, Checkbox — alles bereits in shadcn/ui installiert |
+
+## Implementation Notes (Frontend — 2026-06-01)
+
+### Neue Dateien
+- `src/hooks/use-auszahlungs-einstellungen.ts` — Typen (`Rhythmus`, `AuszahlungsEinstellung`), Konstanten (`RHYTHMUS_WOCHEN`, `RHYTHMUS_LABELS`, `RHYTHMUS_VALUES`), ISO-Week-Utilities (`getISOWeeksInYear`, `getCurrentISOWeekAndYear`, `calculateNextPayoutWeek`), Hook `useAuszahlungsEinstellungen(plattformId)` mit optimistischem Upsert und Rollback
+- `src/components/auszahlungseinstellungen-formular.tsx` — Zwei Komponenten: `AuszahlungseinstellungenPlatformForm` (Formular je Plattform mit 4 Zeilen, KW-Berechnung, Container-Blur-Handling für KW/Jahr-Felder) und `AuszahlungseinstellungenFormular` (Export, lädt Plattformen, rendert Tabs)
+- `src/app/dashboard/kurzfristige-planung/auszahlungseinstellungen/page.tsx` — Client Component, max-w-3xl (schmaler als andere Seiten, da kein Tabellen-Layout)
+- `src/app/api/auszahlungs-einstellungen/route.ts` — GET (maybeSingle, gibt null wenn noch kein Eintrag) + PUT (Upsert mit `onConflict: 'sales_plattform_id,user_id'`) mit Zod + requireAuth(); `superRefine` prüft KW+Jahr gemeinsam gesetzt oder beide null
+
+### Geänderte Dateien
+- `src/components/nav-sheet.tsx` — Eintrag „Auszahlungseinstellungen" zur Gruppe „Kurzfristige Planung" ergänzt
+- `src/app/dashboard/kurzfristige-planung/page.tsx` — Kachel „Auszahlungseinstellungen" zum Kachelraster hinzugefügt (grid wird jetzt 4 Kacheln)
+
+### Designentscheidungen
+- **KW/Jahr Sync via containerFocusedRef**: Ein `useRef` auf dem Container-div der KW/Jahr-Felder verhindert, dass der `useEffect` (der `localKw`/`localJahr` aus `displayedKw` synct) die User-Eingabe überschreibt, solange der Nutzer die Felder bearbeitet. `onFocus` setzt `containerFocusedRef.current = true`, `onBlur` prüft `e.currentTarget.contains(e.relatedTarget)` um Tab-Wechsel zwischen KW und Jahr-Feld korrekt zu behandeln.
+- **`calculateNextPayoutWeek` pure function**: Verschiebt den Anker-Zeitpunkt um den Rhythmus vorwärts, bis er ≥ aktueller KW ist. Jahresgrenzen werden korrekt behandelt (getISOWeeksInYear). Keine externe Bibliothek nötig.
+- **GET mit maybeSingle**: Gibt `null` zurück wenn noch kein Eintrag — unterscheidet sich von den Array-Returns der anderen Einstellungsseiten, da es nur einen Datensatz pro Plattform+Nutzer gibt.
+- **max-w-3xl**: Da kein Tabellen-Layout mit Produkten, reicht eine schmalere Breite für das Formular.
+
+### Build
+- `npm run build` ✅ — alle 58 Routen korrekt, `/dashboard/kurzfristige-planung/auszahlungseinstellungen` und `/api/auszahlungs-einstellungen` in Route-Liste
+
+### Hinweis Backend
+- DB-Tabelle `auszahlungs_einstellungen` noch nicht migriert → `/backend` muss die Migration durchführen, bevor die API produktiv funktioniert
 
 ## QA Test Results
 _To be added by /qa_

@@ -53,6 +53,15 @@ export default function KurzfristigePlanungPage() {
                   Versandgebühr je Plattform &amp; Produkt sowie Allgemein-Einstellungen pflegen
                 </p>
               </a>
+              <a
+                href="/dashboard/kurzfristige-planung/auszahlungseinstellungen"
+                className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+              >
+                <p className="font-medium">Auszahlungseinstellungen</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Auszahlungsrhythmus, nächste Auszahlungswoche und Inklusionen je Plattform pflegen
+                </p>
+              </a>
             </div>
           </div>
         </div>
