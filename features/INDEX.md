@@ -69,7 +69,8 @@
 | PROJ-45 | Auszahlungseinstellungen — Kurzfristige Planung | Approved | [PROJ-45-auszahlungseinstellungen.md](PROJ-45-auszahlungseinstellungen.md) | 2026-06-01 |
 | PROJ-46 | Lager-Ausgaben-Einstellungen — Kurzfristige Planung | Approved | [PROJ-46-lagerausgaben-einstellungen.md](PROJ-46-lagerausgaben-einstellungen.md) | 2026-06-02 |
 | PROJ-47 | Retoureneinstellungen — Kurzfristige Planung | Approved | [PROJ-47-retouren-einstellungen.md](PROJ-47-retouren-einstellungen.md) | 2026-06-02 |
+| PROJ-48 | Ersatzteile/Kulanz-Einstellungen — Kurzfristige Planung | Architected | [PROJ-48-ersatzteile-kulanz-einstellungen.md](PROJ-48-ersatzteile-kulanz-einstellungen.md) | 2026-06-02 |
 
 <!-- Add features above this line -->
 
-## Next Available ID: PROJ-48
+## Next Available ID: PROJ-49
