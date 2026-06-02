@@ -191,6 +191,21 @@ function PlattformEinstellungenForm({ plattformId }: { plattformId: string }) {
         </div>
 
         <div className="space-y-1.5">
+          <Label htmlFor={`zahlungsziel-${plattformId}`}>Zahlungsziel (Tage)</Label>
+          <Input
+            id={`zahlungsziel-${plattformId}`}
+            type="number"
+            min={0}
+            step={1}
+            value={zahlungszielStr}
+            onChange={e => setZahlungszielStr(e.target.value)}
+            onBlur={handleZahlungszielBlur}
+            placeholder="—"
+            className="w-44"
+          />
+        </div>
+
+        <div className="space-y-1.5">
           <div>
             <Label className="text-sm font-medium">Nächste Zahlungswoche</Label>
             {displayedKw && (
@@ -238,21 +253,6 @@ function PlattformEinstellungenForm({ plattformId }: { plattformId: string }) {
               )}
             </PopoverContent>
           </Popover>
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor={`zahlungsziel-${plattformId}`}>Zahlungsziel (Tage)</Label>
-          <Input
-            id={`zahlungsziel-${plattformId}`}
-            type="number"
-            min={0}
-            step={1}
-            value={zahlungszielStr}
-            onChange={e => setZahlungszielStr(e.target.value)}
-            onBlur={handleZahlungszielBlur}
-            placeholder="—"
-            className="w-44"
-          />
         </div>
       </div>
     </div>
