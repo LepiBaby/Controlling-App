@@ -1,6 +1,6 @@
 # PROJ-47: Retoureneinstellungen — Kurzfristige Planung
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-06-02
 **Last Updated:** 2026-06-02
 
@@ -413,7 +413,137 @@ PUT  /api/retouren-plattform-einstellungen
 - **Gesamt: 39/39 Tests bestanden ✅**
 
 ## QA Test Results
-_To be added by /qa_
+
+**QA Date:** 2026-06-02
+**Tester:** QA Engineer (automated + manual)
+**Status:** ✅ APPROVED — Production-ready (kein Critical/High Bug)
+
+---
+
+### Hinweis: Manuell geprüfte Akzeptanzkriterien
+
+Die Akzeptanzkriterien, die eine authentifizierte Session erfordern (Tabelle, Dropdown, Auto-Save, Calendar-Picker, Datenpersistenz), wurden manuell gegen die laufende Anwendung geprüft. API-Integrationstests sind durch Vitest vollständig abgedeckt.
+
+---
+
+### Testergebnisse nach Kategorie
+
+#### Navigation & Einstieg
+| Kriterium | Status |
+|-----------|--------|
+| Linke Navigation enthält „Retoureneinstellungen" | ✅ Pass |
+| Kachel auf `/dashboard/kurzfristige-planung` vorhanden | ✅ Pass |
+| Seite nur für eingeloggte Nutzer (Auth-Guard → /login) | ✅ Pass |
+
+#### Reiter-Navigation
+| Kriterium | Status |
+|-----------|--------|
+| Alle Sales-Plattformen als Tabs dargestellt (sort_order) | ✅ Pass |
+| Erster Reiter beim Laden automatisch aktiv | ✅ Pass |
+| Leerzustand wenn keine Plattformen: Hinweis + Link | ✅ Pass |
+
+#### Plattform-Einstellungen (4 Felder je Tab)
+| Kriterium | Status |
+|-----------|--------|
+| Gruppierung-Dropdown (Wöchentlich / Monatlich / Quartalsweise) | ✅ Pass |
+| Standardwert Gruppierung: Monatlich bei erstem Aufruf | ✅ Pass |
+| Gruppierung-Änderung sofort gespeichert (onChange) | ✅ Pass |
+| Nächste Zahlungswoche: Calendar-Picker-Button vorhanden | ✅ Pass |
+| KW-Subtitle zeigt berechnete Woche (z. B. „KW 26 / 2026") | ✅ Pass |
+| Datum wählen → KW-Anzeige aktualisiert sich | ✅ Pass |
+| „Auswahl löschen" setzt Basis auf null | ✅ Pass |
+| Zahlungsziel-Feld (Integer ≥ 0, Auto-Save onBlur) | ✅ Pass |
+| Erstattung Verkaufsgebühr (%)-Feld (Dezimalzahl 0–100, Auto-Save onBlur) | ✅ Pass |
+| Plattform-Einstellungen unabhängig je Plattform gespeichert | ✅ Pass |
+
+#### Produkttabelle
+| Kriterium | Status |
+|-----------|--------|
+| 4 Spalten: Produkt | Berechnungsart | Rückversandkosten | Retourenhandling-Kosten | ✅ Pass |
+| Je Plattform-Tab eine Zeile pro Produkt (level=1, type=produkte) | ✅ Pass |
+| Leerzustand wenn keine Produkte: Hinweis + Link zum KPI-Modell | ✅ Pass |
+
+#### Berechnungsart-Dropdown (Produkttabelle)
+| Kriterium | Status |
+|-----------|--------|
+| Optionen: Keine / Mittelwert 14/30/60/90 Tage | ✅ Pass |
+| Standardwert: „Keine" bei noch nicht gespeicherter Kombination | ✅ Pass |
+| Änderung sofort gespeichert (onChange) | ✅ Pass |
+| Optimistisches Update; Rollback bei Fehler | ✅ Pass |
+
+#### Kostenfelder (Rückversand + Handling)
+| Kriterium | Status |
+|-----------|--------|
+| Felder akzeptieren Dezimalzahlen ≥ 0 | ✅ Pass |
+| Standardwert: leer bei ungepflegter Kombination | ✅ Pass |
+| Auto-Save nach onBlur | ✅ Pass |
+| Feld leeren + onBlur → null, Feld bleibt leer | ✅ Pass |
+| Wert 0 wird akzeptiert und gespeichert | ✅ Pass |
+
+#### Datenpersistenz
+| Kriterium | Status |
+|-----------|--------|
+| Werte beim nächsten Seitenaufruf noch vorhanden | ✅ Pass |
+| Tab-Wechsel lädt Einstellungen der neuen Plattform | ✅ Pass |
+| Verschiedene Plattformen haben unabhängige Einstellungen | ✅ Pass |
+
+---
+
+### Edge Cases
+| Edge Case | Status |
+|-----------|--------|
+| Keine Sales-Plattformen → Hinweis + Link KPI-Modell | ✅ Pass |
+| Keine Produkte → Hinweis + Link KPI-Modell | ✅ Pass |
+| Berechnungsart „Keine" → valider Upsert | ✅ Pass |
+| Erstattung > 100 → API gibt 400 (Vitest) | ✅ Pass |
+| Erstattung < 0 → API gibt 400 (Vitest) | ✅ Pass |
+| Kosten negativ → API gibt 400 (Vitest) | ✅ Pass |
+| Ungültige Berechnungsart → API gibt 400 (Vitest) | ✅ Pass |
+| Wert 0 in Kostenfeld → gespeichert als 0.00 | ✅ Pass |
+| KW > 53 → API gibt 400 (Vitest) | ✅ Pass |
+
+---
+
+### Security-Audit
+| Prüfung | Befund |
+|---------|--------|
+| Auth-Guard auf allen API-Routen | ✅ requireAuth() in beiden Endpunkten |
+| Datenisolation: User sieht nur eigene Daten | ✅ eq('user_id', user!.id) + RLS |
+| SQL-Injection | ✅ Supabase parametrisierte Queries |
+| XSS | ✅ React-Rendering, kein dangerouslySetInnerHTML |
+| Input-Validierung (Zod) | ✅ Alle PUT-Body-Felder validiert |
+| Cross-User-Datenzugriff unmöglich | ✅ user_id-Filter + RLS policies |
+| Erstattung Verkaufsgebühr: Wertebereich 0–100 erzwungen | ✅ Zod min(0).max(100) + DB CHECK |
+
+---
+
+### Automated Tests
+| Suite | Tests | Ergebnis |
+|-------|-------|----------|
+| Vitest — API Route `retouren-einstellungen` | 17 | ✅ alle bestanden |
+| Vitest — API Route `retouren-plattform-einstellungen` | 22 | ✅ alle bestanden |
+| Playwright E2E — PROJ-47 (Chromium + Mobile Safari) | 18 | ✅ alle bestanden |
+
+---
+
+### Bugs
+
+Keine Bugs gefunden.
+
+---
+
+### Regressionen
+- PROJ-42 Absatzeinstellungen: ✅ keine Regression
+- PROJ-43 Verkaufsgebühr-Einstellungen: ✅ keine Regression
+- PROJ-44 Versandausgaben-Einstellungen: ✅ keine Regression
+- PROJ-45 Auszahlungseinstellungen: ✅ keine Regression
+- PROJ-46 Lager-Ausgaben-Einstellungen: ✅ keine Regression
+- Auth-Guard aller Dashboard-Seiten: ✅ keine Regression
+
+---
+
+### Produktionsreife-Entscheidung
+**✅ PRODUCTION READY** — Keine Critical oder High Bugs.
 
 ## Deployment
 _To be added by /deploy_
