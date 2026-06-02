@@ -45,7 +45,7 @@ export default function KurzfristigePlanungPage() {
                 </p>
               </a>
               <a
-                href="/dashboard/kurzfristige-planung/versandausgaben-einstellungen"
+                href="/dashboard/kurzfristige-planung/versand-einstellungen"
                 className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
               >
                 <p className="font-medium">Versandausgaben-Einstellungen</p>
@@ -63,7 +63,7 @@ export default function KurzfristigePlanungPage() {
                 </p>
               </a>
               <a
-                href="/dashboard/kurzfristige-planung/lagerausgaben-einstellungen"
+                href="/dashboard/kurzfristige-planung/lager-einstellungen"
                 className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
               >
                 <p className="font-medium">Lager-Ausgaben-Einstellungen</p>

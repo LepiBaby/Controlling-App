@@ -9,15 +9,15 @@ import { test, expect } from '@playwright/test'
 
 // ─── Seitenexistenz (kein 404) ───────────────────────────────────────────────
 
-test('/dashboard/kurzfristige-planung/versandausgaben-einstellungen liefert keinen 404-Fehler', async ({ page }) => {
-  const response = await page.goto('/dashboard/kurzfristige-planung/versandausgaben-einstellungen')
+test('/dashboard/kurzfristige-planung/versand-einstellungen liefert keinen 404-Fehler', async ({ page }) => {
+  const response = await page.goto('/dashboard/kurzfristige-planung/versand-einstellungen')
   expect(response?.status()).toBeLessThan(400)
 })
 
 // ─── Auth-Guard ──────────────────────────────────────────────────────────────
 
-test('unauthenticated user is redirected from /dashboard/kurzfristige-planung/versandausgaben-einstellungen to /login', async ({ page }) => {
-  await page.goto('/dashboard/kurzfristige-planung/versandausgaben-einstellungen')
+test('unauthenticated user is redirected from /dashboard/kurzfristige-planung/versand-einstellungen to /login', async ({ page }) => {
+  await page.goto('/dashboard/kurzfristige-planung/versand-einstellungen')
   await expect(page).toHaveURL(/\/login/)
 })
 

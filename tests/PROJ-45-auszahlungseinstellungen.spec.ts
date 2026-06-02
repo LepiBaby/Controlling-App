@@ -40,8 +40,8 @@ test('/dashboard/kurzfristige-planung/verkaufsgebuehr-einstellungen is still acc
   expect(response?.status()).toBeLessThan(400)
 })
 
-test('/dashboard/kurzfristige-planung/versandausgaben-einstellungen is still accessible (no 404)', async ({ page }) => {
-  const response = await page.goto('/dashboard/kurzfristige-planung/versandausgaben-einstellungen')
+test('/dashboard/kurzfristige-planung/versand-einstellungen is still accessible (no 404)', async ({ page }) => {
+  const response = await page.goto('/dashboard/kurzfristige-planung/versand-einstellungen')
   expect(response?.status()).toBeLessThan(400)
 })
 

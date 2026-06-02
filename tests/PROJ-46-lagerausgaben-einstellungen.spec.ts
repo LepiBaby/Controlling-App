@@ -5,19 +5,19 @@ import { test, expect } from '@playwright/test'
 // Interaktionstests (Tab-Wechsel, Lagerkosten-Eingabe, Batch-Upsert, Calendar Picker)
 // erfordern eine authentifizierte Session und sind als manuell geprüft dokumentiert.
 // API-Integrationstests (401/400/200) sind durch Vitest in route.test.ts abgedeckt.
-// Batch-Logik und optimistisches Update sind durch Vitest in use-lagerausgaben-einstellungen.test.ts abgedeckt.
+// Batch-Logik und optimistisches Update sind durch Vitest in use-lager-einstellungen.test.ts abgedeckt.
 
 // ─── Seitenexistenz (kein 404) ───────────────────────────────────────────────
 
-test('/dashboard/kurzfristige-planung/lagerausgaben-einstellungen liefert keinen 404-Fehler', async ({ page }) => {
-  const response = await page.goto('/dashboard/kurzfristige-planung/lagerausgaben-einstellungen')
+test('/dashboard/kurzfristige-planung/lager-einstellungen liefert keinen 404-Fehler', async ({ page }) => {
+  const response = await page.goto('/dashboard/kurzfristige-planung/lager-einstellungen')
   expect(response?.status()).toBeLessThan(400)
 })
 
 // ─── Auth-Guard ──────────────────────────────────────────────────────────────
 
-test('unauthenticated user is redirected from /dashboard/kurzfristige-planung/lagerausgaben-einstellungen to /login', async ({ page }) => {
-  await page.goto('/dashboard/kurzfristige-planung/lagerausgaben-einstellungen')
+test('unauthenticated user is redirected from /dashboard/kurzfristige-planung/lager-einstellungen to /login', async ({ page }) => {
+  await page.goto('/dashboard/kurzfristige-planung/lager-einstellungen')
   await expect(page).toHaveURL(/\/login/)
 })
 
@@ -40,8 +40,8 @@ test('/dashboard/kurzfristige-planung/verkaufsgebuehr-einstellungen is still acc
   expect(response?.status()).toBeLessThan(400)
 })
 
-test('/dashboard/kurzfristige-planung/versandausgaben-einstellungen is still accessible (no 404)', async ({ page }) => {
-  const response = await page.goto('/dashboard/kurzfristige-planung/versandausgaben-einstellungen')
+test('/dashboard/kurzfristige-planung/versand-einstellungen is still accessible (no 404)', async ({ page }) => {
+  const response = await page.goto('/dashboard/kurzfristige-planung/versand-einstellungen')
   expect(response?.status()).toBeLessThan(400)
 })
 

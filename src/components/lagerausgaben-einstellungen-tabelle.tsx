@@ -455,7 +455,7 @@ function PlattformTabelle({
           <TableHeader>
             <TableRow>
               <TableHead className="w-64">Produkt</TableHead>
-              <TableHead className="w-44">Lagerkosten (€/m³)</TableHead>
+              <TableHead className="w-44">Lagerkosten (€/m³ netto)</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
