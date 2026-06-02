@@ -1,6 +1,6 @@
 # PROJ-47: Retoureneinstellungen — Kurzfristige Planung
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-06-02
 **Last Updated:** 2026-06-02
 
@@ -218,7 +218,158 @@ Die angezeigte Zahlungswoche wird **bei jedem Seitenaufruf im Frontend dynamisch
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Komponentenstruktur
+
+```
+/dashboard/kurzfristige-planung  (bestehende Kachelseite)
++-- Kachelraster  (bereits vorhanden)
+    +-- Kachel: "Absatzeinstellungen"              (bereits vorhanden)
+    +-- Kachel: "Verkaufsgebühr-Einstellungen"     (bereits vorhanden)
+    +-- Kachel: "Versandausgaben-Einstellungen"    (bereits vorhanden)
+    +-- Kachel: "Auszahlungseinstellungen"         (bereits vorhanden)
+    +-- Kachel: "Lager-Ausgaben-Einstellungen"     (bereits vorhanden)
+    +-- Kachel: "Retoureneinstellungen"            (NEU) → /dashboard/kurzfristige-planung/retouren-einstellungen
+
+/dashboard/kurzfristige-planung/retouren-einstellungen  (NEUE Seite)
++-- Page-Header
++-- RetourenEinstellungenTabelle  (NEUE Hauptkomponente)
+    +-- Tabs  [shadcn — eine Tab je Sales-Plattform]
+    |   +-- Tab: "Plattform A"
+    |   +-- Tab: "Plattform B"
+    |   +-- ...
+    +-- Leerzustand: keine Plattformen → Hinweis + Link zu KPI-Modell
+    +-- (je aktivem Tab) PlattformEinstellungenForm
+    |   +-- Zeile 1: Gruppierung  [shadcn Select — Wöchentlich/Monatlich/Quartalsweise]
+    |   +-- Zeile 2: Nächste Zahlungswoche  [Calendar Popover, identisch zu PROJ-45/46]
+    |   |   +-- Button mit berechneter KW-Anzeige
+    |   |   +-- Subtitle: „KW XX / YYYY"
+    |   |   +-- „Auswahl löschen"-Link
+    |   +-- Zeile 3: Zahlungsziel  [shadcn Input, Ganzzahl ≥ 0, in Tagen]
+    |   +-- Zeile 4: Erstattung Verkaufsgebühr (%)  [shadcn Input, Dezimalzahl 0–100]
+    +-- (je aktivem Tab) ProduktTabelle
+        +-- Leerzustand: keine Produkte → Hinweis + Link zu KPI-Modell
+        +-- Table  [shadcn]
+            +-- TableHeader: Produkt | Berechnungsart | Rückversandkosten (€ netto) | Retourenhandling-Kosten (€ netto)
+            +-- TableBody: eine Zeile je Produkt
+                +-- RetourenEinstellungZeile  (NEUE Zeilen-Komponente)
+                    +-- Produktname  (read-only)
+                    +-- Select: Berechnungsart  [Keine/Mittelwert 14/30/60/90 Tage, Auto-Save onChange]
+                    +-- Input: Rückversandkosten €  (Dezimalzahl ≥ 0, Auto-Save onBlur)
+                    +-- Input: Retourenhandling-Kosten €  (Dezimalzahl ≥ 0, Auto-Save onBlur)
+```
+
+### Datenmodell
+
+**Tabelle 1: `retouren_einstellungen`** — Produkt-Level, eine Zeile pro Plattform-Produkt-Kombination pro Nutzer:
+
+| Feld | Typ | Beschreibung |
+|---|---|---|
+| `id` | UUID | Primärschlüssel |
+| `sales_plattform_id` | UUID FK | Verknüpfung mit `kpi_categories` — ON DELETE CASCADE |
+| `produkt_id` | UUID FK | Verknüpfung mit `kpi_categories` — ON DELETE CASCADE |
+| `berechnungsart` | TEXT NOT NULL | `keine` / `mittelwert_14` / `mittelwert_30` / `mittelwert_60` / `mittelwert_90`; Default: `keine` |
+| `rueckversandkosten_euro_netto` | NUMERIC(10,2) nullable | Rückversandkosten netto; NULL = noch nicht gepflegt |
+| `retourenhandling_kosten_euro_netto` | NUMERIC(10,2) nullable | Handling-Kosten netto; NULL = noch nicht gepflegt |
+| `user_id` | UUID FK | Dateneigentümer — RLS: jeder Nutzer sieht nur eigene Einträge |
+
+Unique-Constraint: `(sales_plattform_id, produkt_id, user_id)`
+
+**Tabelle 2: `retouren_plattform_einstellungen`** — Plattform-Level, eine Zeile pro Plattform pro Nutzer:
+
+| Feld | Typ | Beschreibung |
+|---|---|---|
+| `id` | UUID | Primärschlüssel |
+| `sales_plattform_id` | UUID FK | Verknüpfung mit `kpi_categories` — ON DELETE CASCADE |
+| `user_id` | UUID FK | Dateneigentümer — RLS |
+| `gruppierung` | TEXT NOT NULL | `woechentlich` / `monatlich` / `quartalsweise`; Default: `monatlich` |
+| `naechste_zahlung_basis_kw` | INTEGER (1–53) nullable | Anker-Kalenderwoche; NULL = nicht gepflegt |
+| `naechste_zahlung_basis_jahr` | INTEGER (≥ 2024) nullable | Ankerjahr; immer zusammen mit basis_kw |
+| `zahlungsziel_tage` | INTEGER (≥ 0) nullable | Zahlungsziel in Tagen |
+| `erstattung_verkaufsgebuehr_prozent` | NUMERIC(5,2) (0–100) nullable | Erstattungssatz in %; NULL = nicht gepflegt |
+
+Unique-Constraint: `(sales_plattform_id, user_id)` — CHECK-Constraint verhindert inkonsistenten KW/Jahr-Stand.
+
+### Datenfluss
+
+```
+Seite öffnet sich
+  → Alle Sales-Plattformen + alle Produkte aus kpi_categories laden
+  → Erster Plattform-Tab wird aktiv
+  → Hook 1 lädt Produkteinstellungen für aktive Plattform (GET retouren-einstellungen)
+  → Hook 2 lädt Plattform-Einstellungen (GET retouren-plattform-einstellungen)
+  → Frontend berechnet angezeigte Zahlungswoche aus Basis-KW + Gruppierungs-Rhythmus
+
+Nutzer ändert Gruppierung (onChange)
+  → Sofortiger Upsert: PUT /api/retouren-plattform-einstellungen
+
+Nutzer wählt Datum im Calendar-Picker
+  → PUT /api/retouren-plattform-einstellungen mit neuer Basis-KW
+  → Display-KW wird neu berechnet
+
+Nutzer ändert Zahlungsziel oder Erstattung Verkaufsgebühr und verlässt Feld (onBlur)
+  → PUT /api/retouren-plattform-einstellungen
+
+Nutzer ändert Berechnungsart-Dropdown (onChange)
+  → Optimistisches Update in der UI
+  → PUT /api/retouren-einstellungen (Einzel-Upsert mit berechnungsart + aktuelle Kostenwerte)
+  → Bei Fehler: Rollback + Toast
+
+Nutzer ändert Kosten-Feld und verlässt es (onBlur)
+  → Optimistisches Update in der UI
+  → PUT /api/retouren-einstellungen (Einzel-Upsert mit allen drei Produktfeldern)
+  → Bei Fehler: Rollback + Toast
+```
+
+### API-Endpunkte
+
+```
+GET  /api/retouren-einstellungen?plattform_id=<UUID>
+  → Alle Produkteinstellungen des Nutzers für eine Plattform
+  → Array: [{ produkt_id, berechnungsart, rueckversandkosten_euro_netto, retourenhandling_kosten_euro_netto }, ...]
+
+PUT  /api/retouren-einstellungen
+  → Einzelner Upsert (eine Plattform-Produkt-Kombination)
+  → Zod-validiert: berechnungsart ∈ 5 Werte; Kostenfelder ≥ 0 oder null
+
+GET  /api/retouren-plattform-einstellungen?plattform_id=<UUID>
+  → Plattform-Einstellungen des Nutzers (oder null wenn kein Eintrag)
+
+PUT  /api/retouren-plattform-einstellungen
+  → Upsert: Gruppierung, KW/Jahr-Basis, Zahlungsziel, Erstattung Verkaufsgebühr
+  → Zod prüft KW+Jahr gemeinsam oder beide null; Erstattung 0–100 oder null
+```
+
+### Neue Dateien
+
+| Datei | Zweck |
+|---|---|
+| `src/app/dashboard/kurzfristige-planung/retouren-einstellungen/page.tsx` | Neue Seite (Client Component mit Auth-Guard) |
+| `src/components/retouren-einstellungen-tabelle.tsx` | Hauptkomponente: Tabs, Plattform-Einstellungen, Produkttabelle |
+| `src/hooks/use-retouren-einstellungen.ts` | State für Produktdaten: laden, Einzel-Upsert, optimistisches Update + Rollback |
+| `src/hooks/use-retouren-plattform-einstellungen.ts` | State für Plattform-Einstellungen: laden + upsert (Gruppierung, KW/Jahr, Zahlungsziel, Erstattung) |
+| `src/app/api/retouren-einstellungen/route.ts` | GET + PUT (Upsert) mit Zod + requireAuth() |
+| `src/app/api/retouren-plattform-einstellungen/route.ts` | GET + PUT (Upsert Plattform-Einstellungen) mit Zod + requireAuth() |
+
+### Geänderte Dateien
+
+| Datei | Änderung |
+|---|---|
+| `src/components/nav-sheet.tsx` | Eintrag „Retoureneinstellungen" zur bestehenden Gruppe „Kurzfristige Planung" ergänzen |
+| `src/app/dashboard/kurzfristige-planung/page.tsx` | Kachel „Retoureneinstellungen" zum bestehenden Kachelraster hinzufügen |
+
+### Tech-Entscheidungen
+
+| Entscheidung | Gewählt | Warum |
+|---|---|---|
+| Gesamtmuster | Identisch zu PROJ-46 (Lagerausgaben) | Gleiche Seiten-Struktur und Datenhaltung — Konsistenz, kein neues Muster |
+| Calendar-Picker / KW-Berechnung | Wiederverwendet aus PROJ-45 | `calculateNextPayoutWeek`-Utility und Calendar-UI bereits fertig, getestet und im Einsatz |
+| Berechnungsart als Select in der Tabelle | shadcn `Select` pro Zeile | Gleiche shadcn-Komponente wie für Gruppierung; sauberere UX als Radio-Buttons in einer Tabellenzelle |
+| Einzel-Upsert sendet alle drei Produktfelder gemeinsam | Alle drei Felder im PUT-Body | Vermeidet inkonsistente Teilupdates; ein onBlur oder onChange löst immer einen vollständigen Datensatz-Upsert aus |
+| Erstattung Verkaufsgebühr auf Plattform-Level | Teil von `retouren_plattform_einstellungen` | Plattformweit, nicht produktspezifisch — passt strukturell zu Gruppierung und Zahlungsziel |
+| Kein Batch-„Alle gleichsetzen" | Nicht implementiert | Nicht in der Spec; bei 3 heterogenen Spalten wäre ein sinnvoller Batch-Wert unklar |
+| Zwei getrennte DB-Tabellen | `retouren_einstellungen` + `retouren_plattform_einstellungen` | Unterschiedliche Granularität (Plattform×Produkt vs. nur Plattform) — analog PROJ-46 |
+| Neue Packages | Keine | Tabs, Select, Popover, Calendar, Input, Table — alles bereits in shadcn/ui installiert |
 
 ## QA Test Results
 _To be added by /qa_
