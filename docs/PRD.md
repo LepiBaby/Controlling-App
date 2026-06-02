@@ -58,6 +58,7 @@ Eine interne Controlling-Plattform für das Finanzreporting eines E-Commerce Unt
 | P1 | PROJ-44: Versandausgaben-Einstellungen — Kurzfristige Planung | Planned |
 | P1 | PROJ-45: Auszahlungseinstellungen — Kurzfristige Planung | Planned |
 | P1 | PROJ-46: Lager-Ausgaben-Einstellungen — Kurzfristige Planung | Planned |
+| P1 | PROJ-47: Retoureneinstellungen — Kurzfristige Planung | Planned |
 
 ## Success Metrics
 - Alle Finanzdaten werden in einer zentralen Plattform erfasst (kein Excel-Chaos)
