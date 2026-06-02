@@ -392,6 +392,26 @@ PUT  /api/retouren-plattform-einstellungen
 ### Build
 - `npm run build` ✅ — 65 Routen korrekt, `/dashboard/kurzfristige-planung/retouren-einstellungen` in der Route-Liste
 
+## Implementation Notes (Backend — 2026-06-02)
+
+### Datenbankmigrierung
+- Migration `proj47_retouren_einstellungen` erfolgreich auf Supabase-Projekt `kdmpghtdoguppfqhdscq` angewendet
+- Tabelle `retouren_einstellungen` angelegt mit: UUID-PK, FK zu `kpi_categories` (ON DELETE CASCADE für Plattform + Produkt), `berechnungsart` TEXT mit CHECK-Constraint (5 Werte, DEFAULT 'keine'), NUMERIC(10,2) für Rückversandkosten und Handling-Kosten (beide nullable), FK zu `auth.users` (ON DELETE CASCADE), UNIQUE `(sales_plattform_id, produkt_id, user_id)`
+- Tabelle `retouren_plattform_einstellungen` angelegt mit: UUID-PK, FK zu `kpi_categories` (ON DELETE CASCADE), `gruppierung` TEXT mit CHECK-Constraint (3 Werte, DEFAULT 'monatlich'), INTEGER-CHECKs (KW: 1–53, Jahr: ≥ 2024), INTEGER-CHECK (zahlungsziel_tage: ≥ 0), NUMERIC(5,2) mit CHECK (erstattung: 0–100), CONSTRAINT `chk_retouren_kw_jahr_both_or_neither`, UNIQUE `(sales_plattform_id, user_id)`
+- RLS aktiviert mit je 4 Policies (SELECT/INSERT/UPDATE/DELETE) auf beiden Tabellen
+- Indexes: `idx_re_plattform_user` auf `retouren_einstellungen(sales_plattform_id, user_id)`, `idx_rpe_plattform_user` auf `retouren_plattform_einstellungen(sales_plattform_id, user_id)`
+
+### API-Routen
+- `GET /api/retouren-einstellungen?plattform_id=<UUID>` — gibt Array mit `id, sales_plattform_id, produkt_id, berechnungsart, rueckversandkosten_euro_netto, retourenhandling_kosten_euro_netto` zurück
+- `PUT /api/retouren-einstellungen` — Upsert via `onConflict: 'sales_plattform_id,produkt_id,user_id'`; Zod validiert berechnungsart ∈ 5 Werte; Kostenfelder als Zahl ≥ 0 oder null; alle drei Felder werden immer gemeinsam gesendet
+- `GET /api/retouren-plattform-einstellungen?plattform_id=<UUID>` — `maybeSingle()`, gibt null wenn kein Eintrag
+- `PUT /api/retouren-plattform-einstellungen` — Fetch-then-merge-Pattern; `'feld' in body`-Check für explizites null vs. nicht-gesendet; Upsert via `onConflict: 'sales_plattform_id,user_id'`; Zod validiert erstattung 0–100 oder null
+
+### Tests
+- `src/app/api/retouren-einstellungen/route.test.ts` — 17 Tests (Vitest): 5 GET, 12 PUT — alle bestanden ✅
+- `src/app/api/retouren-plattform-einstellungen/route.test.ts` — 22 Tests (Vitest): 5 GET, 17 PUT — alle bestanden ✅
+- **Gesamt: 39/39 Tests bestanden ✅**
+
 ## QA Test Results
 _To be added by /qa_
 
