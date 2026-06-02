@@ -282,3 +282,23 @@ PUT  /api/marketing-einstellungen
 
 ### TypeScript
 - `npx tsc --noEmit` — keine Fehler in den neuen Marketing-Dateien; pre-existing Fehler in anderen Features unberührt
+
+## Implementation Notes (Backend — 2026-06-02)
+
+### Datenbankmigrierung
+- Migration `proj49_marketing_einstellungen` erfolgreich auf Supabase-Projekt `kdmpghtdoguppfqhdscq` angewendet
+- Tabelle `marketing_einstellungen` angelegt mit: UUID-PK, FKs zu `kpi_categories` (ON DELETE CASCADE) und `auth.users` (ON DELETE CASCADE), CHECK-Constraint auf `berechnungsart`, INTEGER CHECK (0–100) für Gewichtungsfelder, UNIQUE-Constraint `(sales_plattform_id, produkt_id, user_id)`
+- RLS aktiviert mit 4 Policies: SELECT/INSERT/UPDATE/DELETE — jeder Nutzer sieht und schreibt nur eigene Einträge
+- Index `idx_marketing_einstellungen_plattform_user` auf `(sales_plattform_id, user_id)` für performante GET-Abfragen
+
+### API-Routen
+- `GET /api/marketing-einstellungen?plattform_id=<UUID>` — lädt alle Einstellungen des eingeloggten Nutzers für eine Plattform; Zod-Validierung der UUID via Regex; `.limit(500)`
+- `PUT /api/marketing-einstellungen` — Upsert via Supabase `onConflict: 'sales_plattform_id,produkt_id,user_id'`; Zod-Schema validiert alle 8 erlaubten Berechnungsarten; `superRefine` prüft Summe = 100 wenn alle drei Gewichtungsfelder angegeben und gewichtete Methode aktiv
+
+### Abweichungen von der Spec
+- Fehlerstatus bei ungültiger Gewichtungssumme: Spec nannte 400 — implementiert als 400 (konsistent mit allen anderen API-Routen im Projekt)
+- Intermediärer Zustand (gewichtete Methode gewählt, Gewichtungsfelder noch leer/null): API akzeptiert diesen Zustand ohne Fehler (Summenprüfung läuft nur wenn alle drei Werte nicht-null)
+
+### Tests
+- `src/app/api/marketing-einstellungen/route.test.ts` — 18 Tests (Vitest): 6 für GET, 12 für PUT
+- Alle 18 Tests bestehen ✅
