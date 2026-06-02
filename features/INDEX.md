@@ -70,7 +70,8 @@
 | PROJ-46 | Lager-Ausgaben-Einstellungen — Kurzfristige Planung | Approved | [PROJ-46-lagerausgaben-einstellungen.md](PROJ-46-lagerausgaben-einstellungen.md) | 2026-06-02 |
 | PROJ-47 | Retoureneinstellungen — Kurzfristige Planung | Approved | [PROJ-47-retouren-einstellungen.md](PROJ-47-retouren-einstellungen.md) | 2026-06-02 |
 | PROJ-48 | Ersatzteile/Kulanz-Einstellungen — Kurzfristige Planung | In Progress | [PROJ-48-ersatzteile-kulanz-einstellungen.md](PROJ-48-ersatzteile-kulanz-einstellungen.md) | 2026-06-02 |
+| PROJ-49 | Marketing-Einstellungen — Kurzfristige Planung | In Progress | [PROJ-49-marketing-einstellungen.md](PROJ-49-marketing-einstellungen.md) | 2026-06-02 |
 
 <!-- Add features above this line -->
 
-## Next Available ID: PROJ-49
+## Next Available ID: PROJ-50

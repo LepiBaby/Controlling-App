@@ -1,0 +1,284 @@
+# PROJ-49: Marketing-Einstellungen — Kurzfristige Planung
+
+## Status: In Progress
+**Created:** 2026-06-02
+**Last Updated:** 2026-06-02
+
+## Dependencies
+- Requires: PROJ-1 (Authentifizierung) — nur eingeloggte Nutzer
+- Requires: PROJ-2 (KPI-Modell Verwaltung) — Sales-Plattformen (`kpi_categories` mit `type = 'sales_plattformen'`) und Produkte (`kpi_categories` mit `type = 'produkte'`, `level = 1`) müssen bereits gepflegt sein
+- Requires: PROJ-42 (Absatzeinstellungen) — der Bereich „Kurzfristige Planung" inkl. linker Navigation und Dashboard-Kachelseite ist bereits aufgebaut; diese Seite ergänzt ihn um eine weitere Kachel und einen weiteren Nav-Eintrag
+
+## Übersicht
+
+Auf der Seite „Marketing-Einstellungen" legt der Nutzer für jede Kombination aus **Sales-Plattform** und **Produkt** die Methode fest, mit der später die Marketing-Ausgaben (z. B. Werbekosten, PPC) berechnet werden sollen. Die Seite ist strukturell identisch zur Absatzeinstellungen-Seite (PROJ-42) und teilt dieselbe Berechnungsart-Logik inkl. gewichtetem Mittelwert.
+
+Die Seite ist Teil des Bereichs „Kurzfristige Planung" und ist über die linke Navigation sowie als Kachel auf der Dashboard-Übersichtsseite dieses Bereichs erreichbar.
+
+Die Einstellungen werden in der Datenbank persistiert, da sie später in der Kurzfristplanung weiterverarbeitet werden.
+
+## User Stories
+
+- Als Nutzer möchte ich die Seite „Marketing-Einstellungen" über die linke Navigation im Bereich „Kurzfristige Planung" aufrufen können, damit ich schnell dorthin gelange.
+- Als Nutzer möchte ich auf der Dashboard-Übersichtsseite von „Kurzfristige Planung" eine Kachel „Marketing-Einstellungen" sehen, damit ich von dort direkt auf die Seite wechseln kann.
+- Als Nutzer möchte ich alle im KPI-Modell gepflegten Sales-Plattformen als Reiter oben auf der Seite sehen, damit ich die Einstellungen plattformspezifisch pflegen kann.
+- Als Nutzer möchte ich je Reiter alle im KPI-Modell gepflegten Produkte (Ebene-1-Einträge unter `type = 'produkte'`) als Zeilen in einer Tabelle sehen, damit ich pro Produkt eine Einstellung wählen kann.
+- Als Nutzer möchte ich für jedes Produkt individuell die Marketing-Berechnungsmethode wählen können (Mittelwert oder gewichteter Mittelwert über verschiedene Zeiträume, oder „keine"), damit ich die Methode an den Produkttyp anpassen kann.
+- Als Nutzer möchte ich beim gewichteten Mittelwert drei Gewichtungsfelder (Erstes, Zweites, Drittes Drittel in %) eingeben können, deren Summe immer genau 100 % ergibt, damit die Gewichtung mathematisch korrekt ist.
+- Als Nutzer möchte ich für jede Sales-Plattform und jedes Produkt unabhängig voneinander unterschiedliche Einstellungen pflegen können, damit die Plattformdaten realistisch abgebildet werden.
+- Als Nutzer möchte ich, dass meine Einstellungen gespeichert werden und beim nächsten Aufruf noch vorhanden sind.
+
+## Acceptance Criteria
+
+### Navigation & Einstieg
+
+- [ ] Die linke Navigation im Bereich „Kurzfristige Planung" enthält den Eintrag „Marketing-Einstellungen" → `/dashboard/kurzfristige-planung/marketing-einstellungen`
+- [ ] Auf `/dashboard/kurzfristige-planung` erscheint eine Kachel „Marketing-Einstellungen" (analog zu den anderen Einstellungs-Kacheln), die auf die Seite verlinkt
+- [ ] Die Seite ist nur für eingeloggte Nutzer zugänglich (Auth-Guard → Redirect zu `/login`)
+
+### Reiter (Sales-Plattformen)
+
+- [ ] Oben auf der Seite werden alle Einträge aus `kpi_categories` mit `type = 'sales_plattformen'` als Tabs dargestellt (in der in der DB gespeicherten `sort_order`)
+- [ ] Beim ersten Laden ist der erste Reiter automatisch aktiv
+- [ ] Gibt es keine Sales-Plattformen im KPI-Modell, erscheint ein Hinweis mit Link zur KPI-Modell-Seite: „Noch keine Sales-Plattformen gepflegt. Bitte zuerst im KPI-Modell Sales-Plattformen anlegen."
+
+### Tabelle (Produkte pro Plattform)
+
+- [ ] Unterhalb der Reiter wird eine Tabelle mit einer Zeile pro Produkt angezeigt (`kpi_categories` mit `type = 'produkte'`, `level = 1`, sortiert nach `sort_order`)
+- [ ] Tabellenspalten (Basis):
+  - **Produkt** (Name des Produkts — read-only)
+  - **Berechnungsart** (Dropdown-Auswahl, pflichtmäßig)
+- [ ] Gibt es keine Produkte, erscheint ein Hinweis mit Link zur KPI-Modell-Seite: „Noch keine Produkte gepflegt. Bitte zuerst im KPI-Modell Produkte anlegen."
+
+### Dropdown: Berechnungsart
+
+- [ ] Das Dropdown enthält genau diese 8 Optionen (in dieser Reihenfolge):
+  1. Mittelwert 14 Tage
+  2. Mittelwert 30 Tage
+  3. Mittelwert 60 Tage
+  4. Mittelwert 90 Tage
+  5. Gewichteter Mittelwert 30 Tage
+  6. Gewichteter Mittelwert 60 Tage
+  7. Gewichteter Mittelwert 90 Tage
+  8. Keine
+- [ ] Standardwert bei neuen Einträgen (noch nie gespeichert): „Keine"
+- [ ] Beim Ändern des Dropdowns wird die Auswahl sofort gespeichert (kein separater „Speichern"-Button nötig — Auto-Save per `onBlur` oder `onChange`)
+
+### Gewichtungsspalten (konditionell)
+
+- [ ] Wählt der Nutzer „Gewichteter Mittelwert 30 Tage", „Gewichteter Mittelwert 60 Tage" **oder** „Gewichteter Mittelwert 90 Tage", erscheinen in derselben Zeile drei zusätzliche Spalten:
+  - **1. Drittel %** (Zahlenfeld, 0–100)
+  - **2. Drittel %** (Zahlenfeld, 0–100)
+  - **3. Drittel %** (Zahlenfeld, 0–100)
+- [ ] Die drei Felder erscheinen **nur** bei gewichtetem Mittelwert — bei allen anderen Optionen bleiben diese Spalten leer/ausgeblendet
+- [ ] Alle anderen Zeilen (die keine gewichtete Methode verwenden) zeigen in den drei Spalten keinen Inhalt
+- [ ] Die Summe der drei Felder muss exakt **100 %** ergeben:
+  - Solange die Summe ≠ 100, wird unter den Feldern eine Fehlermeldung angezeigt: „Die Summe muss 100 % ergeben (aktuell: X %)"
+  - Speichern ist erst möglich, wenn die Summe 100 % beträgt (bei Auto-Save: Speichern wird verzögert bis Validierung erfüllt)
+- [ ] Jedes Gewichtungsfeld akzeptiert nur ganze Zahlen von 0 bis 100
+- [ ] Die Spaltenüberschriften „1. Drittel %", „2. Drittel %" und „3. Drittel %" sind **immer** in der Tabellenkopfzeile sichtbar, aber die Felder erscheinen nur in den Zeilen, die eine gewichtete Methode verwenden
+- [ ] Wechselt der Nutzer von einer gewichteten Methode zurück auf eine nicht-gewichtete, werden die Gewichtungswerte in der DB auf `NULL` gesetzt
+
+### Datenpersistenz
+
+- [ ] Jede Kombination aus Sales-Plattform-ID und Produkt-ID wird als separater Datensatz gespeichert
+- [ ] Beim Wechsel des Reiters werden die Einstellungen des neuen Reiters aus der DB geladen
+- [ ] Beim ersten Aufruf einer Plattform-Produkt-Kombination existiert noch kein DB-Eintrag — die Zeile zeigt „Keine" als Standardwert
+- [ ] Änderungen werden automatisch gespeichert (kein manueller „Speichern"-Button auf Seitenebene)
+- [ ] Optimistische Updates: Änderung erscheint sofort in der UI, wird im Hintergrund gespeichert; bei API-Fehler → Toast-Fehlermeldung, Rollback auf vorherigen Wert
+
+### Datenbankschema
+
+- [ ] Neue Tabelle `marketing_einstellungen`:
+  - `id` UUID PK
+  - `sales_plattform_id` UUID NOT NULL FK → `kpi_categories` (ON DELETE CASCADE)
+  - `produkt_id` UUID NOT NULL FK → `kpi_categories` (ON DELETE CASCADE)
+  - `berechnungsart` TEXT NOT NULL CHECK IN ('mittelwert_14', 'mittelwert_30', 'mittelwert_60', 'mittelwert_90', 'gewichtet_30', 'gewichtet_60', 'gewichtet_90', 'keine') DEFAULT 'keine'
+  - `gewichtung_erstes_drittel` INTEGER CHECK (0–100) — NULL wenn nicht gewichtet
+  - `gewichtung_zweites_drittel` INTEGER CHECK (0–100) — NULL wenn nicht gewichtet
+  - `gewichtung_drittes_drittel` INTEGER CHECK (0–100) — NULL wenn nicht gewichtet
+  - `user_id` UUID NOT NULL FK → `auth.users`
+  - UNIQUE(`sales_plattform_id`, `produkt_id`, `user_id`) — ein Eintrag pro Kombination pro Nutzer
+  - RLS: Nutzer sieht und schreibt nur eigene Einträge
+
+### API-Routen
+
+- [ ] `GET /api/marketing-einstellungen?plattform_id=<UUID>` — alle Einstellungen des Nutzers für eine Plattform
+- [ ] `PUT /api/marketing-einstellungen` — Eintrag anlegen oder aktualisieren (Upsert per `sales_plattform_id + produkt_id + user_id`)
+  - Body: `{ sales_plattform_id, produkt_id, berechnungsart, gewichtung_erstes_drittel?, gewichtung_zweites_drittel?, gewichtung_drittes_drittel? }`
+- [ ] Zod-Validierung:
+  - `berechnungsart` muss einer der 8 gültigen Werte sein
+  - Bei gewichteter Methode: alle drei Gewichtungsfelder müssen vorhanden und integer 0–100 sein; Summe muss 100 ergeben (serverseitig validiert)
+  - Bei nicht-gewichteter Methode: Gewichtungsfelder werden auf `NULL` gesetzt (ignoriert wenn mitgesendet)
+
+## Edge Cases
+
+- **Keine Sales-Plattformen** im KPI-Modell: Seite zeigt Hinweis mit Link zum KPI-Modell, keine Tabelle
+- **Keine Produkte** im KPI-Modell: Tabelle zeigt Hinweis mit Link zum KPI-Modell, keine Zeilen
+- **Nutzer wählt gewichtete Methode ohne Gewichtungswerte** einzutragen: Felder erscheinen leer mit Validierungshinweis, Auto-Save wird zurückgehalten bis Validierung bestanden
+- **Summe ≠ 100** bei gewichteter Methode: Fehlermeldung in Zeile, API blockiert den Speicherversuch mit 400
+- **Plattform wird aus KPI-Modell gelöscht**: `ON DELETE CASCADE` entfernt alle `marketing_einstellungen` für diese Plattform automatisch; beim nächsten Seitenaufruf ist der Reiter verschwunden
+- **Produkt wird aus KPI-Modell gelöscht**: `ON DELETE CASCADE` entfernt alle `marketing_einstellungen` für dieses Produkt; Zeile verschwindet aus der Tabelle
+- **Neue Plattform oder neues Produkt hinzugefügt**: erscheint beim nächsten Seitenaufruf (kein Live-Update nötig); Eintrag hat noch keine `marketing_einstellungen` → „Keine" als Default
+- **API-Fehler beim Auto-Save**: Toast-Fehlermeldung „Einstellung konnte nicht gespeichert werden.", optimistisches Update wird zurückgerollt
+- **Sehr viele Produkte** (>20): Tabelle ist scrollbar; keine Paginierung nötig
+- **Sehr viele Plattformen** (>5): Reiter-Leiste wird scrollbar (overflow-x: auto)
+
+## Technical Requirements
+
+- Authentifizierung erforderlich: `requireAuth()` in allen API-Routen
+- RLS auf der neuen Tabelle `marketing_einstellungen`
+- Neue Next.js-Seite: `src/app/dashboard/kurzfristige-planung/marketing-einstellungen/page.tsx`
+- Navigation erweitert: Eintrag „Marketing-Einstellungen" in der Gruppe „Kurzfristige Planung" in `nav-sheet.tsx`
+- Dashboard-Kachel auf `src/app/dashboard/kurzfristige-planung/page.tsx` ergänzen
+- shadcn `Tabs`-Komponente für die Reiter-Navigation
+- shadcn `Select`-Komponente für die Berechnungsart-Dropdown
+- Zahlenfelder als `<Input type="number">` mit min=0, max=100, step=1
+- Kein Drag-and-Drop nötig (read-only Reihenfolge aus KPI-Modell)
+
+### Neue Dateien
+
+| Datei | Zweck |
+|---|---|
+| `src/app/dashboard/kurzfristige-planung/marketing-einstellungen/page.tsx` | Neue Seite (Client Component mit Auth-Guard) |
+| `src/components/marketing-einstellungen-tabelle.tsx` | Hauptkomponente: Tabs, Tabelle, Zeilen, Auto-Save-Logik |
+| `src/hooks/use-marketing-einstellungen.ts` | State-Management: laden, upsert, optimistic update, rollback |
+| `src/app/api/marketing-einstellungen/route.ts` | GET + PUT (Upsert) mit Zod + requireAuth() |
+
+### Geänderte Dateien
+
+| Datei | Änderung |
+|---|---|
+| `src/components/nav-sheet.tsx` | Eintrag „Marketing-Einstellungen" → `/dashboard/kurzfristige-planung/marketing-einstellungen` ergänzen |
+| `src/app/dashboard/kurzfristige-planung/page.tsx` | Neue Kachel „Marketing-Einstellungen" ergänzen |
+
+---
+<!-- Sections below are added by subsequent skills -->
+
+## Tech Design (Solution Architect)
+
+### Komponentenstruktur
+
+```
+/dashboard/kurzfristige-planung  (bestehende Landing-Seite)
++-- Kachelraster (bereits vorhanden)
+    +-- Kachel: "Marketing-Einstellungen" → /dashboard/kurzfristige-planung/marketing-einstellungen  (NEU)
+
+/dashboard/kurzfristige-planung/marketing-einstellungen  (NEUE Seite)
++-- Page-Header (identische Struktur wie andere Einstellungsseiten)
++-- MarketingEinstellungenTabelle  (NEUE Hauptkomponente)
+    +-- Tabs  [shadcn — eine Tab je Sales-Plattform aus KPI-Modell]
+    |   +-- Tab: "Plattform A"
+    |   +-- Tab: "Plattform B"
+    |   +-- ...
+    +-- Leerzustand A: keine Plattformen → Hinweis + Link zu KPI-Modell
+    +-- (je aktivem Tab) Leerzustand B: keine Produkte → Hinweis + Link zu KPI-Modell
+    +-- (je aktivem Tab) Table  [shadcn]
+        +-- TableHeader: Produkt | Berechnungsart | 1. Drittel % | 2. Drittel % | 3. Drittel %
+        +-- TableBody: eine Zeile je Produkt
+            +-- MarketingEinstellungZeile  (NEUE Zeilen-Komponente)
+                +-- Produktname  (read-only Text)
+                +-- Select  [shadcn — 8 Optionen]
+                +-- Gewichtungsfelder  (nur sichtbar bei gewichtetem Mittelwert)
+                |   +-- Input: 1. Drittel %  (0–100, ganze Zahl)
+                |   +-- Input: 2. Drittel %  (0–100, ganze Zahl)
+                |   +-- Input: 3. Drittel %  (0–100, ganze Zahl)
+                +-- Validierungshinweis: "Summe muss 100 % ergeben (aktuell: X %)"
+```
+
+### Datenmodell
+
+**Neue Tabelle `marketing_einstellungen`:**
+
+| Feld | Typ | Beschreibung |
+|---|---|---|
+| `id` | UUID | Primärschlüssel |
+| `sales_plattform_id` | UUID FK | Verknüpfung mit `kpi_categories` (type = sales_plattformen) — ON DELETE CASCADE |
+| `produkt_id` | UUID FK | Verknüpfung mit `kpi_categories` (type = produkte, level = 1) — ON DELETE CASCADE |
+| `berechnungsart` | Text | Einer von 8 Werten: mittelwert_14/30/60/90, gewichtet_30/60/90, keine |
+| `gewichtung_erstes_drittel` | Integer 0–100 (nullable) | Nur befüllt bei gewichtetem Mittelwert |
+| `gewichtung_zweites_drittel` | Integer 0–100 (nullable) | Nur befüllt bei gewichtetem Mittelwert |
+| `gewichtung_drittes_drittel` | Integer 0–100 (nullable) | Nur befüllt bei gewichtetem Mittelwert |
+| `user_id` | UUID FK | Dateneigentümer — RLS: jeder Nutzer sieht nur eigene Einträge |
+
+Unique-Constraint: `(sales_plattform_id, produkt_id, user_id)` — eine Einstellung pro Kombination pro Nutzer.
+
+### Datenfluss
+
+```
+Seite öffnet sich
+  → Hook lädt alle Sales-Plattformen aus kpi_categories (type = sales_plattformen)
+  → Hook lädt alle Produkte aus kpi_categories (type = produkte, level = 1)
+  → Erster Plattform-Tab wird automatisch aktiviert
+  → Hook lädt marketing_einstellungen für aktive Plattform per GET
+
+Nutzer wechselt Tab
+  → Hook lädt marketing_einstellungen für neue Plattform (falls noch nicht gecacht)
+
+Nutzer ändert Berechnungsart in einer Zeile
+  → Optimistisches Update in der UI (sofort sichtbar)
+  → PUT /api/marketing-einstellungen (Upsert)
+  → Bei Fehler: Rollback auf vorherigen Wert + Toast-Fehlermeldung
+
+Nutzer ändert Gewichtungsfelder
+  → Lokale Echtzeit-Validierung: Summe der drei Felder = 100?
+  → Nein: Fehlermeldung in Zeile sichtbar, kein API-Aufruf
+  → Ja: PUT /api/marketing-einstellungen nach onBlur
+```
+
+### API-Endpunkte
+
+```
+GET  /api/marketing-einstellungen?plattform_id=<UUID>
+  → Alle Einstellungen des Nutzers für eine Plattform
+  → Response: Array von { produkt_id, berechnungsart, gewichtung_* }
+
+PUT  /api/marketing-einstellungen
+  → Upsert (anlegen oder aktualisieren) einer Plattform-Produkt-Kombination
+  → Body: { sales_plattform_id, produkt_id, berechnungsart, gewichtung_*? }
+  → Serverseitige Validierung (Zod):
+      berechnungsart ∈ 8 erlaubter Werte
+      Bei gewichtet_*: alle drei Gewichtungsfelder vorhanden, integer 0–100, Summe = 100
+      Bei nicht-gewichtet: Gewichtungsfelder werden auf NULL gesetzt
+  → Response 400 wenn Summe ≠ 100 bei gewichteter Methode
+```
+
+### Neue Dateien
+
+| Datei | Zweck |
+|---|---|
+| `src/app/dashboard/kurzfristige-planung/marketing-einstellungen/page.tsx` | Neue Seite (Client Component mit Auth-Guard) |
+| `src/components/marketing-einstellungen-tabelle.tsx` | Hauptkomponente: Tabs, Tabelle, Zeilen, Auto-Save-Logik |
+| `src/hooks/use-marketing-einstellungen.ts` | State-Management: laden, upsert, optimistic update, rollback |
+| `src/app/api/marketing-einstellungen/route.ts` | GET + PUT (Upsert) mit Zod + requireAuth() |
+
+### Geänderte Dateien
+
+| Datei | Änderung |
+|---|---|
+| `src/components/nav-sheet.tsx` | Eintrag „Marketing-Einstellungen" → `/dashboard/kurzfristige-planung/marketing-einstellungen` ergänzen |
+| `src/app/dashboard/kurzfristige-planung/page.tsx` | Neue Kachel „Marketing-Einstellungen" ergänzen |
+
+### Tech-Entscheidungen
+
+| Entscheidung | Gewählt | Warum |
+|---|---|---|
+| Muster | Identisch zu PROJ-42 (Absatzeinstellungen) | Gleiche Anforderungen, gleiche Struktur — kein neues Pattern nötig |
+| API-Strategie | Einzelner Upsert-Endpunkt (PUT) | Neue Kombinationen existieren noch nicht in der DB; Upsert vermeidet separate POST/PATCH-Logik |
+| Tab-Zustand | React-State (kein URL-Parameter) | Plattformwechsel ist rein lokal; keine Anforderung an Deep-Links auf Plattformebene |
+| Speichern | Auto-Save (onBlur/onChange je Feld) | Kein globaler Submit-Button — einheitlich mit allen anderen Einstellungsseiten |
+| Neue Packages | Keine | Tabs, Select, Table, Input — alles bereits in shadcn/ui installiert |
+
+## Implementation Notes (Frontend — 2026-06-02)
+
+### Neue Dateien
+- `src/hooks/use-marketing-einstellungen.ts` — Typen (`Berechnungsart`, `MarketingEinstellung`), Konstanten (`BERECHNUNGSARTEN`, `BERECHNUNGSART_LABELS`, `isGewichtet`), Hook `useMarketingEinstellungen(plattformId)` mit Laden, optimistischem Upsert und Rollback
+- `src/components/marketing-einstellungen-tabelle.tsx` — Drei Komponenten: `MarketingEinstellungZeile` (lokaler State für Gewichtungsfelder, Auto-Save mit Validierung), `PlattformTabelle` (pro Plattform mit eigenem Hook-Aufruf), `MarketingEinstellungenTabelle` (Export, lädt Plattformen + Produkte, rendert Tabs)
+- `src/app/dashboard/kurzfristige-planung/marketing-einstellungen/page.tsx` — Client Component, Page-Header + `MarketingEinstellungenTabelle`
+
+### Geänderte Dateien
+- `src/components/nav-sheet.tsx` — Eintrag „Marketing-Einstellungen" → `/dashboard/kurzfristige-planung/marketing-einstellungen` in `KURZFRISTIGE_PLANUNG_NAV_GROUPS` ergänzt
+- `src/app/dashboard/kurzfristige-planung/page.tsx` — Neue Kachel „Marketing-Einstellungen" mit Beschreibungstext ergänzt
+
+### TypeScript
+- `npx tsc --noEmit` — keine Fehler in den neuen Marketing-Dateien; pre-existing Fehler in anderen Features unberührt

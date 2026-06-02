@@ -60,6 +60,7 @@ const KURZFRISTIGE_PLANUNG_NAV_GROUPS = [
       { href: '/dashboard/kurzfristige-planung/lager-einstellungen', label: 'Lager-Einstellungen' },
       { href: '/dashboard/kurzfristige-planung/retouren-einstellungen', label: 'Retoureneinstellungen' },
       { href: '/dashboard/kurzfristige-planung/ersatzteile-kulanz-einstellungen', label: 'Ersatzteile/Kulanz-Einstellungen' },
+      { href: '/dashboard/kurzfristige-planung/marketing-einstellungen', label: 'Marketing-Einstellungen' },
     ],
   },
 ]

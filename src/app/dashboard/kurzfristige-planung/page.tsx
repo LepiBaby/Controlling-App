@@ -89,6 +89,15 @@ export default function KurzfristigePlanungPage() {
                   Ersatzteile/Kulanz-Quote &amp; Kosten pro Stück je Plattform &amp; Produkt pflegen
                 </p>
               </a>
+              <a
+                href="/dashboard/kurzfristige-planung/marketing-einstellungen"
+                className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+              >
+                <p className="font-medium">Marketing-Einstellungen</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Marketing-Berechnungsmethode je Plattform &amp; Produkt konfigurieren
+                </p>
+              </a>
             </div>
           </div>
         </div>
