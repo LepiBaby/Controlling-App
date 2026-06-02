@@ -7,7 +7,8 @@ export interface ErsatzteileKulanzEinstellung {
   sales_plattform_id: string
   produkt_id: string
   quote_prozent: number | null
-  kosten_pro_stueck_euro_netto: number | null
+  produktkosten_pro_stueck_euro_netto: number | null
+  versandkosten_pro_stueck_euro_netto: number | null
 }
 
 export function useErsatzteileKulanzEinstellungen(plattformId: string | null) {
@@ -45,14 +46,16 @@ export function useErsatzteileKulanzEinstellungen(plattformId: string | null) {
           sales_plattform_id: '',
           produkt_id: produktId,
           quote_prozent: null,
-          kosten_pro_stueck_euro_netto: null,
+          produktkosten_pro_stueck_euro_netto: null,
+          versandkosten_pro_stueck_euro_netto: null,
         }
       return (
         einstellungen.find(e => e.produkt_id === produktId) ?? {
           sales_plattform_id: plattformId,
           produkt_id: produktId,
           quote_prozent: null,
-          kosten_pro_stueck_euro_netto: null,
+          produktkosten_pro_stueck_euro_netto: null,
+          versandkosten_pro_stueck_euro_netto: null,
         }
       )
     },

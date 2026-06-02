@@ -8,7 +8,8 @@ const putSchema = z.object({
   sales_plattform_id: z.string().uuid(),
   produkt_id: z.string().uuid(),
   quote_prozent: z.number().min(0).max(100).nullable().optional(),
-  kosten_pro_stueck_euro_netto: z.number().min(0).nullable().optional(),
+  produktkosten_pro_stueck_euro_netto: z.number().min(0).nullable().optional(),
+  versandkosten_pro_stueck_euro_netto: z.number().min(0).nullable().optional(),
 })
 
 export async function GET(request: Request) {
@@ -28,7 +29,9 @@ export async function GET(request: Request) {
 
   const { data, error: dbErr } = await supabase
     .from('ersatzteile_kulanz_einstellungen')
-    .select('id, sales_plattform_id, produkt_id, quote_prozent, kosten_pro_stueck_euro_netto')
+    .select(
+      'id, sales_plattform_id, produkt_id, quote_prozent, produktkosten_pro_stueck_euro_netto, versandkosten_pro_stueck_euro_netto'
+    )
     .eq('user_id', user!.id)
     .eq('sales_plattform_id', plattformId)
     .limit(500)
@@ -54,7 +57,8 @@ export async function PUT(request: Request) {
     sales_plattform_id,
     produkt_id,
     quote_prozent = null,
-    kosten_pro_stueck_euro_netto = null,
+    produktkosten_pro_stueck_euro_netto = null,
+    versandkosten_pro_stueck_euro_netto = null,
   } = parsed.data
 
   const { data, error: dbErr } = await supabase
@@ -64,13 +68,16 @@ export async function PUT(request: Request) {
         sales_plattform_id,
         produkt_id,
         quote_prozent: quote_prozent ?? null,
-        kosten_pro_stueck_euro_netto: kosten_pro_stueck_euro_netto ?? null,
+        produktkosten_pro_stueck_euro_netto: produktkosten_pro_stueck_euro_netto ?? null,
+        versandkosten_pro_stueck_euro_netto: versandkosten_pro_stueck_euro_netto ?? null,
         user_id: user!.id,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'sales_plattform_id,produkt_id,user_id' }
     )
-    .select('id, sales_plattform_id, produkt_id, quote_prozent, kosten_pro_stueck_euro_netto')
+    .select(
+      'id, sales_plattform_id, produkt_id, quote_prozent, produktkosten_pro_stueck_euro_netto, versandkosten_pro_stueck_euro_netto'
+    )
     .single()
 
   if (dbErr || !data) {

@@ -25,7 +25,8 @@ const MOCK_EINSTELLUNG = {
   sales_plattform_id: PLATTFORM_ID,
   produkt_id: PRODUKT_ID,
   quote_prozent: 5.5,
-  kosten_pro_stueck_euro_netto: 4.99,
+  produktkosten_pro_stueck_euro_netto: 4.99,
+  versandkosten_pro_stueck_euro_netto: 2.50,
 }
 
 beforeEach(() => {
@@ -57,7 +58,7 @@ describe('GET /api/ersatzteile-kulanz-einstellungen', () => {
     expect(await res.json()).toEqual([])
   })
 
-  it('returns 200 with einstellungen data', async () => {
+  it('returns 200 with both cost columns', async () => {
     mockFrom.mockReturnValueOnce({
       select: () => ({
         eq: () => ({ eq: () => ({ limit: () => ({ data: [MOCK_EINSTELLUNG], error: null }) }) }),
@@ -68,7 +69,8 @@ describe('GET /api/ersatzteile-kulanz-einstellungen', () => {
     const body = await res.json()
     expect(body).toHaveLength(1)
     expect(body[0].quote_prozent).toBe(5.5)
-    expect(body[0].kosten_pro_stueck_euro_netto).toBe(4.99)
+    expect(body[0].produktkosten_pro_stueck_euro_netto).toBe(4.99)
+    expect(body[0].versandkosten_pro_stueck_euro_netto).toBe(2.50)
   })
 
   it('returns 401 when unauthenticated', async () => {
@@ -113,17 +115,24 @@ describe('PUT /api/ersatzteile-kulanz-einstellungen', () => {
         sales_plattform_id: PLATTFORM_ID,
         produkt_id: PRODUKT_ID,
         quote_prozent: 5.5,
-        kosten_pro_stueck_euro_netto: 4.99,
+        produktkosten_pro_stueck_euro_netto: 4.99,
+        versandkosten_pro_stueck_euro_netto: 2.50,
       }),
     }))
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.quote_prozent).toBe(5.5)
-    expect(body.kosten_pro_stueck_euro_netto).toBe(4.99)
+    expect(body.produktkosten_pro_stueck_euro_netto).toBe(4.99)
+    expect(body.versandkosten_pro_stueck_euro_netto).toBe(2.50)
   })
 
-  it('returns 200 with null values (clearing fields)', async () => {
-    mockUpsert({ ...MOCK_EINSTELLUNG, quote_prozent: null, kosten_pro_stueck_euro_netto: null })
+  it('returns 200 with null values (clearing all fields)', async () => {
+    mockUpsert({
+      ...MOCK_EINSTELLUNG,
+      quote_prozent: null,
+      produktkosten_pro_stueck_euro_netto: null,
+      versandkosten_pro_stueck_euro_netto: null,
+    })
     const res = await PUT(req(BASE_URL, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -131,17 +140,24 @@ describe('PUT /api/ersatzteile-kulanz-einstellungen', () => {
         sales_plattform_id: PLATTFORM_ID,
         produkt_id: PRODUKT_ID,
         quote_prozent: null,
-        kosten_pro_stueck_euro_netto: null,
+        produktkosten_pro_stueck_euro_netto: null,
+        versandkosten_pro_stueck_euro_netto: null,
       }),
     }))
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.quote_prozent).toBeNull()
-    expect(body.kosten_pro_stueck_euro_netto).toBeNull()
+    expect(body.produktkosten_pro_stueck_euro_netto).toBeNull()
+    expect(body.versandkosten_pro_stueck_euro_netto).toBeNull()
   })
 
   it('returns 200 with zero values', async () => {
-    mockUpsert({ ...MOCK_EINSTELLUNG, quote_prozent: 0, kosten_pro_stueck_euro_netto: 0 })
+    mockUpsert({
+      ...MOCK_EINSTELLUNG,
+      quote_prozent: 0,
+      produktkosten_pro_stueck_euro_netto: 0,
+      versandkosten_pro_stueck_euro_netto: 0,
+    })
     const res = await PUT(req(BASE_URL, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -149,24 +165,27 @@ describe('PUT /api/ersatzteile-kulanz-einstellungen', () => {
         sales_plattform_id: PLATTFORM_ID,
         produkt_id: PRODUKT_ID,
         quote_prozent: 0,
-        kosten_pro_stueck_euro_netto: 0,
+        produktkosten_pro_stueck_euro_netto: 0,
+        versandkosten_pro_stueck_euro_netto: 0,
       }),
     }))
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.quote_prozent).toBe(0)
-    expect(body.kosten_pro_stueck_euro_netto).toBe(0)
+    expect(body.produktkosten_pro_stueck_euro_netto).toBe(0)
+    expect(body.versandkosten_pro_stueck_euro_netto).toBe(0)
   })
 
-  it('returns 200 with only IDs (both fields default to null)', async () => {
-    mockUpsert({ ...MOCK_EINSTELLUNG, quote_prozent: null, kosten_pro_stueck_euro_netto: null })
+  it('returns 200 with only IDs (all cost fields default to null)', async () => {
+    mockUpsert({
+      ...MOCK_EINSTELLUNG,
+      quote_prozent: null,
+      produktkosten_pro_stueck_euro_netto: null,
+      versandkosten_pro_stueck_euro_netto: null,
+    })
     const res = await PUT(req(BASE_URL, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sales_plattform_id: PLATTFORM_ID,
-        produkt_id: PRODUKT_ID,
-      }),
+      body: JSON.stringify({ sales_plattform_id: PLATTFORM_ID, produkt_id: PRODUKT_ID }),
     }))
     expect(res.status).toBe(200)
   })
@@ -215,14 +234,27 @@ describe('PUT /api/ersatzteile-kulanz-einstellungen', () => {
     expect(res.status).toBe(400)
   })
 
-  it('returns 400 when kosten_pro_stueck is negative', async () => {
+  it('returns 400 when produktkosten is negative', async () => {
     const res = await PUT(req(BASE_URL, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         sales_plattform_id: PLATTFORM_ID,
         produkt_id: PRODUKT_ID,
-        kosten_pro_stueck_euro_netto: -5,
+        produktkosten_pro_stueck_euro_netto: -1,
+      }),
+    }))
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 400 when versandkosten is negative', async () => {
+    const res = await PUT(req(BASE_URL, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sales_plattform_id: PLATTFORM_ID,
+        produkt_id: PRODUKT_ID,
+        versandkosten_pro_stueck_euro_netto: -5,
       }),
     }))
     expect(res.status).toBe(400)
@@ -238,10 +270,7 @@ describe('PUT /api/ersatzteile-kulanz-einstellungen', () => {
     const res = await PUT(req(BASE_URL, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sales_plattform_id: PLATTFORM_ID,
-        produkt_id: PRODUKT_ID,
-      }),
+      body: JSON.stringify({ sales_plattform_id: PLATTFORM_ID, produkt_id: PRODUKT_ID }),
     }))
     expect(res.status).toBe(401)
   })
@@ -251,10 +280,7 @@ describe('PUT /api/ersatzteile-kulanz-einstellungen', () => {
     const res = await PUT(req(BASE_URL, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sales_plattform_id: PLATTFORM_ID,
-        produkt_id: PRODUKT_ID,
-      }),
+      body: JSON.stringify({ sales_plattform_id: PLATTFORM_ID, produkt_id: PRODUKT_ID }),
     }))
     expect(res.status).toBe(500)
   })

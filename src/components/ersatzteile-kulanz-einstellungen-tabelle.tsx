@@ -276,9 +276,14 @@ function ErsatzteileKulanzEinstellungZeile({
   const [quoteStr, setQuoteStr] = useState<string>(
     einstellung.quote_prozent !== null ? einstellung.quote_prozent.toString() : ''
   )
-  const [kostenStr, setKostenStr] = useState<string>(
-    einstellung.kosten_pro_stueck_euro_netto !== null
-      ? einstellung.kosten_pro_stueck_euro_netto.toString()
+  const [produktkostenStr, setProduktkostenStr] = useState<string>(
+    einstellung.produktkosten_pro_stueck_euro_netto !== null
+      ? einstellung.produktkosten_pro_stueck_euro_netto.toString()
+      : ''
+  )
+  const [versandkostenStr, setVersandkostenStr] = useState<string>(
+    einstellung.versandkosten_pro_stueck_euro_netto !== null
+      ? einstellung.versandkosten_pro_stueck_euro_netto.toString()
       : ''
   )
   const [saving, setSaving] = useState(false)
@@ -288,18 +293,28 @@ function ErsatzteileKulanzEinstellungZeile({
   }, [einstellung.quote_prozent])
 
   useEffect(() => {
-    setKostenStr(
-      einstellung.kosten_pro_stueck_euro_netto !== null
-        ? einstellung.kosten_pro_stueck_euro_netto.toString()
+    setProduktkostenStr(
+      einstellung.produktkosten_pro_stueck_euro_netto !== null
+        ? einstellung.produktkosten_pro_stueck_euro_netto.toString()
         : ''
     )
-  }, [einstellung.kosten_pro_stueck_euro_netto])
+  }, [einstellung.produktkosten_pro_stueck_euro_netto])
+
+  useEffect(() => {
+    setVersandkostenStr(
+      einstellung.versandkosten_pro_stueck_euro_netto !== null
+        ? einstellung.versandkosten_pro_stueck_euro_netto.toString()
+        : ''
+    )
+  }, [einstellung.versandkosten_pro_stueck_euro_netto])
 
   async function handleSave() {
     const quote = quoteStr === '' ? null : parseFloat(quoteStr)
-    const kosten = kostenStr === '' ? null : parseFloat(kostenStr)
+    const produktkosten = produktkostenStr === '' ? null : parseFloat(produktkostenStr)
+    const versandkosten = versandkostenStr === '' ? null : parseFloat(versandkostenStr)
     if (quote !== null && (isNaN(quote) || quote < 0 || quote > 100)) return
-    if (kosten !== null && (isNaN(kosten) || kosten < 0)) return
+    if (produktkosten !== null && (isNaN(produktkosten) || produktkosten < 0)) return
+    if (versandkosten !== null && (isNaN(versandkosten) || versandkosten < 0)) return
 
     setSaving(true)
     try {
@@ -307,15 +322,21 @@ function ErsatzteileKulanzEinstellungZeile({
         sales_plattform_id: plattformId,
         produkt_id: produkt.id,
         quote_prozent: quote,
-        kosten_pro_stueck_euro_netto: kosten,
+        produktkosten_pro_stueck_euro_netto: produktkosten,
+        versandkosten_pro_stueck_euro_netto: versandkosten,
       })
     } catch {
       setQuoteStr(
         einstellung.quote_prozent !== null ? einstellung.quote_prozent.toString() : ''
       )
-      setKostenStr(
-        einstellung.kosten_pro_stueck_euro_netto !== null
-          ? einstellung.kosten_pro_stueck_euro_netto.toString()
+      setProduktkostenStr(
+        einstellung.produktkosten_pro_stueck_euro_netto !== null
+          ? einstellung.produktkosten_pro_stueck_euro_netto.toString()
+          : ''
+      )
+      setVersandkostenStr(
+        einstellung.versandkosten_pro_stueck_euro_netto !== null
+          ? einstellung.versandkosten_pro_stueck_euro_netto.toString()
           : ''
       )
       toast({
@@ -351,13 +372,27 @@ function ErsatzteileKulanzEinstellungZeile({
           type="number"
           min={0}
           step={0.01}
-          value={kostenStr}
-          onChange={e => setKostenStr(e.target.value)}
+          value={produktkostenStr}
+          onChange={e => setProduktkostenStr(e.target.value)}
           onBlur={handleSave}
           className="w-36"
           disabled={saving}
           placeholder="—"
-          aria-label={`Ersatzteile/Kulanzkosten pro Stück für ${produkt.name}`}
+          aria-label={`Ersatzteile Kulanzproduktkosten pro Stück für ${produkt.name}`}
+        />
+      </TableCell>
+      <TableCell>
+        <Input
+          type="number"
+          min={0}
+          step={0.01}
+          value={versandkostenStr}
+          onChange={e => setVersandkostenStr(e.target.value)}
+          onBlur={handleSave}
+          className="w-36"
+          disabled={saving}
+          placeholder="—"
+          aria-label={`Ersatzteile Kulanzversandkosten pro Stück für ${produkt.name}`}
         />
       </TableCell>
     </TableRow>
@@ -412,7 +447,8 @@ function PlattformTabelle({
           <TableRow>
             <TableHead className="w-52">Produkt</TableHead>
             <TableHead className="w-44">Ersatzteile/Kulanz-Quote (%)</TableHead>
-            <TableHead className="w-48">Ersatzteile/Kulanzkosten pro Stück (€ netto)</TableHead>
+            <TableHead className="w-48">Ersatzteile Kulanzproduktkosten pro Stück (€ netto)</TableHead>
+            <TableHead className="w-48">Ersatzteile Kulanzversandkosten pro Stück (€ netto)</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
