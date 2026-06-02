@@ -68,7 +68,7 @@
 | PROJ-44 | Versandausgaben-Einstellungen — Kurzfristige Planung | Approved | [PROJ-44-versandausgaben-einstellungen.md](PROJ-44-versandausgaben-einstellungen.md) | 2026-06-01 |
 | PROJ-45 | Auszahlungseinstellungen — Kurzfristige Planung | Approved | [PROJ-45-auszahlungseinstellungen.md](PROJ-45-auszahlungseinstellungen.md) | 2026-06-01 |
 | PROJ-46 | Lager-Ausgaben-Einstellungen — Kurzfristige Planung | Approved | [PROJ-46-lagerausgaben-einstellungen.md](PROJ-46-lagerausgaben-einstellungen.md) | 2026-06-02 |
-| PROJ-47 | Retoureneinstellungen — Kurzfristige Planung | Architected | [PROJ-47-retouren-einstellungen.md](PROJ-47-retouren-einstellungen.md) | 2026-06-02 |
+| PROJ-47 | Retoureneinstellungen — Kurzfristige Planung | In Progress | [PROJ-47-retouren-einstellungen.md](PROJ-47-retouren-einstellungen.md) | 2026-06-02 |
 
 <!-- Add features above this line -->
 

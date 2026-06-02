@@ -1,6 +1,6 @@
 # PROJ-47: Retoureneinstellungen — Kurzfristige Planung
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-06-02
 **Last Updated:** 2026-06-02
 
@@ -370,6 +370,27 @@ PUT  /api/retouren-plattform-einstellungen
 | Kein Batch-„Alle gleichsetzen" | Nicht implementiert | Nicht in der Spec; bei 3 heterogenen Spalten wäre ein sinnvoller Batch-Wert unklar |
 | Zwei getrennte DB-Tabellen | `retouren_einstellungen` + `retouren_plattform_einstellungen` | Unterschiedliche Granularität (Plattform×Produkt vs. nur Plattform) — analog PROJ-46 |
 | Neue Packages | Keine | Tabs, Select, Popover, Calendar, Input, Table — alles bereits in shadcn/ui installiert |
+
+## Implementation Notes (Frontend — 2026-06-02)
+
+### Neue Dateien
+- `src/hooks/use-retouren-einstellungen.ts` — Typ `RetourenEinstellung`, Konstanten `BERECHNUNGSARTEN` + `BERECHNUNGSART_LABELS`, Hook `useRetourenEinstellungen(plattformId)` mit Laden, optimistischem Einzel-Upsert und Rollback
+- `src/hooks/use-retouren-plattform-einstellungen.ts` — Typ `RetourenPlattformEinstellungen`, Konstanten `GRUPPIERUNGEN`, `GRUPPIERUNG_LABELS`, `GRUPPIERUNG_WOCHEN`, Hook `useRetourenPlattformEinstellungen(plattformId)` mit Laden und Upsert
+- `src/components/retouren-einstellungen-tabelle.tsx` — Vier Komponenten: `PlattformEinstellungenForm` (Gruppierung Select + Calendar-Popover Zahlungswoche + Zahlungsziel Input + Erstattung Verkaufsgebühr Input), `RetourenEinstellungZeile` (lokaler State für alle 3 Felder, Select onChange + Input onBlur senden immer den vollständigen Zeilendatensatz), `PlattformTabelle` (pro Plattform mit eigenem Hook-Aufruf), `RetourenEinstellungenTabelle` (Export, lädt Plattformen + Produkte, rendert Tabs)
+- `src/app/dashboard/kurzfristige-planung/retouren-einstellungen/page.tsx` — Client Component, Page-Header + `RetourenEinstellungenTabelle`
+
+### Geänderte Dateien
+- `src/components/nav-sheet.tsx` — Eintrag „Retoureneinstellungen" zur bestehenden Gruppe „Kurzfristige Planung" ergänzt
+- `src/app/dashboard/kurzfristige-planung/page.tsx` — Kachel „Retoureneinstellungen" zum Kachelraster hinzugefügt
+
+### Designentscheidungen
+- `RetourenEinstellungZeile` hält lokalen State für alle 3 Felder (berechnungsart, rueckversandStr, handlingStr) und sendet bei jeder Änderung (Select onChange oder Input onBlur) immer alle drei Werte gemeinsam an die API — verhindert inkonsistente Teilupdates
+- Die `handleSave`-Funktion akzeptiert optionale `overrides` damit der Select-onChange-Handler den neuen Wert einspeisenb kann, bevor der State-Update des React-Rendercycles greift
+- Calendar-Picker und `calculateNextPayoutWeek`-Utility werden aus `use-auszahlungs-einstellungen.ts` importiert — gleiche Quelle der Wahrheit wie bei PROJ-45/46
+- `PlattformEinstellungenForm` initialisiert `zahlungszielStr` und `erstattungStr` per `useRef`-Guard (`initializedRef`) genau einmal beim ersten vollständigen Laden — verhindert Überschreiben von Nutzereingaben durch verzögerte API-Antworten
+
+### Build
+- `npm run build` ✅ — 65 Routen korrekt, `/dashboard/kurzfristige-planung/retouren-einstellungen` in der Route-Liste
 
 ## QA Test Results
 _To be added by /qa_

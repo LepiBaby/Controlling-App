@@ -58,6 +58,7 @@ const KURZFRISTIGE_PLANUNG_NAV_GROUPS = [
       { href: '/dashboard/kurzfristige-planung/versand-einstellungen', label: 'Versand-Einstellungen' },
       { href: '/dashboard/kurzfristige-planung/auszahlungseinstellungen', label: 'Auszahlungseinstellungen' },
       { href: '/dashboard/kurzfristige-planung/lager-einstellungen', label: 'Lager-Einstellungen' },
+      { href: '/dashboard/kurzfristige-planung/retouren-einstellungen', label: 'Retoureneinstellungen' },
     ],
   },
 ]

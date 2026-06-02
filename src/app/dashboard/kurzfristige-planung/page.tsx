@@ -71,6 +71,15 @@ export default function KurzfristigePlanungPage() {
                   Lagerkosten (€/m³) je Plattform &amp; Produkt sowie Zahlungswoche pflegen
                 </p>
               </a>
+              <a
+                href="/dashboard/kurzfristige-planung/retouren-einstellungen"
+                className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+              >
+                <p className="font-medium">Retoureneinstellungen</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Retourenquote, Rückversandkosten &amp; Handling-Kosten je Plattform &amp; Produkt pflegen
+                </p>
+              </a>
             </div>
           </div>
         </div>
