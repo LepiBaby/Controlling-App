@@ -1,8 +1,8 @@
 # PROJ-48: Ersatzteile/Kulanz-Einstellungen — Kurzfristige Planung
 
-## Status: Planned
+## Status: In Progress
 **Created:** 2026-06-02
-**Last Updated:** 2026-06-02
+**Last Updated:** 2026-06-02 (Frontend)
 
 ## Dependencies
 - Requires: PROJ-1 (Authentifizierung) — nur eingeloggte Nutzer
@@ -344,6 +344,27 @@ PUT  /api/ersatzteile-kulanz-plattform-einstellungen
 | Zwei getrennte DB-Tabellen | `ersatzteile_kulanz_einstellungen` + `ersatzteile_kulanz_plattform_einstellungen` | Unterschiedliche Granularität (Plattform×Produkt vs. nur Plattform) — analog PROJ-46/47 |
 | Keine „Erstattung Verkaufsgebühr" | Nicht in der Spec | Im Gegensatz zu PROJ-47 gibt es dieses Feld bei Ersatzteile/Kulanz nicht — bewusst weggelassen |
 | Neue Packages | Keine | Tabs, Select, Popover, Calendar, Input, Table — alles bereits in shadcn/ui installiert |
+
+## Implementation Notes (Frontend — 2026-06-02)
+
+### Neue Dateien
+- `src/hooks/use-ersatzteile-kulanz-einstellungen.ts` — Typ `ErsatzteileKulanzEinstellung`, Hook `useErsatzteileKulanzEinstellungen(plattformId)` mit Laden, optimistischem Einzel-Upsert und Rollback
+- `src/hooks/use-ersatzteile-kulanz-plattform-einstellungen.ts` — Typ `ErsatzteileKulanzPlattformEinstellungen`, re-exportiert `Gruppierung`, `GRUPPIERUNGEN`, `GRUPPIERUNG_LABELS`, `GRUPPIERUNG_WOCHEN` aus `use-retouren-plattform-einstellungen`, Hook `useErsatzteileKulanzPlattformEinstellungen(plattformId)` mit Laden und Upsert
+- `src/components/ersatzteile-kulanz-einstellungen-tabelle.tsx` — Vier Komponenten: `PlattformEinstellungenForm` (Gruppierung Select + Calendar-Popover Zahlungswoche + Zahlungsziel Input — 3 Felder, kein Erstattungsfeld), `ErsatzteileKulanzEinstellungZeile` (lokaler State für Quote + Kosten, beide Input onBlur senden immer vollständigen Datensatz), `PlattformTabelle` (pro Plattform mit eigenem Hook-Aufruf), `ErsatzteileKulanzEinstellungenTabelle` (Export, lädt Plattformen + Produkte, rendert Tabs)
+- `src/app/dashboard/kurzfristige-planung/ersatzteile-kulanz-einstellungen/page.tsx` — Client Component, Page-Header + `ErsatzteileKulanzEinstellungenTabelle`
+
+### Geänderte Dateien
+- `src/components/nav-sheet.tsx` — Eintrag „Ersatzteile/Kulanz-Einstellungen" zur bestehenden Gruppe „Kurzfristige Planung" ergänzt
+- `src/app/dashboard/kurzfristige-planung/page.tsx` — Kachel „Ersatzteile/Kulanz-Einstellungen" zum Kachelraster hinzugefügt
+
+### Designentscheidungen
+- `Gruppierung`-Typ und Konstanten (`GRUPPIERUNGEN`, `GRUPPIERUNG_LABELS`, `GRUPPIERUNG_WOCHEN`) werden aus `use-retouren-plattform-einstellungen` importiert und re-exportiert — eine Quelle der Wahrheit, kein Duplikat
+- `PlattformEinstellungenForm` hat nur 3 Felder (kein Erstattungsfeld) — entspricht der Spec, die für Ersatzteile/Kulanz keine plattformweite Erstattungsquote vorsieht
+- Kein Berechnungsart-Dropdown in der Produkttabelle — einfachere Struktur als PROJ-47, da nur zwei numerische Felder (Quote + Kosten) gepflegt werden
+- `calculateNextPayoutWeek`-Utility aus `use-auszahlungs-einstellungen` wiederverwendet — identisch zu PROJ-45/46/47
+
+### Build
+- `npm run build` ✅ — 66 Routen korrekt, `/dashboard/kurzfristige-planung/ersatzteile-kulanz-einstellungen` in der Route-Liste
 
 ## QA Test Results
 _To be added by /qa_
