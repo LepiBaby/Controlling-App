@@ -48,7 +48,7 @@ export default function KurzfristigePlanungPage() {
                 href="/dashboard/kurzfristige-planung/versand-einstellungen"
                 className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
               >
-                <p className="font-medium">Versandausgaben-Einstellungen</p>
+                <p className="font-medium">Versand-Einstellungen</p>
                 <p className="text-sm text-muted-foreground mt-1">
                   Versandgebühr (Spediteur &amp; 3PL) sowie Zahlungsziel je Plattform &amp; Produkt pflegen
                 </p>
@@ -66,7 +66,7 @@ export default function KurzfristigePlanungPage() {
                 href="/dashboard/kurzfristige-planung/lager-einstellungen"
                 className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
               >
-                <p className="font-medium">Lager-Ausgaben-Einstellungen</p>
+                <p className="font-medium">Lager-Einstellungen</p>
                 <p className="text-sm text-muted-foreground mt-1">
                   Lagerkosten (€/m³) je Plattform &amp; Produkt sowie Zahlungswoche pflegen
                 </p>

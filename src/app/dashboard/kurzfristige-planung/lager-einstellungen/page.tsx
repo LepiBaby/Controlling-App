@@ -12,7 +12,7 @@ export default function LagerausgabenEinstellungenPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <NavSheet />
-            <h1 className="text-lg font-semibold">Lager-Ausgaben-Einstellungen</h1>
+            <h1 className="text-lg font-semibold">Lager-Einstellungen</h1>
           </div>
           <div className="flex items-center gap-4">
             <LogoutButton />
