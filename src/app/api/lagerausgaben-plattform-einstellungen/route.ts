@@ -28,8 +28,10 @@ export async function GET(request: Request) {
   }
 
   const { data, error: dbErr } = await supabase
-    .from('versandausgaben_plattform_einstellungen')
-    .select('gruppierung, zahlungsziel_tage, naechste_zahlung_basis_kw, naechste_zahlung_basis_jahr')
+    .from('lagerausgaben_plattform_einstellungen')
+    .select(
+      'gruppierung, naechste_zahlung_basis_kw, naechste_zahlung_basis_jahr, zahlungsziel_tage'
+    )
     .eq('user_id', user!.id)
     .eq('sales_plattform_id', plattformId)
     .maybeSingle()
@@ -63,8 +65,10 @@ export async function PUT(request: Request) {
 
   // Fetch current values to merge (partial updates)
   const { data: current } = await supabase
-    .from('versandausgaben_plattform_einstellungen')
-    .select('gruppierung, zahlungsziel_tage, naechste_zahlung_basis_kw, naechste_zahlung_basis_jahr')
+    .from('lagerausgaben_plattform_einstellungen')
+    .select(
+      'gruppierung, naechste_zahlung_basis_kw, naechste_zahlung_basis_jahr, zahlungsziel_tage'
+    )
     .eq('user_id', user!.id)
     .eq('sales_plattform_id', sales_plattform_id)
     .maybeSingle()
@@ -86,7 +90,7 @@ export async function PUT(request: Request) {
   }
 
   const { data, error: dbErr } = await supabase
-    .from('versandausgaben_plattform_einstellungen')
+    .from('lagerausgaben_plattform_einstellungen')
     .upsert(
       {
         sales_plattform_id,
@@ -96,7 +100,9 @@ export async function PUT(request: Request) {
       },
       { onConflict: 'sales_plattform_id,user_id' }
     )
-    .select('gruppierung, zahlungsziel_tage, naechste_zahlung_basis_kw, naechste_zahlung_basis_jahr')
+    .select(
+      'gruppierung, naechste_zahlung_basis_kw, naechste_zahlung_basis_jahr, zahlungsziel_tage'
+    )
     .single()
 
   if (dbErr || !data) {

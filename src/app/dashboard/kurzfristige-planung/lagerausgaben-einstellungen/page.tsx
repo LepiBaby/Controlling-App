@@ -2,17 +2,17 @@
 
 import { NavSheet } from '@/components/nav-sheet'
 import { LogoutButton } from '@/components/logout-button'
-import { VersandausgabenEinstellungenTabelle } from '@/components/versandausgaben-einstellungen-tabelle'
+import { LagerausgabenEinstellungenTabelle } from '@/components/lagerausgaben-einstellungen-tabelle'
 import { Toaster } from '@/components/ui/toaster'
 
-export default function VersandausgabenEinstellungenPage() {
+export default function LagerausgabenEinstellungenPage() {
   return (
     <div className="flex min-h-screen flex-col">
       <header className="border-b bg-background px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <NavSheet />
-            <h1 className="text-lg font-semibold">Versand-Einstellungen</h1>
+            <h1 className="text-lg font-semibold">Lager-Ausgaben-Einstellungen</h1>
           </div>
           <div className="flex items-center gap-4">
             <LogoutButton />
@@ -22,7 +22,7 @@ export default function VersandausgabenEinstellungenPage() {
 
       <main className="flex-1 p-6">
         <div className="mx-auto max-w-7xl">
-          <VersandausgabenEinstellungenTabelle />
+          <LagerausgabenEinstellungenTabelle />
         </div>
       </main>
 

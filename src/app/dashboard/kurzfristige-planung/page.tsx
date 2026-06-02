@@ -62,6 +62,15 @@ export default function KurzfristigePlanungPage() {
                   Auszahlungsrhythmus, nächste Auszahlungswoche und Inklusionen je Plattform pflegen
                 </p>
               </a>
+              <a
+                href="/dashboard/kurzfristige-planung/lagerausgaben-einstellungen"
+                className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+              >
+                <p className="font-medium">Lager-Ausgaben-Einstellungen</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Lagerkosten (€/m³) je Plattform &amp; Produkt sowie Zahlungswoche pflegen
+                </p>
+              </a>
             </div>
           </div>
         </div>

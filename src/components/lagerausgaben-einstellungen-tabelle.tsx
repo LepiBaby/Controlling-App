@@ -26,16 +26,16 @@ import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useKpiCategories, type KpiCategory } from '@/hooks/use-kpi-categories'
 import {
-  useVersandausgabenEinstellungen,
-  type VersandausgabenEinstellung,
-} from '@/hooks/use-versandausgaben-einstellungen'
+  useLagerausgabenEinstellungen,
+  type LagerausgabenEinstellung,
+} from '@/hooks/use-lagerausgaben-einstellungen'
 import {
-  useVersandausgabenPlattformEinstellungen,
+  useLagerausgabenPlattformEinstellungen,
   GRUPPIERUNGEN,
   GRUPPIERUNG_LABELS,
   GRUPPIERUNG_WOCHEN,
   type Gruppierung,
-} from '@/hooks/use-versandausgaben-plattform-einstellungen'
+} from '@/hooks/use-lagerausgaben-plattform-einstellungen'
 import {
   getCurrentISOWeekAndYear,
   calculateNextPayoutWeek,
@@ -61,11 +61,11 @@ function getISOWeekAndYear(date: Date): { kw: number; jahr: number } {
   return { kw, jahr: d.getFullYear() }
 }
 
-// --- Plattform-Einstellungsformular (Gruppierung + Zahlungsziel) ---
+// --- Plattform-Einstellungsformular ---
 
 function PlattformEinstellungenForm({ plattformId }: { plattformId: string }) {
   const { einstellungen, loading, error, upsert } =
-    useVersandausgabenPlattformEinstellungen(plattformId)
+    useLagerausgabenPlattformEinstellungen(plattformId)
   const { toast } = useToast()
   const [zahlungszielStr, setZahlungszielStr] = useState('')
   const [calendarOpen, setCalendarOpen] = useState(false)
@@ -138,13 +138,21 @@ function PlattformEinstellungenForm({ plattformId }: { plattformId: string }) {
     setCalendarOpen(false)
     if (!date) {
       upsert({ naechste_zahlung_basis_kw: null, naechste_zahlung_basis_jahr: null }).catch(() =>
-        toast({ title: 'Fehler', description: 'Einstellung konnte nicht gespeichert werden.', variant: 'destructive' })
+        toast({
+          title: 'Fehler',
+          description: 'Einstellung konnte nicht gespeichert werden.',
+          variant: 'destructive',
+        })
       )
       return
     }
     const { kw, jahr } = getISOWeekAndYear(date)
     upsert({ naechste_zahlung_basis_kw: kw, naechste_zahlung_basis_jahr: jahr }).catch(() =>
-      toast({ title: 'Fehler', description: 'Einstellung konnte nicht gespeichert werden.', variant: 'destructive' })
+      toast({
+        title: 'Fehler',
+        description: 'Einstellung konnte nicht gespeichert werden.',
+        variant: 'destructive',
+      })
     )
   }
 
@@ -212,7 +220,11 @@ function PlattformEinstellungenForm({ plattformId }: { plattformId: string }) {
               >
                 <CalendarIcon className="size-4 text-muted-foreground" />
                 {selectedDate
-                  ? selectedDate.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                  ? selectedDate.toLocaleDateString('de-DE', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                    })
                   : <span className="text-muted-foreground">Datum wählen</span>
                 }
               </Button>
@@ -245,9 +257,78 @@ function PlattformEinstellungenForm({ plattformId }: { plattformId: string }) {
   )
 }
 
+// --- „Alle gleichsetzen"-Bereich ---
+
+function AlleGleichsetzenBereich({
+  plattformId,
+  produkte,
+  onBatch,
+}: {
+  plattformId: string
+  produkte: KpiCategory[]
+  onBatch: (plattformId: string, wert: number | null, produktIds: string[]) => Promise<void>
+}) {
+  const { toast } = useToast()
+  const [wertStr, setWertStr] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  async function handleUebernehmen() {
+    const parsed = parseFloat(wertStr)
+    if (isNaN(parsed) || parsed < 0) return
+    setSaving(true)
+    try {
+      await onBatch(
+        plattformId,
+        parsed,
+        produkte.map(p => p.id)
+      )
+      setWertStr('')
+    } catch {
+      toast({
+        title: 'Fehler',
+        description: 'Lagerkosten konnten nicht für alle Produkte gespeichert werden.',
+        variant: 'destructive',
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const disabled = saving || wertStr.trim() === '' || produkte.length === 0
+
+  return (
+    <div className="flex items-end gap-3">
+      <div className="space-y-1.5">
+        <Label htmlFor={`alle-gleichsetzen-${plattformId}`} className="text-sm font-medium">
+          Alle Produkte gleichsetzen
+        </Label>
+        <Input
+          id={`alle-gleichsetzen-${plattformId}`}
+          type="number"
+          min={0}
+          step={0.01}
+          value={wertStr}
+          onChange={e => setWertStr(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && !disabled) handleUebernehmen() }}
+          placeholder="€/m³ für alle Produkte"
+          className="w-56"
+          disabled={saving}
+        />
+      </div>
+      <Button
+        variant="secondary"
+        onClick={handleUebernehmen}
+        disabled={disabled}
+      >
+        Übernehmen
+      </Button>
+    </div>
+  )
+}
+
 // --- Einzelne Produktzeile ---
 
-function VersandausgabenEinstellungZeile({
+function LagerausgabenEinstellungZeile({
   produkt,
   plattformId,
   einstellung,
@@ -255,48 +336,42 @@ function VersandausgabenEinstellungZeile({
 }: {
   produkt: KpiCategory
   plattformId: string
-  einstellung: VersandausgabenEinstellung
-  onSave: (patch: Omit<VersandausgabenEinstellung, 'id'>) => Promise<void>
+  einstellung: LagerausgabenEinstellung
+  onSave: (patch: Omit<LagerausgabenEinstellung, 'id'>) => Promise<void>
 }) {
   const { toast } = useToast()
-  const [spediteurStr, setSpediteurStr] = useState<string>(
-    einstellung.versandgebuehr_spediteur !== null
-      ? einstellung.versandgebuehr_spediteur.toString()
-      : ''
-  )
-  const [tplStr, setTplStr] = useState<string>(
-    einstellung.versandgebuehr_3pl !== null
-      ? einstellung.versandgebuehr_3pl.toString()
+  const [wertStr, setWertStr] = useState<string>(
+    einstellung.lagerkosten_euro_m3 !== null
+      ? einstellung.lagerkosten_euro_m3.toString()
       : ''
   )
   const [saving, setSaving] = useState(false)
 
-  const spediteurNum =
-    spediteurStr !== '' && !isNaN(parseFloat(spediteurStr)) ? parseFloat(spediteurStr) : null
-  const tplNum =
-    tplStr !== '' && !isNaN(parseFloat(tplStr)) ? parseFloat(tplStr) : null
-  const summe =
-    spediteurNum === null && tplNum === null
-      ? null
-      : (spediteurNum ?? 0) + (tplNum ?? 0)
+  useEffect(() => {
+    setWertStr(
+      einstellung.lagerkosten_euro_m3 !== null
+        ? einstellung.lagerkosten_euro_m3.toString()
+        : ''
+    )
+  }, [einstellung.lagerkosten_euro_m3])
 
-  async function handleSave(
-    newSpediteur: number | null,
-    newTpl: number | null
-  ) {
-    const prevSpediteur = spediteurStr
-    const prevTpl = tplStr
+  async function handleBlur() {
+    const parsed = wertStr === '' ? null : parseFloat(wertStr)
+    if (parsed !== null && (isNaN(parsed) || parsed < 0)) return
+    if (parsed === einstellung.lagerkosten_euro_m3) return
     setSaving(true)
     try {
       await onSave({
         sales_plattform_id: plattformId,
         produkt_id: produkt.id,
-        versandgebuehr_spediteur: newSpediteur,
-        versandgebuehr_3pl: newTpl,
+        lagerkosten_euro_m3: parsed,
       })
     } catch {
-      setSpediteurStr(prevSpediteur)
-      setTplStr(prevTpl)
+      setWertStr(
+        einstellung.lagerkosten_euro_m3 !== null
+          ? einstellung.lagerkosten_euro_m3.toString()
+          : ''
+      )
       toast({
         title: 'Fehler',
         description: 'Einstellung konnte nicht gespeichert werden.',
@@ -307,20 +382,6 @@ function VersandausgabenEinstellungZeile({
     }
   }
 
-  function handleSpediteurBlur() {
-    const parsed = spediteurStr === '' ? null : parseFloat(spediteurStr)
-    if (parsed !== null && (isNaN(parsed) || parsed < 0)) return
-    if (parsed === einstellung.versandgebuehr_spediteur) return
-    handleSave(parsed, einstellung.versandgebuehr_3pl)
-  }
-
-  function handleTplBlur() {
-    const parsed = tplStr === '' ? null : parseFloat(tplStr)
-    if (parsed !== null && (isNaN(parsed) || parsed < 0)) return
-    if (parsed === einstellung.versandgebuehr_3pl) return
-    handleSave(einstellung.versandgebuehr_spediteur, parsed)
-  }
-
   return (
     <TableRow className={saving ? 'opacity-60' : ''}>
       <TableCell className="font-medium">{produkt.name}</TableCell>
@@ -329,37 +390,20 @@ function VersandausgabenEinstellungZeile({
           type="number"
           min={0}
           step={0.01}
-          value={spediteurStr}
-          onChange={e => setSpediteurStr(e.target.value)}
-          onBlur={handleSpediteurBlur}
-          className="w-32"
+          value={wertStr}
+          onChange={e => setWertStr(e.target.value)}
+          onBlur={handleBlur}
+          className="w-36"
           disabled={saving}
           placeholder="—"
-          aria-label={`Versandkosten Spediteur für ${produkt.name}`}
+          aria-label={`Lagerkosten €/m³ für ${produkt.name}`}
         />
-      </TableCell>
-      <TableCell>
-        <Input
-          type="number"
-          min={0}
-          step={0.01}
-          value={tplStr}
-          onChange={e => setTplStr(e.target.value)}
-          onBlur={handleTplBlur}
-          className="w-32"
-          disabled={saving}
-          placeholder="—"
-          aria-label={`Versandkosten 3PL für ${produkt.name}`}
-        />
-      </TableCell>
-      <TableCell className="text-muted-foreground tabular-nums">
-        {summe !== null ? summe.toFixed(2) : '—'}
       </TableCell>
     </TableRow>
   )
 }
 
-// --- Tabelle für eine Plattform ---
+// --- Tabelle + Schnellpflege für eine Plattform ---
 
 function PlattformTabelle({
   plattformId,
@@ -368,8 +412,8 @@ function PlattformTabelle({
   plattformId: string
   produkte: KpiCategory[]
 }) {
-  const { loading, error, getEinstellung, upsert } =
-    useVersandausgabenEinstellungen(plattformId)
+  const { loading, error, getEinstellung, upsert, batchUpsert } =
+    useLagerausgabenEinstellungen(plattformId)
 
   if (loading) {
     return <div className="py-6 text-center text-sm text-muted-foreground">Laden…</div>
@@ -388,7 +432,7 @@ function PlattformTabelle({
       <div className="rounded-lg border bg-muted/30 p-8 text-center space-y-3">
         <p className="font-medium">Keine Produkte definiert</p>
         <p className="text-sm text-muted-foreground">
-          Bitte zuerst Produkte im KPI-Modell anlegen, bevor Versandgebühren gepflegt werden können.
+          Bitte zuerst Produkte im KPI-Modell anlegen, bevor Lagerkosten gepflegt werden können.
         </p>
         <a href="/dashboard/kpi-modell">
           <Button variant="outline" size="sm" className="mt-2">
@@ -400,35 +444,40 @@ function PlattformTabelle({
   }
 
   return (
-    <div className="rounded-lg border">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-44">Produkt</TableHead>
-            <TableHead className="w-40">Versandkosten Spediteur (€ netto)</TableHead>
-            <TableHead className="w-36">Versandkosten 3PL (€ netto)</TableHead>
-            <TableHead className="w-32">Versandkosten (€ netto)</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {produkte.map(produkt => (
-            <VersandausgabenEinstellungZeile
-              key={produkt.id}
-              produkt={produkt}
-              plattformId={plattformId}
-              einstellung={getEinstellung(produkt.id)}
-              onSave={upsert}
-            />
-          ))}
-        </TableBody>
-      </Table>
+    <div className="space-y-3">
+      <AlleGleichsetzenBereich
+        plattformId={plattformId}
+        produkte={produkte}
+        onBatch={batchUpsert}
+      />
+      <div className="rounded-lg border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-64">Produkt</TableHead>
+              <TableHead className="w-44">Lagerkosten (€/m³)</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {produkte.map(produkt => (
+              <LagerausgabenEinstellungZeile
+                key={produkt.id}
+                produkt={produkt}
+                plattformId={plattformId}
+                einstellung={getEinstellung(produkt.id)}
+                onSave={upsert}
+              />
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   )
 }
 
 // --- Hauptkomponente ---
 
-export function VersandausgabenEinstellungenTabelle() {
+export function LagerausgabenEinstellungenTabelle() {
   const { categories: plattformen, loading: plattformenLoading } =
     useKpiCategories('sales_plattformen')
   const { categories: alleProdukte, loading: produkteLoading } =
@@ -461,7 +510,7 @@ export function VersandausgabenEinstellungenTabelle() {
       <div className="rounded-lg border bg-muted/30 p-8 text-center space-y-3">
         <p className="font-medium">Keine Sales-Plattformen definiert</p>
         <p className="text-sm text-muted-foreground">
-          Bitte zuerst Sales-Plattformen im KPI-Modell anlegen, bevor Versandkosten gepflegt
+          Bitte zuerst Sales-Plattformen im KPI-Modell anlegen, bevor Lagerkosten gepflegt
           werden können.
         </p>
         <a href="/dashboard/kpi-modell">

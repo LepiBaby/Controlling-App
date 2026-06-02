@@ -4,11 +4,11 @@ import { useState, useEffect, useCallback } from 'react'
 
 export type Gruppierung = 'woechentlich' | 'monatlich' | 'quartalsweise'
 
-export interface VersandausgabenPlattformEinstellungen {
+export interface LagerausgabenPlattformEinstellungen {
   gruppierung: Gruppierung
-  zahlungsziel_tage: number | null
   naechste_zahlung_basis_kw: number | null
   naechste_zahlung_basis_jahr: number | null
+  zahlungsziel_tage: number | null
 }
 
 export const GRUPPIERUNGEN: Gruppierung[] = ['woechentlich', 'monatlich', 'quartalsweise']
@@ -25,16 +25,16 @@ export const GRUPPIERUNG_WOCHEN: Record<Gruppierung, number> = {
   quartalsweise: 13,
 }
 
-const DEFAULTS: VersandausgabenPlattformEinstellungen = {
+const DEFAULTS: LagerausgabenPlattformEinstellungen = {
   gruppierung: 'monatlich',
-  zahlungsziel_tage: null,
   naechste_zahlung_basis_kw: null,
   naechste_zahlung_basis_jahr: null,
+  zahlungsziel_tage: null,
 }
 
-export function useVersandausgabenPlattformEinstellungen(plattformId: string | null) {
+export function useLagerausgabenPlattformEinstellungen(plattformId: string | null) {
   const [einstellungen, setEinstellungen] =
-    useState<VersandausgabenPlattformEinstellungen | null>(null)
+    useState<LagerausgabenPlattformEinstellungen | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -42,12 +42,12 @@ export function useVersandausgabenPlattformEinstellungen(plattformId: string | n
     if (!plattformId) return
     setLoading(true)
     setError(null)
-    fetch(`/api/versandausgaben-plattform-einstellungen?plattform_id=${plattformId}`)
+    fetch(`/api/lagerausgaben-plattform-einstellungen?plattform_id=${plattformId}`)
       .then(r => {
         if (!r.ok) throw new Error('API-Fehler')
         return r.json()
       })
-      .then((data: VersandausgabenPlattformEinstellungen | null) => {
+      .then((data: LagerausgabenPlattformEinstellungen | null) => {
         setEinstellungen(data)
         setLoading(false)
       })
@@ -58,12 +58,12 @@ export function useVersandausgabenPlattformEinstellungen(plattformId: string | n
   }, [plattformId])
 
   const upsert = useCallback(
-    async (patch: Partial<VersandausgabenPlattformEinstellungen>): Promise<void> => {
+    async (patch: Partial<LagerausgabenPlattformEinstellungen>): Promise<void> => {
       if (!plattformId) return
       const previous = einstellungen
       setEinstellungen(curr => ({ ...(curr ?? DEFAULTS), ...patch }))
 
-      const res = await fetch('/api/versandausgaben-plattform-einstellungen', {
+      const res = await fetch('/api/lagerausgaben-plattform-einstellungen', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sales_plattform_id: plattformId, ...patch }),
