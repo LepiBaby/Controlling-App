@@ -366,6 +366,26 @@ PUT  /api/ersatzteile-kulanz-plattform-einstellungen
 ### Build
 - `npm run build` ✅ — 66 Routen korrekt, `/dashboard/kurzfristige-planung/ersatzteile-kulanz-einstellungen` in der Route-Liste
 
+## Implementation Notes (Backend — 2026-06-02)
+
+### Datenbankmigrierung
+- Migration `proj48_ersatzteile_kulanz_einstellungen` erfolgreich auf Supabase-Projekt `kdmpghtdoguppfqhdscq` angewendet
+- Tabelle `ersatzteile_kulanz_einstellungen` angelegt mit: UUID-PK, FK zu `kpi_categories` (ON DELETE CASCADE für Plattform + Produkt), NUMERIC(5,2) für `quote_prozent` (CHECK 0–100, nullable), NUMERIC(10,2) für `kosten_pro_stueck_euro_netto` (CHECK ≥ 0, nullable), FK zu `auth.users` (ON DELETE CASCADE), UNIQUE `(sales_plattform_id, produkt_id, user_id)`
+- Tabelle `ersatzteile_kulanz_plattform_einstellungen` angelegt mit: UUID-PK, FK zu `kpi_categories` (ON DELETE CASCADE), `gruppierung` TEXT mit CHECK-Constraint (3 Werte, DEFAULT 'monatlich'), INTEGER-CHECKs (KW: 1–53, Jahr: ≥ 2024), INTEGER-CHECK (zahlungsziel_tage: ≥ 0), CONSTRAINT `chk_eke_kw_jahr_both_or_neither`, UNIQUE `(sales_plattform_id, user_id)`
+- RLS aktiviert mit je 4 Policies (SELECT/INSERT/UPDATE/DELETE) auf beiden Tabellen
+- Indexes: `idx_eke_plattform_user` auf `ersatzteile_kulanz_einstellungen(sales_plattform_id, user_id)`, `idx_ekpe_plattform_user` auf `ersatzteile_kulanz_plattform_einstellungen(sales_plattform_id, user_id)`
+
+### API-Routen
+- `GET /api/ersatzteile-kulanz-einstellungen?plattform_id=<UUID>` — gibt Array mit `id, sales_plattform_id, produkt_id, quote_prozent, kosten_pro_stueck_euro_netto` zurück
+- `PUT /api/ersatzteile-kulanz-einstellungen` — Upsert via `onConflict: 'sales_plattform_id,produkt_id,user_id'`; Zod validiert quote_prozent 0–100 oder null; kosten ≥ 0 oder null
+- `GET /api/ersatzteile-kulanz-plattform-einstellungen?plattform_id=<UUID>` — `maybeSingle()`, gibt null wenn kein Eintrag
+- `PUT /api/ersatzteile-kulanz-plattform-einstellungen` — Fetch-then-merge-Pattern; `'feld' in body`-Check für explizites null vs. nicht-gesendet; Upsert via `onConflict: 'sales_plattform_id,user_id'`; Zod validiert alle Felder
+
+### Tests
+- `src/app/api/ersatzteile-kulanz-einstellungen/route.test.ts` — 17 Tests (Vitest): 5 GET, 12 PUT — alle bestanden ✅
+- `src/app/api/ersatzteile-kulanz-plattform-einstellungen/route.test.ts` — 19 Tests (Vitest): 5 GET, 14 PUT — alle bestanden ✅
+- **Gesamt: 36/36 Tests bestanden ✅**
+
 ## QA Test Results
 _To be added by /qa_
 
