@@ -621,7 +621,7 @@ export function AbsatzplanungTabelle() {
                   {wochen.map(kw => {
                     const { display, rawNum, isManual, isEditable: cellEditable } = getRowValue(row, kw)
                     const isNew = isNewWeek && lastWoche && kw.year === lastWoche.year && kw.week === lastWoche.week
-                    const editKey = row.produktId && row.plattformId
+                    const editKey = row.produktId && row.plattformId && cellEditable
                       ? cellDataKey(row.produktId, row.plattformId, kw.year, kw.week, row.kind === 'product-absatz' ? 'absatz' : 'vk')
                       : null
                     const isCurrentlyEditing = editKey !== null && editingCell === editKey
