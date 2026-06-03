@@ -446,9 +446,9 @@ function PlattformTabelle({
         <TableHeader>
           <TableRow>
             <TableHead className="w-52">Produkt</TableHead>
-            <TableHead className="w-44">Ersatzteile/Kulanz-Quote (%)</TableHead>
-            <TableHead className="w-48">Ersatzteile Kulanzproduktkosten pro Stück (€ netto)</TableHead>
-            <TableHead className="w-48">Ersatzteile Kulanzversandkosten pro Stück (€ netto)</TableHead>
+            <TableHead className="w-44">Kulanz-Quote (%)</TableHead>
+            <TableHead className="w-48">Kulanzproduktkosten pro Stück (€ netto)</TableHead>
+            <TableHead className="w-48">Kulanzversandkosten pro Stück (€ netto)</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
