@@ -68,6 +68,17 @@ Es werden **nur Produkte angezeigt**, für die in den Absatzeinstellungen eine a
     - Zeile „Effektiver VK [Produkt]" — editierbar
     - Zeile „Ziel Brutto-Umsatz [Produkt]" — berechnet: Absatz × Effektiver VK; leer wenn VK nicht gesetzt
 
+### Rollierender Planungshorizont (Wochenwechsel)
+
+- [ ] Der Planungshorizont rollt automatisch mit: Die angezeigten Spalten ergeben sich immer aus dem **aktuellen Datum** zum Zeitpunkt des Seitenladens — es wird keine feste Startseite gespeichert.
+- [ ] **Herausfallende (alte) Woche**: Sobald eine Woche zur aktuellen oder vergangenen Woche wird, verschwindet sie aus der Tabelle. Die in der DB gespeicherten Planungswerte für diese Woche bleiben erhalten, sind aber auf der Seite nicht mehr sichtbar. Es gibt keine Benachrichtigung oder Warnung.
+- [ ] **Neu hinzukommende Woche** (am Ende des Horizonts): Die Woche, die durch den Wochenwechsel neu am Ende des Planungshorizonts erscheint (bisher außerhalb des sichtbaren Bereichs), wird visuell hervorgehoben:
+  - Der Spaltenheader der neu hinzugekommenen Woche wird mit **roter Hintergrundfarbe** (Warnung) markiert
+  - Alle editierbaren Zellen dieser Spalte erhalten ebenfalls einen roten Rahmen oder eine leichte rote Hinterfärbung
+  - Tooltip oder kleiner Hinweistext am Header: „Neue Woche — Bitte Werte prüfen"
+  - Die Markierung gilt als „neu" solange der Nutzer noch keinen manuellen Wert in mindestens eine Absatz- oder VK-Zelle dieser Woche eingetragen hat
+  - Sobald der Nutzer in dieser Woche mindestens eine Zelle manuell bearbeitet hat, verschwindet die rote Markierung für die gesamte Spalte
+
 ### Anzeigefilter (Produkte)
 
 - [ ] Es werden **nur Produkte angezeigt**, für die in `absatz_einstellungen` eine Berechnungsart ≠ `'keine'` für die jeweilige Plattform hinterlegt ist
@@ -188,6 +199,9 @@ Es werden **nur Produkte angezeigt**, für die in den Absatzeinstellungen eine a
 - **Massen-Anpassung mit Wert = 0**: erlaubt, Zellen werden mit 0 überschrieben (wird als manuell markiert)
 - **Progressive Methode, nur eine Zelle selektiert**: erlaubt (ergibt denselben Wert wie einfache Erhöhung auf eine Zelle)
 - **Simultaner Bearbeitungsversuch von Absatz + VK in Selektion**: bisherige Selektion wird geleert, kein Fehler, kein Crash
+- **Wochenwechsel während geöffneter Seite** (Nutzer lässt Tab über Nacht offen): beim nächsten Seitenladen wird die neue Woche korrekt berechnet; kein automatisches Re-Render nötig — nächstes Laden genügt
+- **Neue Woche bereits mit manuellen Werten** (Nutzer hat vorausschauend in der Vorwoche bereits KW+N+1 gefüllt): die rote Markierung erscheint **nicht**, da bereits manuelle Einträge vorhanden sind
+- **Letzte Woche des Horizonts war die einzig rot-markierte**: wenn der Nutzer keinen Wert einträgt und die Seite neu lädt, ist die nächste folgende Woche jetzt rot markiert (rollierend)
 
 ## Technical Requirements
 
