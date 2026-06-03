@@ -247,12 +247,12 @@ describe('PUT /api/absatz-planung', () => {
 // ─── DELETE ───────────────────────────────────────────────────────────────────
 
 describe('DELETE /api/absatz-planung', () => {
-  it('returns 200 on successful reset', async () => {
+  it('returns 200 on successful full reset', async () => {
     mockFrom.mockReturnValueOnce({
       delete: () => ({ eq: () => ({ error: null }) }),
     })
 
-    const res = await DELETE()
+    const res = await DELETE(req('http://localhost/api/absatz-planung', { method: 'DELETE' }))
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.success).toBe(true)
@@ -263,7 +263,7 @@ describe('DELETE /api/absatz-planung', () => {
       delete: () => ({ eq: () => ({ error: null }) }),
     })
 
-    const res = await DELETE()
+    const res = await DELETE(req('http://localhost/api/absatz-planung', { method: 'DELETE' }))
     expect(res.status).toBe(200)
   })
 
@@ -273,7 +273,7 @@ describe('DELETE /api/absatz-planung', () => {
       user: null, supabase: null as never,
       error: new Response('Unauthorized', { status: 401 }),
     })
-    const res = await DELETE()
+    const res = await DELETE(req('http://localhost/api/absatz-planung', { method: 'DELETE' }))
     expect(res.status).toBe(401)
   })
 
@@ -282,7 +282,32 @@ describe('DELETE /api/absatz-planung', () => {
       delete: () => ({ eq: () => ({ error: { message: 'DB error' } }) }),
     })
 
-    const res = await DELETE()
+    const res = await DELETE(req('http://localhost/api/absatz-planung', { method: 'DELETE' }))
+    expect(res.status).toBe(500)
+  })
+
+  it('returns 200 when ?field=absatz: nulls absatz then deletes empty rows', async () => {
+    // First call: update (null absatz)
+    mockFrom.mockReturnValueOnce({
+      update: () => ({ eq: () => ({ error: null }) }),
+    })
+    // Second call: delete rows where both null
+    mockFrom.mockReturnValueOnce({
+      delete: () => ({ eq: () => ({ is: () => ({ is: () => ({ error: null }) }) }) }),
+    })
+
+    const res = await DELETE(req('http://localhost/api/absatz-planung?field=absatz', { method: 'DELETE' }))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.success).toBe(true)
+  })
+
+  it('returns 500 when ?field=absatz update fails', async () => {
+    mockFrom.mockReturnValueOnce({
+      update: () => ({ eq: () => ({ error: { message: 'DB error' } }) }),
+    })
+
+    const res = await DELETE(req('http://localhost/api/absatz-planung?field=absatz', { method: 'DELETE' }))
     expect(res.status).toBe(500)
   })
 })

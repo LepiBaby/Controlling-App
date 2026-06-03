@@ -309,9 +309,18 @@ export function useAbsatzplanung() {
 
   const resetAll = useCallback(async (): Promise<void> => {
     const snapshot = new Map(manuelleWerte)
-    setManuelleWerte(new Map())
+    // Keep entries that have a VK value, but clear their absatz
+    setManuelleWerte(prev => {
+      const next = new Map<string, ManuellerWert>()
+      for (const [key, val] of prev) {
+        if (val.effektiver_vk_manuell !== null) {
+          next.set(key, { ...val, absatz_manuell: null })
+        }
+      }
+      return next
+    })
     try {
-      const res = await fetch('/api/absatz-planung', { method: 'DELETE' })
+      const res = await fetch('/api/absatz-planung?field=absatz', { method: 'DELETE' })
       if (!res.ok) throw new Error()
     } catch {
       setManuelleWerte(snapshot)

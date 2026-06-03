@@ -26,6 +26,7 @@ interface Transaktion {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function getPeriodDays(berechnungsart: string): number {
+  if (berechnungsart.endsWith('_7')) return 7
   if (berechnungsart.endsWith('_14')) return 14
   if (berechnungsart.endsWith('_30')) return 30
   if (berechnungsart.endsWith('_60')) return 60

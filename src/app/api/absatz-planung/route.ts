@@ -69,10 +69,35 @@ export async function PUT(request: Request) {
   return NextResponse.json(data)
 }
 
-export async function DELETE() {
+export async function DELETE(request: Request) {
   const { user, supabase, error } = await requireAuth()
   if (error) return error
 
+  const { searchParams } = new URL(request.url)
+  const field = searchParams.get('field')
+
+  if (field === 'absatz') {
+    // Null out absatz_manuell only, keep effektiver_vk_manuell
+    const { error: updateErr } = await supabase
+      .from('absatz_planung')
+      .update({ absatz_manuell: null, updated_at: new Date().toISOString() })
+      .eq('user_id', user!.id)
+
+    if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
+
+    // Clean up rows where both fields are now null
+    const { error: deleteErr } = await supabase
+      .from('absatz_planung')
+      .delete()
+      .eq('user_id', user!.id)
+      .is('absatz_manuell', null)
+      .is('effektiver_vk_manuell', null)
+
+    if (deleteErr) return NextResponse.json({ error: deleteErr.message }, { status: 500 })
+    return NextResponse.json({ success: true })
+  }
+
+  // Default: delete all entries for this user
   const { error: dbErr } = await supabase
     .from('absatz_planung')
     .delete()
