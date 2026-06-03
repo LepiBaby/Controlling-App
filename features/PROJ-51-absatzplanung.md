@@ -397,6 +397,29 @@ GET  /api/absatz-planung/historisch
 ### Build
 - `npm run build` ✅ — Route `/dashboard/kurzfristige-planung/absatzplanung` korrekt in Build-Ausgabe
 
+## Implementation Notes (Backend — 2026-06-03)
+
+### DB-Migration
+- Neue Tabelle `absatz_planung` erstellt mit allen Spalten laut Spec, UNIQUE-Constraint auf `(user_id, produkt_id, sales_plattform_id, kw_year, kw_number)`, CHECK-Constraints für kw_year/kw_number/numerische Felder
+- RLS aktiviert mit 4 Policies (SELECT/INSERT/UPDATE/DELETE) — Nutzer sieht und schreibt nur eigene Einträge
+- 3 Indexes: `idx_absatz_planung_user_id`, `idx_absatz_planung_user_kw`, `idx_absatz_planung_user_produkt`
+
+### Neue Dateien
+- `src/app/api/absatz-planung/route.ts` — GET (alle manuellen Werte, max 2000 Einträge), PUT (Upsert mit Zod-Validierung), DELETE (Reset, löscht alle Einträge des Nutzers)
+- `src/app/api/absatz-planung/historisch/route.ts` — GET (Tagesdurchschnitt je Plattform-Produkt-Kombination): lädt alle aktiven Einstellungen, holt Sendungen der letzten 90 Tage, berechnet mittelwert_X und gewichtet_X in TypeScript
+- `src/app/api/absatz-planung/route.test.ts` — 12 Tests (GET, PUT, DELETE)
+- `src/app/api/absatz-planung/historisch/route.test.ts` — 9 Tests inkl. Mittelwert- und Gewichtet-Berechnungen
+
+### Berechnungslogik (historisch)
+- `mittelwert_X`: `SUM(menge im Zeitraum) / X Tage` — leere Tage zählen als 0
+- `gewichtet_X`: Zeitraum in 3 gleiche Drittel, `avg_pro_drittel = sum_drittel / (X/3)`, dann `(w1*avg1 + w2*avg2 + w3*avg3) / 100`
+- Fallback auf einfachen Mittelwert wenn Gewichtungen NULL sind
+- Datenbasis: `bestand_transaktionen` → `bestand_sendungen` (JOIN via `transaktion_id`), gefiltert nach `produkt_id` und `plattform_id`
+- Alle 27 Tests ✅
+
+### Build
+- `npm run build` ✅ — alle neuen API-Routen korrekt in Build-Ausgabe
+
 ## QA Test Results
 _To be added by /qa_
 
