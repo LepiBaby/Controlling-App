@@ -152,9 +152,16 @@ export function AbsatzplanungTabelle() {
   const [bulkEditOpen, setBulkEditOpen] = useState(false)
 
   // Inline editing
-  const [editingCell, setEditingCell] = useState<string | null>(null)
+  const [editingCell, setEditingCellState] = useState<string | null>(null)
+  const editingCellRef = useRef<string | null>(null)
   const [editingValue, setEditingValue] = useState('')
   const editingOriginalValue = useRef<string>('')
+
+  // Always keep ref in sync so blur handlers read the latest value (stale-closure fix)
+  function setEditingCell(key: string | null) {
+    editingCellRef.current = key
+    setEditingCellState(key)
+  }
 
   // Expand all platforms on first load
   useEffect(() => {
@@ -392,11 +399,16 @@ export function AbsatzplanungTabelle() {
   // ─── Inline edit blur ─────────────────────────────────────────────────────────
 
   async function handleCellBlur(row: FlatRow, kw: PlanungsWoche) {
-    if (!editingCell || !row.produktId || !row.plattformId) {
+    if (!row.produktId || !row.plattformId) {
       setEditingCell(null)
       return
     }
     const field = row.kind === 'product-absatz' ? 'absatz' : 'vk'
+    const blurringKey = cellDataKey(row.produktId, row.plattformId, kw.year, kw.week, field)
+
+    // Stale-closure guard: if another cell has already taken over editing, skip save and reset
+    if (editingCellRef.current !== blurringKey) return
+
     const parsedNew = editingValue.trim() === '' ? null : parseFloat(editingValue.replace(',', '.'))
     const parsedOrig = editingOriginalValue.current === '' ? null : parseFloat(editingOriginalValue.current)
 
