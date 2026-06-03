@@ -55,11 +55,10 @@ function mondayOfISOWeek(year: number, week: number): Date {
 
 type RowKind =
   | 'gesamt-absatz'
-  | 'gesamt-vk'
+  | 'gesamt-product-absatz'
   | 'gesamt-umsatz'
   | 'platform-header'
   | 'platform-absatz'
-  | 'platform-vk'
   | 'platform-umsatz'
   | 'product-absatz'
   | 'product-vk'
@@ -140,6 +139,7 @@ export function AbsatzplanungTabelle() {
 
   const { toast } = useToast()
   const [expandedPlatforms, setExpandedPlatforms] = useState<Set<string>>(new Set())
+  const [gesamtAbsatzExpanded, setGesamtAbsatzExpanded] = useState(false)
   const [resetDialogOpen, setResetDialogOpen] = useState(false)
   const [resetting, setResetting] = useState(false)
 
@@ -233,8 +233,15 @@ export function AbsatzplanungTabelle() {
   const flatRows = useMemo((): FlatRow[] => {
     const rows: FlatRow[] = []
 
-    rows.push({ id: 'gesamt-absatz', kind: 'gesamt-absatz', label: 'Absatz (Gesamt)', indent: 0 })
-    rows.push({ id: 'gesamt-vk', kind: 'gesamt-vk', label: 'Effektiver VK (Gesamt)', indent: 0 })
+    rows.push({ id: 'gesamt-absatz', kind: 'gesamt-absatz', label: 'Absatz (Gesamt)', indent: 0, expandable: true, expanded: gesamtAbsatzExpanded })
+    if (gesamtAbsatzExpanded) {
+      const aktiveProdukte = produkte.filter(prd =>
+        activePlattformen.some(plt => aktiveKombis.has(`${plt.id}:${prd.id}`)),
+      )
+      for (const prd of aktiveProdukte) {
+        rows.push({ id: `gesamt-prd-${prd.id}`, kind: 'gesamt-product-absatz', label: prd.name, indent: 1, produktId: prd.id })
+      }
+    }
     rows.push({ id: 'gesamt-umsatz', kind: 'gesamt-umsatz', label: 'Ziel Brutto-Umsatz (Gesamt)', indent: 0 })
 
     for (const plt of activePlattformen) {
@@ -249,7 +256,6 @@ export function AbsatzplanungTabelle() {
         expanded,
       })
       rows.push({ id: `plt-absatz-${plt.id}`, kind: 'platform-absatz', label: 'Absatz', indent: 1, plattformId: plt.id })
-      rows.push({ id: `plt-vk-${plt.id}`, kind: 'platform-vk', label: 'Effektiver VK', indent: 1, plattformId: plt.id })
       rows.push({ id: `plt-umsatz-${plt.id}`, kind: 'platform-umsatz', label: 'Ziel Brutto-Umsatz', indent: 1, plattformId: plt.id })
 
       if (expanded) {
@@ -263,7 +269,7 @@ export function AbsatzplanungTabelle() {
     }
 
     return rows
-  }, [activePlattformen, expandedPlatforms, produkte, aktiveKombis])
+  }, [activePlattformen, expandedPlatforms, produkte, aktiveKombis, gesamtAbsatzExpanded])
 
   // ─── Cell value for a row × week ─────────────────────────────────────────────
 
@@ -289,15 +295,15 @@ export function AbsatzplanungTabelle() {
         const val = aggregatePlatformAbsatz(row.plattformId!, kw, produkte, aktiveKombis, getCellValues)
         return { display: formatNum(val), rawNum: val, isManual: false, isEditable: false }
       }
-      case 'platform-vk': {
-        const val = aggregatePlatformVK(row.plattformId!, kw, produkte, aktiveKombis, getCellValues)
-        return { display: val !== null ? formatNum(val) : '—', rawNum: val, isManual: false, isEditable: false }
-      }
       case 'platform-umsatz': {
-        const absatz = aggregatePlatformAbsatz(row.plattformId!, kw, produkte, aktiveKombis, getCellValues)
-        const vk = aggregatePlatformVK(row.plattformId!, kw, produkte, aktiveKombis, getCellValues)
-        const u = computeUmsatz(absatz, vk)
-        return { display: u !== null ? formatNum(u) : '—', rawNum: u, isManual: false, isEditable: false }
+        // Sum of product-level umsatz (absatz × vk per product) for this platform
+        let total = 0; let hasValue = false
+        for (const prd of produkte.filter(p => aktiveKombis.has(`${row.plattformId!}:${p.id}`))) {
+          const cv = getCellValues(prd.id, row.plattformId!, kw)
+          const u = computeUmsatz(cv.absatz, cv.vk)
+          if (u !== null) { total += u; hasValue = true }
+        }
+        return { display: hasValue ? formatNum(total) : '—', rawNum: hasValue ? total : null, isManual: false, isEditable: false }
       }
       case 'gesamt-absatz': {
         const val = activePlattformen.reduce(
@@ -306,16 +312,12 @@ export function AbsatzplanungTabelle() {
         )
         return { display: formatNum(val), rawNum: val, isManual: false, isEditable: false }
       }
-      case 'gesamt-vk': {
-        let totalAbsatz = 0
-        let weightedVK = 0
-        for (const plt of activePlattformen) {
-          const pltAbsatz = aggregatePlatformAbsatz(plt.id, kw, produkte, aktiveKombis, getCellValues)
-          const pltVK = aggregatePlatformVK(plt.id, kw, produkte, aktiveKombis, getCellValues)
-          if (pltVK !== null) { weightedVK += pltAbsatz * pltVK; totalAbsatz += pltAbsatz }
-        }
-        const val = totalAbsatz > 0 ? weightedVK / totalAbsatz : null
-        return { display: val !== null ? formatNum(val) : '—', rawNum: val, isManual: false, isEditable: false }
+      case 'gesamt-product-absatz': {
+        // Sum of absatz across all platforms for this product
+        const val = activePlattformen
+          .filter(plt => aktiveKombis.has(`${plt.id}:${row.produktId!}`))
+          .reduce((sum, plt) => sum + getCellValues(row.produktId!, plt.id, kw).absatz, 0)
+        return { display: formatNum(val), rawNum: val, isManual: false, isEditable: false }
       }
       case 'gesamt-umsatz': {
         let total = 0; let hasValue = false
@@ -575,7 +577,8 @@ export function AbsatzplanungTabelle() {
           <tbody>
             {flatRows.map(row => {
               const isHeader = row.kind === 'platform-header'
-              const isGesamt = row.kind.startsWith('gesamt-')
+              const isGesamt = row.kind === 'gesamt-absatz' || row.kind === 'gesamt-umsatz'
+              const isGesamtProduct = row.kind === 'gesamt-product-absatz'
               const isPlatform = row.kind.startsWith('platform-') && !isHeader
               const isProductRow = row.kind.startsWith('product-')
 
@@ -610,8 +613,23 @@ export function AbsatzplanungTabelle() {
                         {row.expanded ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
                         {row.label}
                       </button>
+                    ) : row.kind === 'gesamt-absatz' ? (
+                      <button
+                        type="button"
+                        className="flex items-center gap-1 hover:text-primary"
+                        onClick={() => setGesamtAbsatzExpanded(v => !v)}
+                      >
+                        {row.expanded ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
+                        {row.label}
+                      </button>
                     ) : (
-                      <span className={isProductRow && (row.kind === 'product-absatz' || row.kind === 'product-vk') ? 'font-medium' : 'text-muted-foreground text-xs'}>
+                      <span className={
+                        isProductRow && (row.kind === 'product-absatz' || row.kind === 'product-vk')
+                          ? 'font-medium'
+                          : isGesamtProduct
+                            ? 'text-sm'
+                            : 'text-muted-foreground text-xs'
+                      }>
                         {row.label}
                       </span>
                     )}
