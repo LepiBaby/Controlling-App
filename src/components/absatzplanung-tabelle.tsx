@@ -255,9 +255,9 @@ export function AbsatzplanungTabelle() {
       if (expanded) {
         const aktivePrd = produkte.filter(p => aktiveKombis.has(`${plt.id}:${p.id}`))
         for (const prd of aktivePrd) {
-          rows.push({ id: `prd-absatz-${plt.id}-${prd.id}`, kind: 'product-absatz', label: prd.name, indent: 2, plattformId: plt.id, produktId: prd.id })
-          rows.push({ id: `prd-vk-${plt.id}-${prd.id}`, kind: 'product-vk', label: '↳ Effektiver VK', indent: 2, plattformId: plt.id, produktId: prd.id })
-          rows.push({ id: `prd-umsatz-${plt.id}-${prd.id}`, kind: 'product-umsatz', label: '↳ Ziel Brutto-Umsatz', indent: 2, plattformId: plt.id, produktId: prd.id })
+          rows.push({ id: `prd-absatz-${plt.id}-${prd.id}`, kind: 'product-absatz', label: `${prd.name} - Absatz`, indent: 2, plattformId: plt.id, produktId: prd.id })
+          rows.push({ id: `prd-vk-${plt.id}-${prd.id}`, kind: 'product-vk', label: `${prd.name} - Effektiver VK`, indent: 2, plattformId: plt.id, produktId: prd.id })
+          rows.push({ id: `prd-umsatz-${plt.id}-${prd.id}`, kind: 'product-umsatz', label: `${prd.name} - Ziel Brutto-Umsatz`, indent: 2, plattformId: plt.id, produktId: prd.id })
         }
       }
     }
@@ -611,7 +611,7 @@ export function AbsatzplanungTabelle() {
                         {row.label}
                       </button>
                     ) : (
-                      <span className={isProductRow && row.kind === 'product-absatz' ? 'font-medium' : 'text-muted-foreground text-xs'}>
+                      <span className={isProductRow ? 'text-sm' : 'text-muted-foreground text-xs'}>
                         {row.label}
                       </span>
                     )}
