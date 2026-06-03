@@ -624,16 +624,25 @@ export function AbsatzplanungTabelle() {
                           isSelected ? 'bg-blue-100 dark:bg-blue-900/30' : '',
                           cellEditable ? 'cursor-pointer' : '',
                         ].join(' ')}
-                        // Non-editable cells use mousedown for selection
-                        onMouseDown={
-                          !cellEditable && rawNum !== null
-                            ? e => handleNonEditableMouseDown(e, `row:${row.id}:${kw.year}:${kw.week}`, rawNum)
+                        // All click/mousedown logic on the td for reliable hit area
+                        onClick={
+                          cellEditable && editKey !== null && !isCurrentlyEditing
+                            ? e => handleEditableCellClick(e, row, kw, editKey, display)
                             : undefined
                         }
+                        onMouseDown={
+                          cellEditable && editKey !== null
+                            ? e => handleEditableCellMouseDown(e, editKey, rawNum)
+                            : !cellEditable && rawNum !== null
+                              ? e => handleNonEditableMouseDown(e, `row:${row.id}:${kw.year}:${kw.week}`, rawNum)
+                              : undefined
+                        }
                         onMouseEnter={
-                          !cellEditable && rawNum !== null
-                            ? () => handleNonEditableMouseEnter(`row:${row.id}:${kw.year}:${kw.week}`, rawNum)
-                            : undefined
+                          cellEditable && editKey !== null
+                            ? () => handleEditableCellMouseEnter(editKey, rawNum)
+                            : !cellEditable && rawNum !== null
+                              ? () => handleNonEditableMouseEnter(`row:${row.id}:${kw.year}:${kw.week}`, rawNum)
+                              : undefined
                         }
                       >
                         {isCurrentlyEditing ? (
@@ -650,6 +659,7 @@ export function AbsatzplanungTabelle() {
                               if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
                               if (e.key === 'Escape') { setEditingCell(null); setEditingValue('') }
                             }}
+                            onClick={e => e.stopPropagation()}
                             onMouseDown={e => e.stopPropagation()}
                           />
                         ) : (
@@ -658,22 +668,6 @@ export function AbsatzplanungTabelle() {
                               'flex items-center justify-end gap-1',
                               isNew && cellEditable ? 'ring-1 ring-red-300 dark:ring-red-700 rounded px-1' : '',
                             ].join(' ')}
-                            // Ctrl+click: mousedown for selection; regular click: onClick for editing
-                            onMouseDown={
-                              cellEditable && editKey !== null
-                                ? e => handleEditableCellMouseDown(e, editKey, rawNum)
-                                : undefined
-                            }
-                            onClick={
-                              cellEditable && editKey !== null
-                                ? e => handleEditableCellClick(e, row, kw, editKey, display)
-                                : undefined
-                            }
-                            onMouseEnter={
-                              cellEditable && editKey !== null
-                                ? () => handleEditableCellMouseEnter(editKey, rawNum)
-                                : undefined
-                            }
                           >
                             {/* Manual / historical indicator — only for editable cells */}
                             {cellEditable && (
