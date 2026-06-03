@@ -376,6 +376,27 @@ GET  /api/absatz-planung/historisch
 | Aggregation | Rein frontend-seitig, reaktiv | Aggregationen ändern sich bei jeder Zelleingabe — server-seitige Aggregation würde unnötige Round-Trips erzeugen |
 | Neue Packages | Keine | date-fns (bereits vorhanden) für ISO-Wochenberechnung; shadcn/ui Dialog, Select, Input, AlertDialog, Tooltip — alle bereits installiert |
 
+## Implementation Notes (Frontend — 2026-06-03)
+
+### Neue Dateien
+- `src/hooks/use-absatzplanung.ts` — Typen (`PlanungsWoche`, `ManuellerWert`, `HistorischerWert`), Hilfsfunktionen (`berechnePlanungswochen`, `historischKey`, `manuellerKey`, `kwKey`), Hook `useAbsatzplanung()` mit Zweiphasen-Load (plattformen → einstellungen), getAbsatz/getVK-Selektoren, isNewWeek-Berechnung, `upsertZelle`, `upsertBatch` und `resetAll` mit optimistischem Update + Rollback
+- `src/components/absatzplanung-bulk-edit-dialog.tsx` — Modal mit Dropdown (8 Methoden), Zahlenfeld, Apply/Cancel; `applyMethode()` berechnet neue Zellwerte inklusive progressiver gruppenweiser Verarbeitung
+- `src/components/absatzplanung-tabelle.tsx` — Hauptkomponente mit flachem Zeilen-Array (9 Zeilentypen), Expand/Collapse, Inline-Editing (click-to-edit per nativer `<input>`), Betragsselektion (identisch ausgaben-table-Muster mit `data-betrag-selektion`), Multi-Zellen-Selektion mit Typ-Prüfung (absatz vs. vk), Bulk-Edit-Toolbar floating, roter Spalten-Highlight für neue Woche, grauer/blauer Indikator-Punkt pro Zelle, Reset-Dialog (shadcn AlertDialog)
+- `src/app/dashboard/kurzfristige-planung/absatzplanung/page.tsx` — Client Component, Standard-Layout mit NavSheet + LogoutButton + Toaster
+
+### Geänderte Dateien
+- `src/components/nav-sheet.tsx` — Gruppe „Planung" in `KURZFRISTIGE_PLANUNG_NAV_GROUPS` mit Eintrag „Absatzplanung"
+- `src/app/dashboard/kurzfristige-planung/page.tsx` — Kachel „Absatzplanung" im Abschnitt „Planung"
+
+### Abweichungen von der Spec
+- `GET /api/absatz-planung` lädt ALLE manuellen Werte ohne KW-Filter (einfacher, korrekt für alle Horizon-Größen)
+- Zweiphasen-Load: Phase 1 lädt plattformen/produkte/historisch/manuell parallel; Phase 2 lädt einstellungen je Plattform parallel — vermeidet N+1 im DOM
+- Betragsselektion und Bulk-Edit-Selektion teilen `selectedCells: Map<string, number>`; Bulk-Edit-Button erscheint wenn ≥ 2 Zellen mit gleichem Typ (absatz oder vk)
+- Progressive Methoden (wöchentlich steigen/sinken) werden gruppen-weise verarbeitet: pro (produkt, plattform) Gruppe werden die selektierten Wochen sortiert und die Progression angewandt
+
+### Build
+- `npm run build` ✅ — Route `/dashboard/kurzfristige-planung/absatzplanung` korrekt in Build-Ausgabe
+
 ## QA Test Results
 _To be added by /qa_
 

@@ -23,7 +23,7 @@ export default function KurzfristigePlanungPage() {
 
           <div className="space-y-3">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Kurzfristige Planung
+              Einstellungen
             </h2>
             <div className="grid gap-3 sm:grid-cols-3">
               <a
@@ -96,6 +96,32 @@ export default function KurzfristigePlanungPage() {
                 <p className="font-medium">Marketing-Einstellungen</p>
                 <p className="text-sm text-muted-foreground mt-1">
                   Marketing-Berechnungsmethode je Plattform &amp; Produkt konfigurieren
+                </p>
+              </a>
+              <a
+                href="/dashboard/kurzfristige-planung/grundeinstellungen"
+                className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+              >
+                <p className="font-medium">Grundeinstellungen</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Planungshorizont und weitere allgemeine Parameter der kurzfristigen Planung konfigurieren
+                </p>
+              </a>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              Planung
+            </h2>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <a
+                href="/dashboard/kurzfristige-planung/absatzplanung"
+                className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+              >
+                <p className="font-medium">Absatzplanung</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Absatz und effektiven VK je Plattform &amp; Produkt für den Planungshorizont planen
                 </p>
               </a>
             </div>

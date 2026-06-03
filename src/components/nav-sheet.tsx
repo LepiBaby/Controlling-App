@@ -11,7 +11,7 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet'
 import { usePathname } from 'next/navigation'
-import { BereichsSwitcher, getAktivesBereich } from '@/components/bereichs-switcher'
+import { BereichsSwitcher, getAktivesBereich, BEREICHE } from '@/components/bereichs-switcher'
 
 const REPORTING_NAV_GROUPS = [
   {
@@ -51,7 +51,7 @@ const REPORTING_NAV_GROUPS = [
 
 const KURZFRISTIGE_PLANUNG_NAV_GROUPS = [
   {
-    label: 'Kurzfristige Planung',
+    label: 'Einstellungen',
     items: [
       { href: '/dashboard/kurzfristige-planung/absatzeinstellungen', label: 'Absatzeinstellungen' },
       { href: '/dashboard/kurzfristige-planung/verkaufsgebuehr-einstellungen', label: 'Verkaufsgebühr-Einstellungen' },
@@ -61,6 +61,13 @@ const KURZFRISTIGE_PLANUNG_NAV_GROUPS = [
       { href: '/dashboard/kurzfristige-planung/retouren-einstellungen', label: 'Retoureneinstellungen' },
       { href: '/dashboard/kurzfristige-planung/ersatzteile-kulanz-einstellungen', label: 'Ersatzteile/Kulanz-Einstellungen' },
       { href: '/dashboard/kurzfristige-planung/marketing-einstellungen', label: 'Marketing-Einstellungen' },
+      { href: '/dashboard/kurzfristige-planung/grundeinstellungen', label: 'Grundeinstellungen' },
+    ],
+  },
+  {
+    label: 'Planung',
+    items: [
+      { href: '/dashboard/kurzfristige-planung/absatzplanung', label: 'Absatzplanung' },
     ],
   },
 ]
@@ -77,6 +84,7 @@ export function NavSheet() {
   const pathname = usePathname()
   const aktiv = getAktivesBereich(pathname)
   const navGroups = NAV_GROUPS_BY_AREA[aktiv] ?? []
+  const bereichHref = BEREICHE.find((b) => b.value === aktiv)?.href ?? '/dashboard'
 
   function toggleGroup(label: string) {
     setCollapsed((prev) => ({ ...prev, [label]: !prev[label] }))
@@ -93,7 +101,7 @@ export function NavSheet() {
       <SheetContent side="left" className="flex w-72 flex-col p-0">
         <SheetHeader className="border-b px-4 py-4">
           <SheetTitle>
-            <a href="/dashboard" onClick={() => setOpen(false)} className="hover:opacity-80">
+            <a href={bereichHref} onClick={() => setOpen(false)} className="hover:opacity-80">
               Controlling App
             </a>
           </SheetTitle>
@@ -123,23 +131,29 @@ export function NavSheet() {
                   </button>
                   {!isCollapsed && (
                     <div className="mt-1 flex flex-col gap-0.5">
-                      {group.items.map((item) => {
-                        const isActive = pathname === item.href
-                        return (
-                          <a
-                            key={item.href}
-                            href={item.href}
-                            onClick={() => setOpen(false)}
-                            className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                              isActive
-                                ? 'bg-muted text-foreground'
-                                : 'hover:bg-muted text-muted-foreground hover:text-foreground'
-                            }`}
-                          >
-                            {item.label}
-                          </a>
-                        )
-                      })}
+                      {group.items.length === 0 ? (
+                        <p className="px-3 py-2 text-sm text-muted-foreground">
+                          Noch keine Seiten vorhanden.
+                        </p>
+                      ) : (
+                        group.items.map((item) => {
+                          const isActive = pathname === item.href
+                          return (
+                            <a
+                              key={item.href}
+                              href={item.href}
+                              onClick={() => setOpen(false)}
+                              className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                                isActive
+                                  ? 'bg-muted text-foreground'
+                                  : 'hover:bg-muted text-muted-foreground hover:text-foreground'
+                              }`}
+                            >
+                              {item.label}
+                            </a>
+                          )
+                        })
+                      )}
                     </div>
                   )}
                 </div>
