@@ -219,7 +219,162 @@ Es werden **nur Produkte angezeigt**, für die in den Absatzeinstellungen eine a
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Komponentenstruktur
+
+```
+/dashboard/kurzfristige-planung/absatzplanung  (NEUE Seite)
++-- Page-Header (Seitentitel "Absatzplanung" + Reset-Button rechts oben)
++-- AbsatzplanungTabelle  (NEUE Hauptkomponente — Client Component)
+    +-- Leer-Zustand (wenn keine aktiven Produkte nach Berechnungsart-Filter)
+    +-- Scroll-Container (overflow-x: auto)
+    |   +-- <table>
+    |       +-- <thead>  (sticky top)
+    |       |   +-- KW-Header-Zeile: [Label-Spalte sticky left] | [KW24/2026] | [KW25/2026] | ...
+    |       +-- <tbody>  (flache Zeilen-Liste, analog Rentabilitäts-Matrix-Muster)
+    |           +-- Gesamt-Abschnitt (3 Zeilen, immer sichtbar, nicht editierbar)
+    |           |   +-- Zeile: Absatz (Gesamt) — Summe aller Plattformen
+    |           |   +-- Zeile: Effektiver VK (Gesamt) — gewichteter Ø
+    |           |   +-- Zeile: Ziel Brutto-Umsatz (Gesamt) — Summe aller Plattformen
+    |           +-- [Pro Sales-Plattform]
+    |               +-- Plattform-Header-Zeile (einklappbar, Auf-/Zuklapp-Icon)
+    |               +-- Plattform-Absatz-Zeile (aggregiert, nicht editierbar)
+    |               +-- Plattform-VK-Zeile (gewichteter Ø, nicht editierbar)
+    |               +-- Plattform-Umsatz-Zeile (aggregiert, nicht editierbar)
+    |               +-- [wenn ausgeklappt] Pro Produkt (eingerückt):
+    |                   +-- Produkt-Absatz-Zeile (editierbare Zellen + Indikator)
+    |                   +-- Produkt-VK-Zeile (editierbare Zellen, startet leer)
+    |                   +-- Produkt-Umsatz-Zeile (berechnet, nicht editierbar)
+    +-- BulkEditToolbar  (floating, erscheint wenn ≥ 2 Zellen selektiert)
+    +-- BulkEditDialog  (shadcn Dialog — Massen-Anpassungs-Modal)
+    +-- BetragsselektionPanel  (fixed rechts unten, wie in Reporting)
+    +-- ResetConfirmDialog  (shadcn AlertDialog)
+
+/dashboard/kurzfristige-planung  (bestehende Seite — geändert)
++-- Kachelraster (bereits vorhanden)
+    +-- Kachel "Absatzplanung" (NEU) → /dashboard/kurzfristige-planung/absatzplanung
+```
+
+### Datenmodell
+
+**Neue Tabelle `absatz_planung`** — speichert ausschließlich manuelle Überschreibungen:
+
+| Feld | Typ | Beschreibung |
+|---|---|---|
+| `id` | UUID | Primärschlüssel |
+| `user_id` | UUID FK → auth.users | Dateneigentümer — ON DELETE CASCADE |
+| `produkt_id` | UUID FK → kpi_categories | Produkt (level 1) — ON DELETE CASCADE |
+| `sales_plattform_id` | UUID FK → kpi_categories | Sales-Plattform — ON DELETE CASCADE |
+| `kw_year` | INTEGER | Jahr der Kalenderwoche (z. B. 2026) |
+| `kw_number` | INTEGER | ISO-Kalenderwoche (1–53) |
+| `absatz_manuell` | NUMERIC(10,2) nullable | Manueller Absatz-Wert; NULL = historischer Wert gilt |
+| `effektiver_vk_manuell` | NUMERIC(10,2) nullable | Manueller VK-Wert; NULL = kein Wert |
+
+UNIQUE-Constraint: `(user_id, produkt_id, sales_plattform_id, kw_year, kw_number)` — ein Eintrag pro Zellkoordinate.
+
+**Abwesenheit eines Datensatzes = historischer Wert** wird angezeigt. Es gibt keine separate „ist_manuell"-Flagge — der Datensatz selbst ist der Indikator.
+
+### Datenfluss
+
+```
+Seite öffnet sich
+  → Hook lädt PARALLEL (alle in einem useEffect):
+    ① GET /api/grundeinstellungen          → planungshorizont_wochen (N)
+    ② GET /api/kpi-categories (plattformen + produkte)
+    ③ GET /api/absatz-einstellungen        → Berechnungsart je Plattform+Produkt
+    ④ GET /api/absatz-planung/historisch   → Tagesdurchschnitt je Plattform+Produkt
+    ⑤ GET /api/absatz-planung (aktuelle KWs) → manuelle Einträge für Horizon
+
+  → Frontend berechnet die anzuzeigenden Wochen:
+    Erste KW = ISO-Woche(heute) + 1  (ISO-Montag als Wochenanfang)
+    Letzte KW = Erste KW + N − 1
+    (korrekte Jahresübertragung via date-fns: addWeeks + getISOWeek + getISOWeekYear)
+
+  → Merge-Logik pro editierbarer Zelle (produkt_id × plattform_id × kw):
+    Manueller Eintrag vorhanden → zeige manuellen Wert + blauer Punkt-Indikator
+    Kein manueller Eintrag → zeige historischen Tagesdurchschnitt + grauer Punkt-Indikator
+    (Effektiver VK: kein historischer Wert → leer wenn kein manueller Eintrag)
+
+  → Aggregation (frontend-seitig, reaktiv auf Änderungen):
+    Plattform-Absatz KWn = Σ Produkt-Absatz KWn (alle Produkte dieser Plattform)
+    Plattform-VK KWn     = Σ(Produkt-Absatz × Produkt-VK) / Σ Produkt-Absatz
+                           (nur Produkte mit gesetztem VK; leer wenn kein Produkt VK hat)
+    Plattform-Umsatz KWn = Σ Produkt-Umsatz KWn
+    Gesamt = analog über alle Plattformen
+
+Nutzer bearbeitet eine Zelle (onBlur)
+  → Optimistisches Update im lokalen State
+  → PUT /api/absatz-planung (Upsert)
+  → Erfolg: Eintrag in manualValues-Map gesetzt → blauer Indikator
+  → Fehler: Rollback + Toast
+
+Nutzer klickt Reset
+  → ResetConfirmDialog öffnet sich
+  → Nach Bestätigung: DELETE /api/absatz-planung
+  → manualValues-Map wird geleert; Zellen zeigen wieder historische Werte
+
+"Neue Woche"-Erkennung (bei jedem Seitenladen)
+  → Letzte KW im Horizont = kw_last
+  → Prüfe: Hat kw_last irgendeinen manuellen Eintrag in manualValues?
+  → Nein → isNewWeek(kw_last) = true → rote Spaltenmarkierung
+  → Ja → kein Highlight
+```
+
+### API-Endpunkte
+
+```
+GET  /api/absatz-planung?kw_year_start=Y&kw_start=N&kw_count=N
+  → Alle manuellen Einträge des Nutzers im angegebenen Horizon
+  → Response: Array von { produkt_id, sales_plattform_id, kw_year, kw_number,
+                          absatz_manuell, effektiver_vk_manuell }
+
+PUT  /api/absatz-planung
+  → Upsert einer Zelle
+  → Body: { produkt_id, sales_plattform_id, kw_year, kw_number,
+             absatz_manuell?, effektiver_vk_manuell? }
+  → Zod-Validierung: UUIDs, Integer für KW/Jahr, NUMERIC ≥ 0
+
+DELETE  /api/absatz-planung
+  → Löscht ALLE manuellen Einträge des eingeloggten Nutzers (Reset)
+  → Keine Parameter nötig (user_id kommt aus Session)
+
+GET  /api/absatz-planung/historisch
+  → Berechnet Tagesdurchschnitt-Absatz je (produkt_id, sales_plattform_id)
+  → Liest absatz_einstellungen + bestand_transaktionen + bestand_sendungen
+  → Aggregiert Sendungen je plattform_id über alle SKUs eines Produkts
+  → Wendet datumbasierte Mittelwert-/Gewichtungslogik an
+  → Response: Array von { produkt_id, sales_plattform_id, tagesdurchschnitt }
+```
+
+### Neue Dateien
+
+| Datei | Zweck |
+|---|---|
+| `src/app/dashboard/kurzfristige-planung/absatzplanung/page.tsx` | Neue Seite (Client Component, Auth-Guard analog anderen Seiten) |
+| `src/components/absatzplanung-tabelle.tsx` | Hauptkomponente: flache Zeilen-Logik, Expand/Collapse, Inline-Edit, Selektion, Betragsselektion, Reset-Dialog |
+| `src/components/absatzplanung-bulk-edit-dialog.tsx` | Massen-Anpassungs-Modal (shadcn Dialog + Select + Input) |
+| `src/hooks/use-absatzplanung.ts` | Zentraler State: historische Werte, manuelle Werte, Merge, Upsert, Reset, Wochenberechnung |
+| `src/app/api/absatz-planung/route.ts` | GET (manuelle Werte), PUT (Upsert), DELETE (Reset) |
+| `src/app/api/absatz-planung/historisch/route.ts` | GET (historische Tagesdurchschnitte) |
+
+### Geänderte Dateien
+
+| Datei | Änderung |
+|---|---|
+| `src/components/nav-sheet.tsx` | Eintrag „Absatzplanung" → `/dashboard/kurzfristige-planung/absatzplanung` in `KURZFRISTIGE_PLANUNG_NAV_GROUPS` |
+| `src/app/dashboard/kurzfristige-planung/page.tsx` | Kachel „Absatzplanung" im Kachelraster ergänzen |
+
+### Tech-Entscheidungen
+
+| Entscheidung | Gewählt | Warum |
+|---|---|---|
+| Tabellenstruktur | Flache Zeilen-Array (analog Rentabilitäts-Matrix) | Bewährtes Muster im Projekt; Expand/Collapse durch bedingtes Filtern des Arrays; einfaches Re-Rendern |
+| Zeilen-Typen | 9 Typen: `total-absatz`, `total-vk`, `total-umsatz`, `platform-header`, `platform-absatz`, `platform-vk`, `platform-umsatz`, `product-absatz`, `product-vk`, `product-umsatz` | Trennt Darstellungslogik sauber von Berechnungslogik |
+| Historische Berechnung | Eigene API-Route `/historisch` (server-seitig) | Join über bestand_transaktionen + bestand_sendungen + Datumslogik ist zu komplex und zu langsam für das Frontend; Ergebnis ist für alle Wochen gleich (Tagesdurchschnitt) |
+| Merge-Logik | Frontend-seitig im Hook | Nach dem Laden beider Datenquellen bleibt der Merge rein lokal und reaktiv — kein extra API-Aufruf bei Änderungen |
+| Selektion (Betragsselektion + Bulk-Edit) | Gemeinsamer `selectedCellKeys: Set<string>` | Beide Features nutzen dieselbe Selektion: das Panel rechts unten zeigt immer die Summe; der Bulk-Edit-Button erscheint zusätzlich wenn ≥ 2 gleichartige Zellen selektiert |
+| Aggregation | Rein frontend-seitig, reaktiv | Aggregationen ändern sich bei jeder Zelleingabe — server-seitige Aggregation würde unnötige Round-Trips erzeugen |
+| Neue Packages | Keine | date-fns (bereits vorhanden) für ISO-Wochenberechnung; shadcn/ui Dialog, Select, Input, AlertDialog, Tooltip — alle bereits installiert |
 
 ## QA Test Results
 _To be added by /qa_
