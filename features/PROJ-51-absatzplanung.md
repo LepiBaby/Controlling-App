@@ -1,0 +1,214 @@
+# PROJ-51: Absatzplanung — Kurzfristige Planung
+
+## Status: Planned
+**Created:** 2026-06-03
+**Last Updated:** 2026-06-03
+
+## Dependencies
+- Requires: PROJ-1 (Authentifizierung) — nur eingeloggte Nutzer
+- Requires: PROJ-2 (KPI-Modell Verwaltung) — Sales-Plattformen und Produkte (level 1)
+- Requires: PROJ-17 (Bestandsveränderungen-Verwaltung) — historische Sendungsdaten als Datenquelle für die Absatz-Vorbelegung
+- Requires: PROJ-41 (Bereichswechsler) — URL-Rahmen „Kurzfristige Planung"
+- Requires: PROJ-42 (Absatzeinstellungen) — Berechnungsart (Mittelwert/gewichteter Mittelwert) und Gewichtungsparameter pro Plattform-Produkt-Kombination
+- Requires: PROJ-50 (Grundeinstellungen) — Planungshorizont (Anzahl Kalenderwochen) aus `grundeinstellungen.planungshorizont_wochen`
+
+## Übersicht
+
+Die Seite „Absatzplanung" ermöglicht dem Nutzer die wochenweise Planung von **Absatz** und **Effektivem VK** für den in den Grundeinstellungen konfigurierten Planungshorizont. Die Wochen starten immer mit der **nächsten Kalenderwoche** relativ zum heutigen Datum.
+
+Die Tabelle ist hierarchisch aufgebaut: Pro Sales-Plattform werden die Einzelprodukte mit editierbaren Zellen dargestellt; die Plattform-Ebene aggregiert diese automatisch. Ganz oben steht ein Gesamtergebnis über alle Plattformen hinweg.
+
+Beim ersten Laden werden die Absatz-Felder mit historisch berechneten Werten vorbelegt (basierend auf der in den Absatzeinstellungen hinterlegten Berechnungsart und den tatsächlichen Sendungen aus der Bestandsverwaltung). Felder, die der Nutzer manuell überschrieben hat, werden visuell als „manuell" gekennzeichnet. Ein Reset-Button setzt alle manuellen Werte zurück auf die historisch berechneten Werte.
+
+Es werden **nur Produkte angezeigt**, für die in den Absatzeinstellungen eine aktive Berechnungsart (≠ „Keine") für die jeweilige Sales-Plattform hinterlegt ist.
+
+## User Stories
+
+- Als Nutzer möchte ich die Absatzplanung über die linke Navigation im Bereich „Kurzfristige Planung" aufrufen können.
+- Als Nutzer möchte ich auf der Dashboard-Übersichtsseite von „Kurzfristige Planung" eine Kachel „Absatzplanung" sehen, damit ich von dort direkt auf die Seite wechseln kann.
+- Als Nutzer möchte ich beim Laden der Seite sofort mit historisch berechneten Absatz-Werten starten, damit ich nicht alles von Null an eingeben muss.
+- Als Nutzer möchte ich pro Produkt und Plattform den Absatz für jede geplante Kalenderwoche manuell anpassen können, damit ich Annahmen über die Zukunft einpflegen kann.
+- Als Nutzer möchte ich pro Produkt und Plattform den effektiven VK für jede Woche eingeben können, damit ich die Erlösplanung vervollständigen kann.
+- Als Nutzer möchte ich auf einen Blick sehen, ob ein Feldwert manuell eingegeben oder aus historischen Daten berechnet wurde, damit ich die Qualität meiner Planung einschätzen kann.
+- Als Nutzer möchte ich mit einem Reset-Button alle manuellen Eingaben auf die historischen Berechnungswerte zurücksetzen können, damit ich einen Neustart machen kann.
+- Als Nutzer möchte ich mehrere Absatz-Felder gleichzeitig auswählen und auf einen Schlag anpassen können (%, fixer Wert, wöchentliche Progression), damit ich nicht jede Zelle einzeln bearbeiten muss.
+- Als Nutzer möchte ich dasselbe Massen-Anpassungstool auch für mehrere VK-Felder gleichzeitig nutzen können.
+- Als Nutzer möchte ich beim Hovern oder Anklicken von Feldern eine laufende Summe der selektierten Werte in der Ecke rechts unten sehen (Betragsselektion wie im Reporting).
+- Als Nutzer möchte ich die Plattform-Sektionen auf- und zuklappen können, damit ich die Übersicht behalte, wenn viele Produkte vorhanden sind.
+
+## Acceptance Criteria
+
+### Navigation & Einstieg
+
+- [ ] Die linke Navigation im Bereich „Kurzfristige Planung" enthält den Eintrag „Absatzplanung" → `/dashboard/kurzfristige-planung/absatzplanung`
+- [ ] Auf `/dashboard/kurzfristige-planung` erscheint eine Kachel „Absatzplanung", die auf die Seite verlinkt
+- [ ] Die Seite ist nur für eingeloggte Nutzer zugänglich (Auth-Guard → Redirect zu `/login`)
+
+### Tabellenstruktur & Spalten
+
+- [ ] Kalenderwochen-Spalten starten immer mit der **nächsten Kalenderwoche** basierend auf dem aktuellen Datum (ISO 8601: Woche beginnt Montag). Beispiel: ist heute Mittwoch KW23, beginnen die Spalten bei KW24.
+- [ ] Anzahl der Spalten = `planungshorizont_wochen` aus `grundeinstellungen` (Fallback: 13 wenn kein Eintrag)
+- [ ] Spaltenüberschriften zeigen Kalenderwoche und Jahr im Format „KW24 / 2026"
+- [ ] Die Tabelle ist horizontal scrollbar, wenn die Spalten die Bildschirmbreite überschreiten
+- [ ] Die erste Spalte (Zeilenbeschriftung) ist beim horizontalen Scrollen sticky (links fixiert)
+
+### Zeilenhierarchie
+
+- [ ] **Ganz oben**: Gesamtergebnis-Block (nicht einklappbar, immer sichtbar):
+  - Zeile „Absatz (Gesamt)" — summiert alle Plattformen, nicht editierbar
+  - Zeile „Effektiver VK (Gesamt)" — gewichteter Durchschnitt über alle Plattformen (gewichtet mit Absatz), nicht editierbar; wenn kein Absatz vorhanden: leer
+  - Zeile „Ziel Brutto-Umsatz (Gesamt)" — Summe aller Plattform-Brutto-Umsätze, nicht editierbar
+- [ ] **Pro Sales-Plattform**: eine einklappbare Sektion (Standard: ausgeklappt):
+  - Plattform-Header-Zeile mit Name der Plattform + Auf-/Zuklapp-Icon
+  - Zeile „Absatz [Plattform]" — Summe aller Produkt-Absätze dieser Plattform, nicht editierbar
+  - Zeile „Effektiver VK [Plattform]" — gewichteter Durchschnitt über alle Produkte (Gewicht = Produkt-Absatz), nicht editierbar
+  - Zeile „Ziel Brutto-Umsatz [Plattform]" — Summe aller Produkt-Brutto-Umsätze, nicht editierbar
+  - **Pro Produkt** (innerhalb der Plattform-Sektion, eingerückt):
+    - Zeile „Absatz [Produkt]" — editierbar
+    - Zeile „Effektiver VK [Produkt]" — editierbar
+    - Zeile „Ziel Brutto-Umsatz [Produkt]" — berechnet: Absatz × Effektiver VK; leer wenn VK nicht gesetzt
+
+### Anzeigefilter (Produkte)
+
+- [ ] Es werden **nur Produkte angezeigt**, für die in `absatz_einstellungen` eine Berechnungsart ≠ `'keine'` für die jeweilige Plattform hinterlegt ist
+- [ ] Produkte mit `berechnungsart = 'keine'` oder ohne Eintrag in `absatz_einstellungen` werden auf der Seite nicht gezeigt
+- [ ] Plattformen, für die nach Filterung kein einziges Produkt mehr angezeigt wird, werden ebenfalls ausgeblendet
+- [ ] Ist nach Filterung kein Produkt auf der gesamten Seite vorhanden: leerer Zustand mit Hinweis „Keine Produkte zur Planung vorhanden. Bitte in den Absatzeinstellungen mindestens eine Berechnungsart konfigurieren." + Link zur Absatzeinstellungen-Seite
+
+### Historische Vorbelegung (Absatz)
+
+- [ ] Beim ersten Laden und nach einem Reset werden alle Absatz-Felder mit dem **historisch berechneten Wert** vorbelegt:
+  - Berechnungsgrundlage: `absatz_einstellungen.berechnungsart` für die jeweilige Plattform-Produkt-Kombination
+  - Datenquelle: Sendungs-Daten aus der Bestandsverwaltung (`bestandsveraenderungen`-Tabelle), gefiltert nach der entsprechenden Sales-Plattform-Spalte für das Produkt (alle SKUs des Produkts werden summiert)
+  - Zeitraum: **datumbasiert** ab heute rückwärts (nicht nach Anzahl Einträge)
+    - `mittelwert_14`: Mittelwert der letzten 14 Tage (von heute − 14 Tage bis gestern inkl.)
+    - `mittelwert_30`: Mittelwert der letzten 30 Tage
+    - `mittelwert_60`: Mittelwert der letzten 60 Tage
+    - `mittelwert_90`: Mittelwert der letzten 90 Tage
+    - `gewichtet_30/60/90`: gewichteter Mittelwert des jeweiligen Zeitraums; der Zeitraum wird in drei gleiche Drittel aufgeteilt (chronologisch), und für jedes Drittel wird der Durchschnitt berechnet, dann gewichtet mit den in `absatz_einstellungen` gespeicherten Prozentsätzen (erstes Drittel = ältester Zeitraum)
+  - Der berechnete Wert ist ein **Tagesdurchschnitt** (Gesamtsendungen im Zeitraum ÷ Anzahl Tage im Zeitraum) und wird gerundet auf 2 Dezimalstellen
+  - Alle Wochen-Spalten erhalten denselben berechneten Tagesdurchschnittswert als Vorbelegung (keine wochenspezifische Anpassung bei der Vorbelegung)
+- [ ] Felder für **Effektiver VK** werden **nicht** vorbelegt — sie starten immer leer
+
+### Manuelle Eingabe & Persistenz
+
+- [ ] Der Nutzer kann jede einzelne Absatz- oder VK-Zelle auf Produkt-Ebene direkt in der Tabelle bearbeiten (Inline-Editing)
+- [ ] Eingabe: Dezimalzahl ≥ 0; Absatz gerundet auf 2 Dezimalstellen; VK gerundet auf 2 Dezimalstellen
+- [ ] Beim Verlassen einer Zelle (onBlur) wird der Wert automatisch gespeichert (kein separater Speichern-Button)
+- [ ] Manuell eingegebene Werte werden in der Tabelle `absatz_planung` in der Datenbank persistiert
+- [ ] Beim nächsten Seitenladevorgang werden gespeicherte manuelle Werte aus der DB geladen und angezeigt (kein Überschreiben durch historische Berechnung)
+- [ ] Optimistisches Update: Wert erscheint sofort; bei API-Fehler → Toast-Fehlermeldung + Rollback
+
+### Manuelle vs. historische Werte — Visuelle Kennzeichnung
+
+- [ ] Jede editierbare Zelle zeigt einen kleinen visuellen Indikator, der anzeigt, ob der Wert **manuell** oder **historisch** ist:
+  - Historischer Wert: kleiner grauer Punkt / dezente Markierung (z. B. untere rechte Ecke der Zelle)
+  - Manuell eingegebener Wert: kleiner blauer Punkt / farbige Markierung
+- [ ] Nicht-editierbare Aggregationszeilen (Plattform, Gesamt) haben keinen Indikator
+
+### Reset-Button
+
+- [ ] Oben rechts auf der Seite gibt es einen Button „Zurücksetzen" (oder Icon + Label)
+- [ ] Beim Klick erscheint ein Bestätigungs-Dialog: „Alle manuell eingegebenen Werte zurücksetzen? Die Felder werden wieder mit den historisch berechneten Werten befüllt."
+- [ ] Nach Bestätigung: alle manuellen Einträge des Nutzers in `absatz_planung` werden gelöscht; die Seite zeigt wieder die historisch berechneten Werte für Absatz (VK-Felder werden geleert)
+
+### Betragsselektion (wie in PROJ-40)
+
+- [ ] Der Nutzer kann einzelne Zellwerte durch Klicken oder Ctrl+Klicken auswählen
+- [ ] Die Summe aller selektierten Werte wird in einem Panel rechts unten auf der Seite angezeigt
+- [ ] Das Panel erscheint, sobald mindestens ein Wert selektiert ist, und verschwindet, wenn die Selektion aufgehoben wird
+- [ ] Nicht-editierbare Zellen (Aggregationszeilen) können ebenfalls zur Selektion hinzugefügt werden
+- [ ] Das Verhalten ist identisch mit der bestehenden Betragsselektion aus den Reporting-Seiten (PROJ-40)
+
+### Massen-Anpassung (Bulk-Edit)
+
+- [ ] Der Nutzer kann mehrere Absatz-Zellen gleichzeitig auswählen (Multi-Selektion über Ctrl+Klick auf Absatz-Zeilen)
+- [ ] Der Nutzer kann mehrere VK-Zellen gleichzeitig auswählen (Multi-Selektion über Ctrl+Klick auf VK-Zeilen)
+- [ ] Es ist **nicht möglich**, Absatz- und VK-Zellen gleichzeitig in einer Selektion zu haben:
+  - Wenn Absatz-Zellen selektiert sind und der Nutzer versucht, eine VK-Zelle hinzuzufügen (oder umgekehrt): bisherige Selektion wird geleert, neue Selektion beginnt mit dem zuletzt geklickten Zell-Typ
+- [ ] Sobald ≥ 2 Zellen des gleichen Typs ausgewählt sind, erscheint ein floating Button / Badge „X Felder anpassen" in der Nähe der Selektion oder oben in der Toolbar
+- [ ] Klick auf „X Felder anpassen" öffnet ein kleines Modal/Popover-Dialog mit:
+  - **Dropdown „Methode"** mit folgenden Optionen (in dieser Reihenfolge):
+    1. „Alle um X % erhöhen"
+    2. „Alle um X % senken"
+    3. „Alle um festen Betrag erhöhen"
+    4. „Alle um festen Betrag senken"
+    5. „Woche für Woche um X % steigen"
+    6. „Woche für Woche um X % sinken"
+    7. „Woche für Woche um festen Betrag steigen"
+    8. „Woche für Woche um festen Betrag sinken"
+  - **Zahlenfeld „Wert"** (Dezimalzahl > 0)
+  - **Button „Anwenden"**
+  - **Button „Abbrechen"**
+- [ ] Anwenden-Logik:
+  - Methoden 1–4 (absolut/prozentual, alle gleich): Jede selektierte Zelle wird unabhängig mit dem angegebenen Wert verändert (ausgehend vom aktuellen Zellwert)
+  - Methoden 5–8 (progressiv, von Woche zu Woche): Die selektierten Zellen werden nach KW-Spalte sortiert; die erste Woche behält ihren aktuellen Wert; jede nachfolgende Woche erhöht/senkt den Wert der **Vorwoche** um X % oder X (nicht den Ursprungswert)
+  - Ergebniswerte < 0 werden auf 0 gesetzt
+  - Nach Anwenden werden alle betroffenen Zellen als „manuell" markiert und gespeichert
+- [ ] Das Modal schließt sich nach Anwenden; die Selektion wird aufgehoben
+
+### Datenbankschema
+
+- [ ] Neue Tabelle `absatz_planung`:
+  - `id` UUID PK
+  - `user_id` UUID NOT NULL FK → `auth.users` (ON DELETE CASCADE)
+  - `produkt_id` UUID NOT NULL FK → `kpi_categories` (ON DELETE CASCADE)
+  - `sales_plattform_id` UUID NOT NULL FK → `kpi_categories` (ON DELETE CASCADE)
+  - `kw_year` INTEGER NOT NULL (Jahr der Kalenderwoche, z. B. 2026)
+  - `kw_number` INTEGER NOT NULL (Kalenderwoche 1–53)
+  - `absatz_manuell` NUMERIC(10,2) NULL — NULL = kein manueller Wert für Absatz
+  - `effektiver_vk_manuell` NUMERIC(10,2) NULL — NULL = kein manueller Wert für VK
+  - UNIQUE(`user_id`, `produkt_id`, `sales_plattform_id`, `kw_year`, `kw_number`)
+  - RLS: Nutzer sieht und schreibt nur eigene Einträge
+
+### API-Routen
+
+- [ ] `GET /api/absatz-planung?kw_year_start=YYYY&kw_start=N&kw_count=N` — alle manuellen Einträge des Nutzers für den angegebenen Planungshorizont
+- [ ] `PUT /api/absatz-planung` — Upsert eines einzelnen Eintrags (anlegen oder aktualisieren)
+  - Body: `{ produkt_id, sales_plattform_id, kw_year, kw_number, absatz_manuell?, effektiver_vk_manuell? }`
+  - Fehlende Felder: betroffenes Feld wird auf NULL gesetzt (kein Wert = historischer Wert gilt wieder)
+- [ ] `DELETE /api/absatz-planung` — alle manuellen Einträge des Nutzers löschen (Reset)
+- [ ] `GET /api/absatz-planung/historisch?kw_count=N` — berechnet die historischen Absatz-Werte für alle aktiven Produkt-Plattform-Kombinationen und gibt sie zurück
+  - Liest `absatz_einstellungen` und `bestandsveraenderungen`
+  - Berechnet datumbasierte Mittelwerte/gewichtete Mittelwerte (Tagesdurchschnitt)
+  - Response: `{ produkt_id, sales_plattform_id, tagesdurchschnitt_absatz }[]`
+
+## Edge Cases
+
+- **Planungshorizont = 0 oder nicht gesetzt**: Fallback auf 13 Wochen (analog Grundeinstellungen-Default)
+- **Keine aktiven Produkte nach Filter**: leerer Zustand mit Hinweis + Link zu Absatzeinstellungen
+- **Keine historischen Daten** für ein Produkt/Plattform-Kombination (keine Einträge in Bestandsverwaltung im Berechnungszeitraum): Absatz-Vorbelegung = 0.00 (nicht leer)
+- **VK-Feld leer**: Ziel Brutto-Umsatz = leer (kein Rechenfehler, keine 0-Anzeige)
+- **Gewichteter Mittelwert mit NULL-Gewichten** in absatz_einstellungen: falls Gewichtungsfelder nicht alle gesetzt, wird auf einfachen Mittelwert des Gesamtzeitraums zurückgefallen
+- **Kw-Jahreswechsel** (z. B. KW52 / 2026 → KW1 / 2027): korrekte Spaltenberechnung über den Jahreswechsel hinweg; `kw_year` wird korrekt inkrementiert
+- **Reset ohne manuelle Werte**: Reset-Button ist nicht ausgegraut, aber das Löschen ergibt keine sichtbare Änderung (idempotent)
+- **Sehr viele Wochen** (z. B. 52 Spalten): Tabelle ist horizontal scrollbar; die Zeilenbeschriftungsspalte bleibt sticky; kein Layout-Bruch
+- **Sehr viele Produkte** (>10): Produkt-Zeilen innerhalb einer Plattform-Sektion sind nicht paginiert; die Tabelle ist vertikal scrollbar
+- **Plattform oder Produkt wird im KPI-Modell gelöscht**: ON DELETE CASCADE entfernt `absatz_planung`-Einträge; beim nächsten Seitenaufruf ist die Plattform/das Produkt nicht mehr sichtbar
+- **Massen-Anpassung mit Wert = 0**: erlaubt, Zellen werden mit 0 überschrieben (wird als manuell markiert)
+- **Progressive Methode, nur eine Zelle selektiert**: erlaubt (ergibt denselben Wert wie einfache Erhöhung auf eine Zelle)
+- **Simultaner Bearbeitungsversuch von Absatz + VK in Selektion**: bisherige Selektion wird geleert, kein Fehler, kein Crash
+
+## Technical Requirements
+
+- Authentifizierung erforderlich: `requireAuth()` in allen API-Routen
+- RLS auf der neuen Tabelle `absatz_planung`
+- Neue Next.js-Seite: `src/app/dashboard/kurzfristige-planung/absatzplanung/page.tsx`
+- Navigation: Eintrag „Absatzplanung" in der Navigationsgruppe „Kurzfristige Planung" in `nav-sheet.tsx`
+- Dashboard-Kachel auf `src/app/dashboard/kurzfristige-planung/page.tsx`
+- Horizontales Scrollen mit sticky erster Spalte: CSS `position: sticky; left: 0` für die Label-Spalte
+- Wochenberechnung: ISO 8601 Wochen (Montag = Erster Tag der Woche); Bibliothek `date-fns` ist bereits im Projekt installiert (`getISOWeek`, `getISOWeekYear`, `addWeeks`, `startOfISOWeek`)
+- Historische Berechnung: Server-seitig in der API-Route, nicht im Frontend
+- Kein neues Package nötig: date-fns (Wochen), shadcn/ui Table, Input, Dialog, Select, Popover — alle bereits vorhanden
+
+---
+<!-- Sections below are added by subsequent skills -->
+
+## Tech Design (Solution Architect)
+_To be added by /architecture_
+
+## QA Test Results
+_To be added by /qa_
+
+## Deployment
+_To be added by /deploy_

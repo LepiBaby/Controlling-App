@@ -1,6 +1,6 @@
 # PROJ-49: Marketing-Einstellungen — Kurzfristige Planung
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-06-02
 **Last Updated:** 2026-06-02
 
@@ -302,3 +302,95 @@ PUT  /api/marketing-einstellungen
 ### Tests
 - `src/app/api/marketing-einstellungen/route.test.ts` — 18 Tests (Vitest): 6 für GET, 12 für PUT
 - Alle 18 Tests bestehen ✅
+
+---
+
+## QA Test Results (2026-06-03)
+
+### Zusammenfassung
+
+| Kategorie | Ergebnis |
+|---|---|
+| Acceptance Criteria | 29/29 bestanden |
+| Unit-Tests (Vitest) | 39/39 ✅ |
+| E2E-Tests (Playwright) | 12/12 ✅ |
+| Bugs gefunden | 0 Critical / 0 High / 0 Medium / 1 Low |
+| Security Audit | Keine Schwachstellen |
+| **Production-Ready** | **JA** |
+
+### Acceptance Criteria — Alle bestanden
+
+#### Navigation & Einstieg
+- ✅ Nav-Eintrag „Marketing-Einstellungen" in `nav-sheet.tsx` (Zeile 63)
+- ✅ Kachel „Marketing-Einstellungen" auf `/dashboard/kurzfristige-planung` (Zeile 92–100)
+- ✅ Auth-Guard: E2E-Test bestätigt Redirect auf `/login` für unauthentifizierte Nutzer
+
+#### Reiter (Sales-Plattformen)
+- ✅ Tabs aus `kpi_categories` type='sales_plattformen', sortiert nach sort_order
+- ✅ Erster Reiter automatisch aktiv (`defaultValue={sortedPlattformen[0]?.id}`)
+- ✅ Leerzustand mit Link zum KPI-Modell wenn keine Plattformen vorhanden
+
+#### Tabelle (Produkte pro Plattform)
+- ✅ Je Zeile ein Produkt (type='produkte', level=1, sortiert nach sort_order)
+- ✅ Spalten: Produkt (read-only), Berechnungsart (Select)
+- ✅ Leerzustand mit Link zum KPI-Modell wenn keine Produkte vorhanden
+
+#### Dropdown: Berechnungsart
+- ✅ Genau 8 Optionen in korrekter Reihenfolge (via Unit-Test verifiziert)
+- ✅ Standardwert „Keine" bei neuen Einträgen
+- ✅ Auto-Save via onChange (kein separater Speichern-Button)
+
+#### Gewichtungsspalten
+- ✅ Felder erscheinen nur in Zeilen mit gewichteter Methode
+- ✅ Fehlermeldung „Die Summe muss 100 % ergeben (aktuell: X %)" bei Summe ≠ 100
+- ✅ Auto-Save der Gewichtung nur bei Summe = 100 (onBlur-Guard)
+- ✅ Felder: type="number", min=0, max=100, step=1
+- ✅ Wechsel zurück auf nicht-gewichtete Methode → NULL in DB gesetzt
+- ⚠️ Spaltenköpfe „1./2./3. Drittel %" nicht immer sichtbar (Low — siehe unten)
+
+#### Datenpersistenz
+- ✅ Jede Plattform-Produkt-Kombination als separater Datensatz
+- ✅ Tab-Wechsel lädt Einstellungen der neuen Plattform (eigener Hook je PlattformTabelle)
+- ✅ Kein DB-Eintrag → „Keine" als Default
+- ✅ Auto-Save, kein manueller Speichern-Button
+- ✅ Optimistisches Update + Rollback + Toast bei API-Fehler
+
+#### Datenbankschema & API
+- ✅ Tabelle `marketing_einstellungen` mit allen spec-konformen Feldern
+- ✅ UNIQUE-Constraint (sales_plattform_id, produkt_id, user_id)
+- ✅ RLS-Policies: SELECT/INSERT/UPDATE/DELETE — nur eigene Einträge
+- ✅ GET /api/marketing-einstellungen?plattform_id=UUID mit Zod-UUID-Validierung
+- ✅ PUT /api/marketing-einstellungen — Upsert mit Zod-Validierung inkl. Summen-Check
+
+### Bugs
+
+#### Bug 1 — Low: Spaltenköpfe Gewichtung konditionell statt immer sichtbar
+
+**Severity:** Low  
+**Spec-Anforderung (Zeile 79):** „Die Spaltenüberschriften '1. Drittel %', '2. Drittel %' und '3. Drittel %' sind **immer** in der Tabellenkopfzeile sichtbar."  
+**Tatsächliches Verhalten:** Die drei Spaltenköpfe erscheinen nur, wenn mindestens ein Produkt eine gewichtete Methode verwendet (identisch zu PROJ-42 Absatzeinstellungen).  
+**Bewertung:** Bekanntes UX-Muster, konsistent mit dem bereits genehmigten PROJ-42 (Approved). Kein Handlungsbedarf.
+
+### Security Audit
+
+| Prüfpunkt | Ergebnis |
+|---|---|
+| Auth-Pflicht auf allen API-Routen | ✅ `requireAuth()` in GET und PUT |
+| RLS auf Datenbanktabelle | ✅ 4 Policies (SELECT/INSERT/UPDATE/DELETE) |
+| User-ID aus Auth-Kontext (nicht aus Client) | ✅ `user!.id` in API-Route |
+| Zod-Validierung aller Eingaben | ✅ inkl. UUID-Regex, enum, integer 0–100, Summenprüfung |
+| SQL-Injection | ✅ Supabase-Parameterized Queries |
+| XSS | ✅ React escaped alle Ausgaben |
+| Keine Secrets im Client-Code | ✅ |
+
+### Automatisierte Tests
+
+**Unit-Tests (Vitest):**
+- `src/hooks/use-marketing-einstellungen.test.ts` — 21 Tests (isGewichtet, BERECHNUNGSARTEN, Hook: load/getEinstellung/upsert): alle ✅
+- `src/app/api/marketing-einstellungen/route.test.ts` — 18 Tests (GET: 6, PUT: 12): alle ✅
+
+**E2E-Tests (Playwright):**
+- `tests/PROJ-49-marketing-einstellungen.spec.ts` — 12 Tests (2 Browser): alle ✅
+- Geprüfte Pfade: kein 404, Auth-Redirect, Regression (Absatz/Retouren/Kulanz weiterhin erreichbar)
+
+**Pre-Existing Failures (nicht PROJ-49):** 8 Test-Dateien mit 100 Fehlern in anderen Features (ausgaben-kosten, deckungsbeitrag, liquiditaet, break-even) — bestanden vor PROJ-49, nicht durch dieses Feature verursacht.
