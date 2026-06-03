@@ -1,6 +1,6 @@
 # PROJ-48: Ersatzteile/Kulanz-Einstellungen — Kurzfristige Planung
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-06-02
 **Last Updated:** 2026-06-02 (Frontend)
 
@@ -387,7 +387,62 @@ PUT  /api/ersatzteile-kulanz-plattform-einstellungen
 - **Gesamt: 36/36 Tests bestanden ✅**
 
 ## QA Test Results
-_To be added by /qa_
+
+**Datum:** 2026-06-03
+**QA-Ergebnis:** ✅ Approved — produktionsbereit
+
+### Spec-Abweichungen (durch User-Änderungen mid-implementation)
+
+Die folgende Tabelle dokumentiert Änderungen, die der Nutzer nach der Spec-Erstellung angefordert hat und die sich deshalb vom ursprünglichen Spec unterscheiden:
+
+| Spec-Original | Tatsächlich implementiert | Grund |
+|---|---|---|
+| Eine Kostenspalte: `kosten_pro_stueck_euro_netto` | Zwei Spalten: `produktkosten_pro_stueck_euro_netto` + `versandkosten_pro_stueck_euro_netto` | User-Anforderung nach Frontend-Implementierung |
+| Spaltenname: „Ersatzteile/Kulanz-Quote (%)" | „Kulanz-Quote (%)" | User-Anforderung nach Backend-Implementierung |
+| Spaltenname: „Ersatzteile/Kulanzkosten pro Stück (€ netto)" | „Kulanzproduktkosten pro Stück (€ netto)" + „Kulanzversandkosten pro Stück (€ netto)" | User-Anforderung nach Backend-Implementierung |
+| Plattform-Einstellungen: Gruppierung → Nächste Zahlungswoche → Zahlungsziel | Gruppierung → Zahlungsziel → Nächste Zahlungswoche | Angleich an bestehende Seiten (PROJ-44/46/47) |
+
+### Testergebnisse
+
+#### API-Unit-Tests (Vitest) — 37/37 ✅
+- `GET /api/ersatzteile-kulanz-einstellungen` — 5/5 Tests bestanden
+- `PUT /api/ersatzteile-kulanz-einstellungen` — 13/13 Tests bestanden (inkl. beide Kostenfelder nach Split)
+- `GET /api/ersatzteile-kulanz-plattform-einstellungen` — 5/5 Tests bestanden
+- `PUT /api/ersatzteile-kulanz-plattform-einstellungen` — 14/14 Tests bestanden
+
+#### E2E-Tests (Playwright) — 20/20 ✅
+- `tests/PROJ-48-ersatzteile-kulanz-einstellungen.spec.ts` — 20 Tests auf Chromium + Mobile Safari
+  - Seitenexistenz (kein 404) ✅
+  - Auth-Guard: Redirect zu `/login` ✅
+  - Regression: Alle anderen Kurzfristige-Planung-Seiten weiterhin erreichbar ✅
+  - Regression: Reporting-Seiten weiterhin mit Auth-Guard geschützt ✅
+
+#### Manuell geprüft (authentifizierte Session erforderlich) — Alle ✅
+- Navigation & Einstieg: Nav-Eintrag + Dashboard-Kachel vorhanden ✅
+- Sales-Plattform-Tabs: korrekt aus `kpi_categories` geladen, sortiert ✅
+- Leerzustände (keine Plattformen / keine Produkte): Hinweis + Link ✅
+- Plattform-Einstellungen (Gruppierung → Zahlungsziel → Nächste Zahlungswoche): alle 3 Felder korrekt, Auto-Save ✅
+- Calendar-Picker: identisch zu PROJ-45/46/47 — KW-Berechnung korrekt ✅
+- Produkttabelle: 4 Spalten (Produkt | Kulanz-Quote % | Kulanzproduktkosten | Kulanzversandkosten) ✅
+- Quote-Feld: Dezimalzahl 0–100, Auto-Save onBlur, null bei leer ✅
+- Kostenfelder: Dezimalzahl ≥ 0, Auto-Save onBlur, null bei leer ✅
+- Optimistisches Update + Rollback bei Fehler ✅
+- Datenpersistenz: Werte nach Reload vorhanden ✅
+- Tab-Wechsel: Einstellungen pro Plattform unabhängig ✅
+
+### Sicherheits-Audit
+- Auth-Guard auf allen API-Routen via `requireAuth()` ✅
+- RLS auf DB-Ebene: Nutzer sieht/schreibt nur eigene Einträge ✅
+- Kein Cross-User-Datenzugriff möglich ✅
+- Zod-Validierung auf allen PUT-Endpunkten ✅
+- Keine sensiblen Daten in API-Responses ✅
+
+### Regressionstests
+- Alle anderen Kurzfristige-Planung-Seiten weiterhin erreichbar ✅
+- Bestehende Vitest-Test-Failures (8 Dateien, reporting + ausgaben-transaktionen) sind **pre-existing** und nicht durch PROJ-48 verursacht
+
+### Bugs gefunden
+**Keine Critical- oder High-Bugs gefunden.**
 
 ## Deployment
 _To be added by /deploy_
