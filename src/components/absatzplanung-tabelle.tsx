@@ -348,32 +348,34 @@ export function AbsatzplanungTabelle() {
   }
 
   // ─── Selection + editing: editable cells ─────────────────────────────────────
-  // Uses mousedown (not click) to avoid the e.preventDefault()-suppresses-click issue.
+  // Ctrl+click on mousedown (with preventDefault to suppress subsequent click).
+  // Regular click on onClick (reliable autoFocus after full click gesture).
 
   function handleEditableCellMouseDown(
+    e: React.MouseEvent,
+    editKey: string,
+    rawNum: number | null,
+  ) {
+    if (!(e.ctrlKey || e.metaKey)) return // regular clicks handled by onClick
+    e.preventDefault() // suppress the click event for ctrl+click
+    e.stopPropagation()
+    if (rawNum === null) return
+    isDragging.current = true
+    setSelectedCells(prev => {
+      if (prev.has(editKey)) { const n = new Map(prev); n.delete(editKey); return n }
+      return new Map([...prev, [editKey, rawNum]])
+    })
+  }
+
+  function handleEditableCellClick(
     e: React.MouseEvent,
     row: FlatRow,
     kw: PlanungsWoche,
     editKey: string,
-    rawNum: number | null,
     display: string,
   ) {
+    if (e.ctrlKey || e.metaKey) return // already handled in mousedown
     e.stopPropagation()
-    const multi = e.ctrlKey || e.metaKey
-
-    if (multi) {
-      // Ctrl+click: add/remove from selection, do not start editing
-      e.preventDefault()
-      if (rawNum === null) return
-      isDragging.current = true
-      setSelectedCells(prev => {
-        if (prev.has(editKey)) { const n = new Map(prev); n.delete(editKey); return n }
-        return new Map([...prev, [editKey, rawNum]])
-      })
-      return
-    }
-
-    // Single click: clear selection and start editing
     setSelectedCells(new Map())
     if (!row.produktId || !row.plattformId) return
     const origVal = display === '—' || display === '' ? '' : display.replace(',', '.')
@@ -656,10 +658,15 @@ export function AbsatzplanungTabelle() {
                               'flex items-center justify-end gap-1',
                               isNew && cellEditable ? 'ring-1 ring-red-300 dark:ring-red-700 rounded px-1' : '',
                             ].join(' ')}
-                            // Editable cells: mousedown handles BOTH selection and edit start
+                            // Ctrl+click: mousedown for selection; regular click: onClick for editing
                             onMouseDown={
                               cellEditable && editKey !== null
-                                ? e => handleEditableCellMouseDown(e, row, kw, editKey, rawNum, display)
+                                ? e => handleEditableCellMouseDown(e, editKey, rawNum)
+                                : undefined
+                            }
+                            onClick={
+                              cellEditable && editKey !== null
+                                ? e => handleEditableCellClick(e, row, kw, editKey, display)
                                 : undefined
                             }
                             onMouseEnter={
