@@ -300,6 +300,29 @@ Notizen (PROJ-53)
 ### Build
 - `npm run build` ✅ — Route `/dashboard/kurzfristige-planung/produktinvestitionsplanung` korrekt in Build-Ausgabe
 
+## Implementation Notes (Backend — 2026-06-04)
+
+### Datenbankmigrierung
+- Migration `proj57_produktinvestitions_planung` erfolgreich auf Supabase-Projekt `kdmpghtdoguppfqhdscq` angewendet
+- Tabelle `produktinvestitions_planung` angelegt mit:
+  - UUID-PK, FK zu `auth.users` (ON DELETE CASCADE), FK zu `kpi_categories` (ON DELETE CASCADE)
+  - `betrag_manuell NUMERIC(12,2) NULL` mit CHECK `>= 0`
+  - UNIQUE-Constraint auf `(user_id, kategorie_id, kw_year, kw_number)`
+  - CHECK-Constraints: `kw_year` 2020–2100, `kw_number` 1–53
+- RLS aktiviert mit 4 Policies (SELECT/INSERT/UPDATE/DELETE) — Nutzer sieht und schreibt nur eigene Einträge
+- 3 Indexes: `idx_produktinvestitions_planung_user_id`, `idx_produktinvestitions_planung_user_kw`, `idx_produktinvestitions_planung_user_kategorie`
+
+### API-Routen (`src/app/api/produktinvestitions-planung/route.ts`)
+- `GET /api/produktinvestitions-planung` — alle Einträge des Nutzers, max 2000
+- `PUT /api/produktinvestitions-planung` — Upsert mit Zod-Validierung; wenn `betrag_manuell: null` → löscht den Eintrag statt Upsert
+- `requireAuth()` in allen Routen
+
+### Tests
+- `src/app/api/produktinvestitions-planung/route.test.ts` — 14 Tests (Vitest)
+  - GET: 4 Tests (leer, mit Daten, 401, 500)
+  - PUT: 10 Tests (upsert, null-delete, Wert=0, kw_number=0, ungültige UUID, kw_number>53, negativer Betrag, fehlendes Feld, 401, 500)
+- Alle 14 Tests bestehen ✅
+
 ## QA Test Results
 _To be added by /qa_
 
