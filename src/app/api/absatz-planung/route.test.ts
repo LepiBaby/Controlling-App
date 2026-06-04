@@ -287,13 +287,13 @@ describe('DELETE /api/absatz-planung', () => {
   })
 
   it('returns 200 when ?field=absatz: nulls absatz then deletes empty rows', async () => {
-    // First call: update (null absatz)
+    // First call: update (null absatz) — .update().eq().not()
     mockFrom.mockReturnValueOnce({
-      update: () => ({ eq: () => ({ error: null }) }),
+      update: () => ({ eq: () => ({ not: () => ({ error: null }) }) }),
     })
-    // Second call: delete rows where both null
+    // Second call: delete rows where sku_id not null and absatz_manuell is null — .delete().eq().not().is()
     mockFrom.mockReturnValueOnce({
-      delete: () => ({ eq: () => ({ is: () => ({ is: () => ({ error: null }) }) }) }),
+      delete: () => ({ eq: () => ({ not: () => ({ is: () => ({ error: null }) }) }) }),
     })
 
     const res = await DELETE(req('http://localhost/api/absatz-planung?field=absatz', { method: 'DELETE' }))
@@ -304,7 +304,7 @@ describe('DELETE /api/absatz-planung', () => {
 
   it('returns 500 when ?field=absatz update fails', async () => {
     mockFrom.mockReturnValueOnce({
-      update: () => ({ eq: () => ({ error: { message: 'DB error' } }) }),
+      update: () => ({ eq: () => ({ not: () => ({ error: { message: 'DB error' } }) }) }),
     })
 
     const res = await DELETE(req('http://localhost/api/absatz-planung?field=absatz', { method: 'DELETE' }))

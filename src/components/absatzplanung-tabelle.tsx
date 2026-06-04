@@ -15,12 +15,13 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { useToast } from '@/hooks/use-toast'
-import { useAbsatzplanung } from '@/hooks/use-absatzplanung'
+import { useAbsatzplanung, skuAbsatzKey, produktVKKey } from '@/hooks/use-absatzplanung'
 import type { PlanungsWoche } from '@/hooks/use-absatzplanung'
 import type { KpiCategory } from '@/hooks/use-kpi-categories'
 import {
   AbsatzplanungBulkEditDialog,
   type BulkEditCell,
+  type BulkEditResult,
 } from '@/components/absatzplanung-bulk-edit-dialog'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -33,20 +34,18 @@ function formatNum(v: number | null, decimals = 2): string {
   })
 }
 
-function cellDataKey(
-  produktId: string,
-  plattformId: string,
-  kwYear: number,
-  kwWeek: number,
-  field: 'absatz' | 'vk',
-): string {
-  return `${produktId}:${plattformId}:${kwYear}:${kwWeek}:${field}`
+function skuCellKey(skuId: string, plattformId: string, kwYear: number, kwWeek: number): string {
+  return skuAbsatzKey(skuId, plattformId, kwYear, kwWeek) + ':absatz'
+}
+
+function vkCellKey(produktId: string, plattformId: string, kwYear: number, kwWeek: number): string {
+  return produktVKKey(produktId, plattformId, kwYear, kwWeek) + ':vk'
 }
 
 // Returns the Date of the Monday of the given ISO week
 function mondayOfISOWeek(year: number, week: number): Date {
   const jan4 = new Date(Date.UTC(year, 0, 4))
-  const dayOfWeek = jan4.getUTCDay() || 7 // 1=Mon … 7=Sun
+  const dayOfWeek = jan4.getUTCDay() || 7
   const mondayWeek1 = new Date(jan4.getTime() - (dayOfWeek - 1) * 86_400_000)
   return new Date(mondayWeek1.getTime() + (week - 1) * 7 * 86_400_000)
 }
@@ -60,7 +59,8 @@ type RowKind =
   | 'platform-header'
   | 'platform-absatz'
   | 'platform-umsatz'
-  | 'product-absatz'
+  | 'product-absatz'   // non-editable aggregate, expandable to show SKUs
+  | 'sku-absatz'       // editable per SKU
   | 'product-vk'
   | 'product-umsatz'
 
@@ -71,6 +71,7 @@ interface FlatRow {
   indent: number
   plattformId?: string
   produktId?: string
+  skuId?: string
   expandable?: boolean
   expanded?: boolean
 }
@@ -79,7 +80,6 @@ interface FlatRow {
 
 interface CellValues {
   absatz: number
-  absatzIsManual: boolean
   vk: number | null
   vkIsManual: boolean
 }
@@ -89,35 +89,6 @@ function computeUmsatz(absatz: number, vk: number | null): number | null {
   return absatz * vk
 }
 
-function aggregatePlatformAbsatz(
-  plattformId: string,
-  kw: PlanungsWoche,
-  produkte: KpiCategory[],
-  aktiveKombis: Set<string>,
-  getCellValues: (prdId: string, pltId: string, kw: PlanungsWoche) => CellValues,
-): number {
-  return produkte
-    .filter(p => aktiveKombis.has(`${plattformId}:${p.id}`))
-    .reduce((sum, p) => sum + getCellValues(p.id, plattformId, kw).absatz, 0)
-}
-
-function aggregatePlatformVK(
-  plattformId: string,
-  kw: PlanungsWoche,
-  produkte: KpiCategory[],
-  aktiveKombis: Set<string>,
-  getCellValues: (prdId: string, pltId: string, kw: PlanungsWoche) => CellValues,
-): number | null {
-  const pairs = produkte
-    .filter(p => aktiveKombis.has(`${plattformId}:${p.id}`))
-    .map(p => getCellValues(p.id, plattformId, kw))
-    .filter(cv => cv.vk !== null)
-  if (pairs.length === 0) return null
-  const totalAbsatz = pairs.reduce((s, cv) => s + cv.absatz, 0)
-  if (totalAbsatz === 0) return null
-  return pairs.reduce((s, cv) => s + cv.absatz * cv.vk!, 0) / totalAbsatz
-}
-
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function AbsatzplanungTabelle() {
@@ -125,20 +96,24 @@ export function AbsatzplanungTabelle() {
     wochen,
     plattformen,
     produkte,
+    skusByProdukt,
     aktiveKombis,
     loading,
     error,
     isNewWeek,
     lastWoche,
-    getAbsatz,
+    getSkuAbsatz,
+    getProductAbsatz,
     getVK,
-    upsertZelle,
+    upsertSkuAbsatz,
+    upsertVK,
     upsertBatch,
     resetAll,
   } = useAbsatzplanung()
 
   const { toast } = useToast()
   const [expandedPlatforms, setExpandedPlatforms] = useState<Set<string>>(new Set())
+  const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set())
   const [gesamtAbsatzExpanded, setGesamtAbsatzExpanded] = useState(false)
   const [resetDialogOpen, setResetDialogOpen] = useState(false)
   const [resetting, setResetting] = useState(false)
@@ -157,7 +132,6 @@ export function AbsatzplanungTabelle() {
   const [editingValue, setEditingValue] = useState('')
   const editingOriginalValue = useRef<string>('')
 
-  // Always keep ref in sync so blur handlers read the latest value (stale-closure fix)
   function setEditingCell(key: string | null) {
     editingCellRef.current = key
     setEditingCellState(key)
@@ -170,25 +144,23 @@ export function AbsatzplanungTabelle() {
     }
   }, [loading, plattformen])
 
-  // Click outside component clears selection
   useEffect(() => {
     function onMouseDown(e: MouseEvent) {
-      if (!(e.target as Element).closest('[data-betrag-selektion]')) {
-        setSelectedCells(new Map())
-      }
+      if (bulkEditOpen) return
+      const target = e.target as Element
+      if (target.closest('[data-betrag-selektion]')) return
+      setSelectedCells(new Map())
     }
-    function onMouseUp() {
-      isDragging.current = false
-    }
+    function onMouseUp() { isDragging.current = false }
     document.addEventListener('mousedown', onMouseDown)
     document.addEventListener('mouseup', onMouseUp)
     return () => {
       document.removeEventListener('mousedown', onMouseDown)
       document.removeEventListener('mouseup', onMouseUp)
     }
-  }, [])
+  }, [bulkEditOpen])
 
-  // ─── Month groups (for header) ───────────────────────────────────────────────
+  // ─── Month groups ────────────────────────────────────────────────────────────
 
   const monthGroups = useMemo(() => {
     const groups: { label: string; count: number }[] = []
@@ -204,29 +176,46 @@ export function AbsatzplanungTabelle() {
     return groups
   }, [wochen])
 
-  // ─── Cell value helper ───────────────────────────────────────────────────────
+  // ─── Cell value helper (product-level, for aggregation) ─────────────────────
 
   const getCellValues = useCallback(
     (prdId: string, pltId: string, kw: PlanungsWoche): CellValues => {
-      const a = getAbsatz(prdId, pltId, kw)
+      const absatz = getProductAbsatz(prdId, pltId, kw)
       const v = getVK(prdId, pltId, kw)
-      return {
-        absatz: a.value,
-        absatzIsManual: a.isManual,
-        vk: v.value,
-        vkIsManual: v.isManual,
-      }
+      return { absatz, vk: v.value, vkIsManual: v.isManual }
     },
-    [getAbsatz, getVK],
+    [getProductAbsatz, getVK],
+  )
+
+  // ─── Aggregation helpers ─────────────────────────────────────────────────────
+
+  const aggregatePlatformAbsatz = useCallback(
+    (plattformId: string, kw: PlanungsWoche, prodList: KpiCategory[]): number => {
+      return prodList
+        .filter(p => aktiveKombis.has(`${plattformId}:${p.id}`))
+        .reduce((sum, p) => sum + getProductAbsatz(p.id, plattformId, kw), 0)
+    },
+    [aktiveKombis, getProductAbsatz],
+  )
+
+  const aggregatePlatformVK = useCallback(
+    (plattformId: string, kw: PlanungsWoche, prodList: KpiCategory[]): number | null => {
+      const pairs = prodList
+        .filter(p => aktiveKombis.has(`${plattformId}:${p.id}`))
+        .map(p => getCellValues(p.id, plattformId, kw))
+        .filter(cv => cv.vk !== null)
+      if (pairs.length === 0) return null
+      const totalAbsatz = pairs.reduce((s, cv) => s + cv.absatz, 0)
+      if (totalAbsatz === 0) return null
+      return pairs.reduce((s, cv) => s + cv.absatz * cv.vk!, 0) / totalAbsatz
+    },
+    [aktiveKombis, getCellValues],
   )
 
   // ─── Flat rows ───────────────────────────────────────────────────────────────
 
   const activePlattformen = useMemo(
-    () =>
-      plattformen.filter(plt =>
-        produkte.some(prd => aktiveKombis.has(`${plt.id}:${prd.id}`)),
-      ),
+    () => plattformen.filter(plt => produkte.some(prd => aktiveKombis.has(`${plt.id}:${prd.id}`))),
     [plattformen, produkte, aktiveKombis],
   )
 
@@ -261,7 +250,35 @@ export function AbsatzplanungTabelle() {
       if (expanded) {
         const aktivePrd = produkte.filter(p => aktiveKombis.has(`${plt.id}:${p.id}`))
         for (const prd of aktivePrd) {
-          rows.push({ id: `prd-absatz-${plt.id}-${prd.id}`, kind: 'product-absatz', label: `${prd.name} - Absatz`, indent: 2, plattformId: plt.id, produktId: prd.id })
+          const productKey = `${plt.id}:${prd.id}`
+          const productExpanded = expandedProducts.has(productKey)
+          const skus = skusByProdukt.get(prd.id) ?? []
+
+          rows.push({
+            id: `prd-absatz-${plt.id}-${prd.id}`,
+            kind: 'product-absatz',
+            label: `${prd.name} - Absatz`,
+            indent: 2,
+            plattformId: plt.id,
+            produktId: prd.id,
+            expandable: skus.length > 0,
+            expanded: productExpanded,
+          })
+
+          if (productExpanded) {
+            for (const sku of skus) {
+              rows.push({
+                id: `sku-absatz-${plt.id}-${prd.id}-${sku.id}`,
+                kind: 'sku-absatz',
+                label: sku.name,
+                indent: 3,
+                plattformId: plt.id,
+                produktId: prd.id,
+                skuId: sku.id,
+              })
+            }
+          }
+
           rows.push({ id: `prd-vk-${plt.id}-${prd.id}`, kind: 'product-vk', label: `${prd.name} - Effektiver VK`, indent: 2, plattformId: plt.id, produktId: prd.id })
           rows.push({ id: `prd-umsatz-${plt.id}-${prd.id}`, kind: 'product-umsatz', label: '↳ Ziel Brutto-Umsatz', indent: 2, plattformId: plt.id, produktId: prd.id })
         }
@@ -269,7 +286,7 @@ export function AbsatzplanungTabelle() {
     }
 
     return rows
-  }, [activePlattformen, expandedPlatforms, produkte, aktiveKombis, gesamtAbsatzExpanded])
+  }, [activePlattformen, expandedPlatforms, expandedProducts, produkte, skusByProdukt, aktiveKombis, gesamtAbsatzExpanded])
 
   // ─── Cell value for a row × week ─────────────────────────────────────────────
 
@@ -278,25 +295,29 @@ export function AbsatzplanungTabelle() {
     kw: PlanungsWoche,
   ): { display: string; rawNum: number | null; isManual: boolean; isEditable: boolean } {
     switch (row.kind) {
+      case 'sku-absatz': {
+        const { value, isManual } = getSkuAbsatz(row.skuId!, row.plattformId!, kw)
+        return { display: formatNum(value), rawNum: value, isManual, isEditable: true }
+      }
       case 'product-absatz': {
-        const { absatz, absatzIsManual } = getCellValues(row.produktId!, row.plattformId!, kw)
-        return { display: formatNum(absatz), rawNum: absatz, isManual: absatzIsManual, isEditable: true }
+        const val = getProductAbsatz(row.produktId!, row.plattformId!, kw)
+        return { display: formatNum(val), rawNum: val, isManual: false, isEditable: false }
       }
       case 'product-vk': {
-        const { vk, vkIsManual } = getCellValues(row.produktId!, row.plattformId!, kw)
-        return { display: vk !== null ? formatNum(vk) : '', rawNum: vk, isManual: vkIsManual, isEditable: true }
+        const { value, isManual } = getVK(row.produktId!, row.plattformId!, kw)
+        return { display: value !== null ? formatNum(value) : '', rawNum: value, isManual, isEditable: true }
       }
       case 'product-umsatz': {
-        const cv = getCellValues(row.produktId!, row.plattformId!, kw)
-        const u = computeUmsatz(cv.absatz, cv.vk)
+        const absatz = getProductAbsatz(row.produktId!, row.plattformId!, kw)
+        const vk = getVK(row.produktId!, row.plattformId!, kw).value
+        const u = computeUmsatz(absatz, vk)
         return { display: u !== null ? formatNum(u) : '—', rawNum: u, isManual: false, isEditable: false }
       }
       case 'platform-absatz': {
-        const val = aggregatePlatformAbsatz(row.plattformId!, kw, produkte, aktiveKombis, getCellValues)
+        const val = aggregatePlatformAbsatz(row.plattformId!, kw, produkte)
         return { display: formatNum(val), rawNum: val, isManual: false, isEditable: false }
       }
       case 'platform-umsatz': {
-        // Sum of product-level umsatz (absatz × vk per product) for this platform
         let total = 0; let hasValue = false
         for (const prd of produkte.filter(p => aktiveKombis.has(`${row.plattformId!}:${p.id}`))) {
           const cv = getCellValues(prd.id, row.plattformId!, kw)
@@ -307,16 +328,15 @@ export function AbsatzplanungTabelle() {
       }
       case 'gesamt-absatz': {
         const val = activePlattformen.reduce(
-          (sum, plt) => sum + aggregatePlatformAbsatz(plt.id, kw, produkte, aktiveKombis, getCellValues),
+          (sum, plt) => sum + aggregatePlatformAbsatz(plt.id, kw, produkte),
           0,
         )
         return { display: formatNum(val), rawNum: val, isManual: false, isEditable: false }
       }
       case 'gesamt-product-absatz': {
-        // Sum of absatz across all platforms for this product
         const val = activePlattformen
           .filter(plt => aktiveKombis.has(`${plt.id}:${row.produktId!}`))
-          .reduce((sum, plt) => sum + getCellValues(row.produktId!, plt.id, kw).absatz, 0)
+          .reduce((sum, plt) => sum + getProductAbsatz(row.produktId!, plt.id, kw), 0)
         return { display: formatNum(val), rawNum: val, isManual: false, isEditable: false }
       }
       case 'gesamt-umsatz': {
@@ -333,6 +353,60 @@ export function AbsatzplanungTabelle() {
       default:
         return { display: '', rawNum: null, isManual: false, isEditable: false }
     }
+  }
+
+  // ─── Selection: product-absatz cells (Ctrl → expand + select SKUs) ──────────
+
+  function handleProductAbsatzMouseDown(e: React.MouseEvent, row: FlatRow, kw: PlanungsWoche, rawNum: number) {
+    e.preventDefault()
+    e.stopPropagation()
+    isDragging.current = true
+
+    if (e.ctrlKey || e.metaKey) {
+      // Expand product so SKU rows become visible
+      const productKey = `${row.plattformId}:${row.produktId}`
+      setExpandedProducts(prev => {
+        if (!prev.has(productKey)) { const next = new Set(prev); next.add(productKey); return next }
+        return prev
+      })
+      // Toggle all SKU cells for this product × KW into selection
+      const skus = skusByProdukt.get(row.produktId!) ?? []
+      setSelectedCells(prev => {
+        const next = new Map(prev)
+        const allPresent = skus.every(s => next.has(skuCellKey(s.id, row.plattformId!, kw.year, kw.week)))
+        for (const sku of skus) {
+          const key = skuCellKey(sku.id, row.plattformId!, kw.year, kw.week)
+          if (allPresent) next.delete(key)
+          else if (!next.has(key)) {
+            const { value } = getSkuAbsatz(sku.id, row.plattformId!, kw)
+            next.set(key, value)
+          }
+        }
+        return next
+      })
+    } else {
+      // Regular click: show aggregate in sum panel only
+      setSelectedCells(new Map([[`row:${row.id}:${kw.year}:${kw.week}`, rawNum]]))
+    }
+  }
+
+  function handleProductAbsatzMouseEnter(row: FlatRow, kw: PlanungsWoche) {
+    if (!isDragging.current) return
+    const keys = Array.from(selectedCells.keys())
+    if (!keys.some(k => k.startsWith('sku:'))) return
+    // In SKU-selection drag mode: also add SKUs for this product × KW
+    const skus = skusByProdukt.get(row.produktId!) ?? []
+    setSelectedCells(prev => {
+      const next = new Map(prev)
+      for (const sku of skus) {
+        const key = skuCellKey(sku.id, row.plattformId!, kw.year, kw.week)
+        if (!next.has(key)) {
+          const { value } = getSkuAbsatz(sku.id, row.plattformId!, kw)
+          next.set(key, value)
+        }
+      }
+      return next
+    })
   }
 
   // ─── Selection: non-editable cells ───────────────────────────────────────────
@@ -357,16 +431,10 @@ export function AbsatzplanungTabelle() {
   }
 
   // ─── Selection + editing: editable cells ─────────────────────────────────────
-  // Ctrl+click on mousedown (with preventDefault to suppress subsequent click).
-  // Regular click on onClick (reliable autoFocus after full click gesture).
 
-  function handleEditableCellMouseDown(
-    e: React.MouseEvent,
-    editKey: string,
-    rawNum: number | null,
-  ) {
-    if (!(e.ctrlKey || e.metaKey)) return // regular clicks handled by onClick
-    e.preventDefault() // suppress the click event for ctrl+click
+  function handleEditableCellMouseDown(e: React.MouseEvent, editKey: string, rawNum: number | null) {
+    if (!(e.ctrlKey || e.metaKey)) return
+    e.preventDefault()
     e.stopPropagation()
     if (rawNum === null) return
     isDragging.current = true
@@ -383,10 +451,9 @@ export function AbsatzplanungTabelle() {
     editKey: string,
     display: string,
   ) {
-    if (e.ctrlKey || e.metaKey) return // already handled in mousedown
+    if (e.ctrlKey || e.metaKey) return
     e.stopPropagation()
     setSelectedCells(new Map())
-    if (!row.produktId || !row.plattformId) return
     const origVal = display === '—' || display === '' ? '' : display.replace(',', '.')
     editingOriginalValue.current = origVal
     setEditingCell(editKey)
@@ -400,16 +467,8 @@ export function AbsatzplanungTabelle() {
 
   // ─── Inline edit blur ─────────────────────────────────────────────────────────
 
-  async function handleCellBlur(row: FlatRow, kw: PlanungsWoche) {
-    if (!row.produktId || !row.plattformId) {
-      setEditingCell(null)
-      return
-    }
-    const field = row.kind === 'product-absatz' ? 'absatz' : 'vk'
-    const blurringKey = cellDataKey(row.produktId, row.plattformId, kw.year, kw.week, field)
-
-    // Stale-closure guard: if another cell has already taken over editing, skip save and reset
-    if (editingCellRef.current !== blurringKey) return
+  async function handleCellBlur(row: FlatRow, kw: PlanungsWoche, editKey: string) {
+    if (editingCellRef.current !== editKey) return
 
     const parsedNew = editingValue.trim() === '' ? null : parseFloat(editingValue.replace(',', '.'))
     const parsedOrig = editingOriginalValue.current === '' ? null : parseFloat(editingOriginalValue.current)
@@ -417,23 +476,34 @@ export function AbsatzplanungTabelle() {
     setEditingCell(null)
     setEditingValue('')
 
-    // Validation
     if (parsedNew !== null && (isNaN(parsedNew) || parsedNew < 0)) return
 
-    // Skip save if value hasn't actually changed
     const unchanged =
       (parsedNew === null && parsedOrig === null) ||
       (parsedNew !== null && parsedOrig !== null && Math.abs(parsedNew - parsedOrig) < 0.005)
     if (unchanged) return
 
     try {
-      await upsertZelle(row.produktId, row.plattformId, kw, field, parsedNew)
+      if (row.kind === 'sku-absatz') {
+        await upsertSkuAbsatz(row.skuId!, row.produktId!, row.plattformId!, kw, parsedNew)
+      } else {
+        await upsertVK(row.produktId!, row.plattformId!, kw, parsedNew)
+      }
     } catch {
       toast({ title: 'Fehler beim Speichern', description: 'Wert konnte nicht gespeichert werden.', variant: 'destructive' })
     }
   }
 
   // ─── Bulk edit ────────────────────────────────────────────────────────────────
+
+  // Build reverse map: skuId → produktId for bulk edit parsing
+  const skuToProdukt = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const [produktId, skus] of skusByProdukt) {
+      for (const sku of skus) m.set(sku.id, produktId)
+    }
+    return m
+  }, [skusByProdukt])
 
   const bulkEditType = useMemo((): 'absatz' | 'vk' | null => {
     const keys = Array.from(selectedCells.keys())
@@ -446,26 +516,42 @@ export function AbsatzplanungTabelle() {
 
   const bulkEditCells = useMemo((): BulkEditCell[] => {
     if (!bulkEditType) return []
-    return Array.from(selectedCells.entries()).flatMap(([key, value]) => {
+    const result: BulkEditCell[] = []
+    for (const [key, value] of selectedCells.entries()) {
       const parts = key.split(':')
-      if (parts.length < 5) return []
-      const field = parts[parts.length - 1] as 'absatz' | 'vk'
-      const kwWeek = parseInt(parts[parts.length - 2])
-      const kwYear = parseInt(parts[parts.length - 3])
-      const plattformId = parts[parts.length - 4]
-      const produktId = parts.slice(0, parts.length - 4).join(':')
-      const kw = wochen.find(w => w.year === kwYear && w.week === kwWeek)
-      if (!kw) return []
-      return [{ produktId, plattformId, kw, currentValue: value, field }]
-    })
-  }, [bulkEditType, selectedCells, wochen])
+      if (parts[0] === 'sku' && parts.length === 6) {
+        // sku:${skuId}:${plattformId}:${year}:${week}:absatz
+        const skuId = parts[1]
+        const plattformId = parts[2]
+        const kwYear = parseInt(parts[3])
+        const kwWeek = parseInt(parts[4])
+        const produktId = skuToProdukt.get(skuId)
+        const kw = wochen.find(w => w.year === kwYear && w.week === kwWeek)
+        if (kw && produktId) result.push({ skuId, produktId, plattformId, kw, currentValue: value, field: 'absatz' })
+      } else if (parts[0] === 'vk' && parts.length === 6) {
+        // vk:${produktId}:${plattformId}:${year}:${week}:vk
+        const produktId = parts[1]
+        const plattformId = parts[2]
+        const kwYear = parseInt(parts[3])
+        const kwWeek = parseInt(parts[4])
+        const kw = wochen.find(w => w.year === kwYear && w.week === kwWeek)
+        if (kw) result.push({ produktId, plattformId, kw, currentValue: value, field: 'vk' })
+      }
+    }
+    return result
+  }, [bulkEditType, selectedCells, wochen, skuToProdukt])
 
-  async function handleBulkApply(
-    results: Array<{ produktId: string; plattformId: string; kw: PlanungsWoche; newValue: number }>,
-  ) {
+  async function handleBulkApply(results: BulkEditResult[]) {
     const field = bulkEditType!
     try {
-      await upsertBatch(results.map(r => ({ ...r, field, value: r.newValue })))
+      await upsertBatch(results.map(r => ({
+        skuId: r.skuId,
+        produktId: r.produktId,
+        plattformId: r.plattformId,
+        kw: r.kw,
+        field,
+        value: r.newValue,
+      })))
       setSelectedCells(new Map())
     } catch {
       toast({ title: 'Fehler', description: 'Massen-Anpassung konnte nicht gespeichert werden.', variant: 'destructive' })
@@ -486,6 +572,26 @@ export function AbsatzplanungTabelle() {
       setResetting(false)
       setResetDialogOpen(false)
     }
+  }
+
+  // ─── Toggle helpers ───────────────────────────────────────────────────────────
+
+  function togglePlatform(plattformId: string) {
+    setExpandedPlatforms(prev => {
+      const next = new Set(prev)
+      if (next.has(plattformId)) next.delete(plattformId)
+      else next.add(plattformId)
+      return next
+    })
+  }
+
+  function toggleProduct(key: string) {
+    setExpandedProducts(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
   }
 
   // ─── Loading / Error / Empty ──────────────────────────────────────────────────
@@ -580,35 +686,25 @@ export function AbsatzplanungTabelle() {
               const isGesamt = row.kind === 'gesamt-absatz' || row.kind === 'gesamt-umsatz'
               const isGesamtProduct = row.kind === 'gesamt-product-absatz'
               const isPlatform = row.kind.startsWith('platform-') && !isHeader
-              const isProductRow = row.kind.startsWith('product-')
+              const isSkuRow = row.kind === 'sku-absatz'
 
-              const rowBg = isGesamt ? 'bg-muted/60' : isHeader ? 'bg-muted/30 font-medium' : 'bg-white dark:bg-background'
+              const rowBg = isGesamt ? 'bg-muted/60' : isHeader ? 'bg-muted/30' : 'bg-white dark:bg-background'
 
               return (
                 <tr key={row.id} className={['border-b last:border-0 hover:bg-muted/20 transition-colors', rowBg].join(' ')}>
                   {/* Label cell */}
                   <td
                     className={[
-                      'sticky left-0 z-10 px-3 py-1.5 text-sm whitespace-nowrap',
-                      isGesamt ? 'bg-muted/60 font-medium'
-                        : isHeader ? 'bg-muted/30 font-semibold'
-                        : 'bg-white dark:bg-background',
-                      isPlatform ? 'text-muted-foreground' : '',
+                      'sticky left-0 z-10 px-3 py-1.5 whitespace-nowrap',
+                      isGesamt ? 'bg-muted/60' : isHeader ? 'bg-muted/30' : 'bg-white dark:bg-background',
                     ].join(' ')}
-                    style={{ paddingLeft: `${12 + row.indent * 16}px` }}
+                    style={{ paddingLeft: `${12 + row.indent * 16 + (['product-vk', 'product-umsatz'].includes(row.kind) ? 18 : 0)}px` }}
                   >
                     {isHeader ? (
                       <button
                         type="button"
-                        className="flex items-center gap-1 hover:text-primary"
-                        onClick={() =>
-                          setExpandedPlatforms(prev => {
-                            const next = new Set(prev)
-                            if (next.has(row.plattformId!)) next.delete(row.plattformId!)
-                            else next.add(row.plattformId!)
-                            return next
-                          })
-                        }
+                        className="flex items-center gap-1 text-sm font-semibold hover:text-primary"
+                        onClick={() => togglePlatform(row.plattformId!)}
                       >
                         {row.expanded ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
                         {row.label}
@@ -616,19 +712,34 @@ export function AbsatzplanungTabelle() {
                     ) : row.kind === 'gesamt-absatz' ? (
                       <button
                         type="button"
-                        className="flex items-center gap-1 hover:text-primary"
+                        className="flex items-center gap-1 text-sm font-semibold hover:text-primary"
                         onClick={() => setGesamtAbsatzExpanded(v => !v)}
+                      >
+                        {row.expanded ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
+                        {row.label}
+                      </button>
+                    ) : row.kind === 'product-absatz' && row.expandable ? (
+                      <button
+                        type="button"
+                        className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+                        onClick={() => toggleProduct(`${row.plattformId}:${row.produktId}`)}
                       >
                         {row.expanded ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
                         {row.label}
                       </button>
                     ) : (
                       <span className={
-                        isProductRow && (row.kind === 'product-absatz' || row.kind === 'product-vk')
-                          ? 'font-medium'
-                          : isGesamtProduct
-                            ? 'text-sm'
-                            : 'text-muted-foreground text-xs'
+                        row.kind === 'gesamt-umsatz'
+                          ? 'text-sm font-semibold'
+                          : isPlatform || isGesamtProduct
+                            ? 'text-sm text-muted-foreground'
+                            : row.kind === 'product-absatz'
+                              ? 'text-sm text-muted-foreground'
+                              : isSkuRow
+                                ? 'text-xs text-muted-foreground'
+                                : row.kind === 'product-vk'
+                                  ? 'text-sm text-muted-foreground'
+                                  : 'text-xs text-muted-foreground'
                       }>
                         {row.label}
                       </span>
@@ -639,9 +750,16 @@ export function AbsatzplanungTabelle() {
                   {wochen.map(kw => {
                     const { display, rawNum, isManual, isEditable: cellEditable } = getRowValue(row, kw)
                     const isNew = isNewWeek && lastWoche && kw.year === lastWoche.year && kw.week === lastWoche.week
-                    const editKey = row.produktId && row.plattformId && cellEditable
-                      ? cellDataKey(row.produktId, row.plattformId, kw.year, kw.week, row.kind === 'product-absatz' ? 'absatz' : 'vk')
-                      : null
+
+                    let editKey: string | null = null
+                    if (cellEditable) {
+                      if (row.kind === 'sku-absatz' && row.skuId) {
+                        editKey = skuCellKey(row.skuId, row.plattformId!, kw.year, kw.week)
+                      } else if (row.kind === 'product-vk' && row.produktId) {
+                        editKey = vkCellKey(row.produktId, row.plattformId!, kw.year, kw.week)
+                      }
+                    }
+
                     const isCurrentlyEditing = editKey !== null && editingCell === editKey
                     const isSelected = editKey !== null && selectedCells.has(editKey)
 
@@ -654,25 +772,28 @@ export function AbsatzplanungTabelle() {
                           isSelected ? 'bg-blue-100 dark:bg-blue-900/30' : '',
                           cellEditable ? 'cursor-pointer' : '',
                         ].join(' ')}
-                        // All click/mousedown logic on the td for reliable hit area
                         onClick={
                           cellEditable && editKey !== null && !isCurrentlyEditing
-                            ? e => handleEditableCellClick(e, row, kw, editKey, display)
+                            ? e => handleEditableCellClick(e, row, kw, editKey!, display)
                             : undefined
                         }
                         onMouseDown={
-                          cellEditable && editKey !== null
-                            ? e => handleEditableCellMouseDown(e, editKey, rawNum)
-                            : !cellEditable && rawNum !== null
-                              ? e => handleNonEditableMouseDown(e, `row:${row.id}:${kw.year}:${kw.week}`, rawNum)
-                              : undefined
+                          row.kind === 'product-absatz' && row.produktId && rawNum !== null
+                            ? e => handleProductAbsatzMouseDown(e, row, kw, rawNum)
+                            : cellEditable && editKey !== null
+                              ? e => handleEditableCellMouseDown(e, editKey!, rawNum)
+                              : !cellEditable && rawNum !== null
+                                ? e => handleNonEditableMouseDown(e, `row:${row.id}:${kw.year}:${kw.week}`, rawNum)
+                                : undefined
                         }
                         onMouseEnter={
-                          cellEditable && editKey !== null
-                            ? () => handleEditableCellMouseEnter(editKey, rawNum)
-                            : !cellEditable && rawNum !== null
-                              ? () => handleNonEditableMouseEnter(`row:${row.id}:${kw.year}:${kw.week}`, rawNum)
-                              : undefined
+                          row.kind === 'product-absatz' && row.produktId
+                            ? () => handleProductAbsatzMouseEnter(row, kw)
+                            : cellEditable && editKey !== null
+                              ? () => handleEditableCellMouseEnter(editKey!, rawNum)
+                              : !cellEditable && rawNum !== null
+                                ? () => handleNonEditableMouseEnter(`row:${row.id}:${kw.year}:${kw.week}`, rawNum)
+                                : undefined
                         }
                       >
                         {isCurrentlyEditing ? (
@@ -684,7 +805,7 @@ export function AbsatzplanungTabelle() {
                             className="w-full text-right bg-transparent outline-none border-b border-primary text-xs tabular-nums"
                             value={editingValue}
                             onChange={e => setEditingValue(e.target.value)}
-                            onBlur={() => handleCellBlur(row, kw)}
+                            onBlur={() => handleCellBlur(row, kw, editKey!)}
                             onKeyDown={e => {
                               if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
                               if (e.key === 'Escape') { setEditingCell(null); setEditingValue('') }
@@ -699,7 +820,6 @@ export function AbsatzplanungTabelle() {
                               isNew && cellEditable ? 'ring-1 ring-red-300 dark:ring-red-700 rounded px-1' : '',
                             ].join(' ')}
                           >
-                            {/* Manual / historical indicator — only for editable cells */}
                             {cellEditable && (
                               <span
                                 className={[
@@ -726,7 +846,7 @@ export function AbsatzplanungTabelle() {
       {bulkEditType && (
         <div
           data-betrag-selektion="true"
-          className="fixed bottom-20 right-6 z-40 flex items-center gap-2 rounded-lg border bg-background px-4 py-2 shadow-lg text-sm"
+          className="fixed bottom-[6.5rem] right-6 z-40 flex items-center gap-2 rounded-lg border bg-background px-4 py-2 shadow-lg text-sm"
         >
           <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
           <span className="text-muted-foreground">
