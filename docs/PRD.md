@@ -69,6 +69,8 @@ Eine interne Controlling-Plattform für das Finanzreporting eines E-Commerce Unt
 | P1 | PROJ-55: Operative Fixkosten-Einstellungen — Kurzfristige Planung | Planned |
 | P1 | PROJ-56: Operative Planung — Kurzfristige Planung | Planned |
 | P1 | PROJ-57: Produktinvestitionsplanung — Kurzfristige Planung | Planned |
+| P1 | PROJ-58: Finanzierungseinstellungen — Kurzfristige Planung | Planned |
+| P1 | PROJ-59: Produktinformationen — Kurzfristige Planung | Planned |
 
 ## Success Metrics
 - Alle Finanzdaten werden in einer zentralen Plattform erfasst (kein Excel-Chaos)
