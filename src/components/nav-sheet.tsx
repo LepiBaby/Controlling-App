@@ -63,6 +63,8 @@ const KURZFRISTIGE_PLANUNG_NAV_GROUPS = [
       { href: '/dashboard/kurzfristige-planung/marketing-einstellungen', label: 'Marketing-Einstellungen' },
       { href: '/dashboard/kurzfristige-planung/grundeinstellungen', label: 'Grundeinstellungen' },
       { href: '/dashboard/kurzfristige-planung/operative-fixkosten-einstellungen', label: 'Operative Fixkosten-Einstellungen' },
+      { href: '/dashboard/kurzfristige-planung/finanzierungseinstellungen', label: 'Finanzierungseinstellungen' },
+      { href: '/dashboard/kurzfristige-planung/produktinformationen', label: 'Produktinformationen' },
     ],
   },
   {

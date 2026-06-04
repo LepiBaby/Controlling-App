@@ -1,8 +1,8 @@
 # PROJ-59: Produktinformationen — Kurzfristige Planung
 
-## Status: Planned
+## Status: In Progress
 **Created:** 2026-06-04
-**Last Updated:** 2026-06-04
+**Last Updated:** 2026-06-04 (Frontend)
 
 ## Dependencies
 - Requires: PROJ-1 (Authentifizierung) — nur eingeloggte Nutzer
@@ -655,6 +655,26 @@ Alle Routen: `requireAuth()` + Zod-Validierung der Eingaben.
 | SKU-Aufklappen via Collapsible | Ja | Bereits installiert (`src/components/ui/collapsible.tsx`); kein zusätzliches Package nötig |
 | 9 separate DB-Tabellen statt 1 große | Ja | Jede Tabelle hat unterschiedliche Felder und Schreibmuster; vermeidet NULL-Spalten in einer breiten Tabelle; leichtere Erweiterbarkeit je Bereich |
 | Neue Packages | Keine | Alle benötigten shadcn-Komponenten bereits installiert (Tabs, Table, Input, Command, Popover, Collapsible, RadioGroup, Checkbox) |
+
+## Implementation Notes (Frontend — 2026-06-04)
+
+### Neue Dateien
+- `src/hooks/use-produktinformationen-hersteller.ts` — Typen `Hersteller`, `HerstellerZuordnung`; Hook `useProduktinformationenHersteller()` mit Laden beider Endpoints, `getZuordnung()`, `createAndAssign()`, `assignHersteller()` mit optimistischem Update + Rollback
+- `src/hooks/use-produktinformationen-moq.ts` — Typen `MoqEbene`, `MoqEinstellung`, `MoqSkuEinstellung`; Hook mit getrennten States für Produkt-MOQ und SKU-MOQ, `getMoqEinstellung()`, `getMoqSkuEinstellung()`, `upsertMoq()`, `upsertMoqSku()`
+- `src/hooks/use-produktinformationen-container.ts` — Typen + Hilfsfunktionen `berechneStueckvolumen()`, `berechneMaxKapazitaet()`; Hook mit globalem ContainerVolumen + Paketmaßen, `getKapazitaet()`, `upsertContainerGlobal()`, `upsertKapazitaet()`
+- `src/hooks/use-produktinformationen-lieferzeit.ts` — Typ `Lieferzeit`; Hilfsfunktion `berechneGesamtzeit()`; Hook mit `getLieferzeit()`, `upsert()`
+- `src/hooks/use-produktinformationen-zahlungskonditionen.ts` — Typ `Zahlungskonditionen`; Hilfsfunktionen `isProzentSummeGueltig()`, `alleProzentGesetzt()`; Hook mit `getKonditionen()`, `upsert()`
+- `src/hooks/use-produktinformationen-produktkosten.ts` — Typen `KostenGlobal`, `Produktkosten`; Hook mit globalem und produktspezifischem State, `getProduktkosten()`, `upsertKostenGlobal()`, `upsertProduktkosten()`
+- `src/hooks/use-produktinformationen-bestandsverwaltung.ts` — Typ `BestandsverwaltungEinstellung`; Hook mit `getEinstellung()`, `upsert()`
+- `src/components/produktinformationen-tabs.tsx` — Alle 7 Tab-Komponenten in einer Datei; `ProduktinformationenTabs` als Export; Combobox-Pattern (Command + Popover) für Hersteller-Tab; aufklappbare SKU-Zeilen für MOQ-Tab; clientseitige Berechnung für Container- und Lieferzeit-Tab; konditionelle Zahlungsziel-Spalten für Zahlungskonditionen-Tab; Card-Formulare für globale Einstellungen in Container- und Produktkosten-Tab
+- `src/app/dashboard/kurzfristige-planung/produktinformationen/page.tsx` — Client Component, Header + `ProduktinformationenTabs` + `Toaster`
+
+### Geänderte Dateien
+- `src/components/nav-sheet.tsx` — Eintrag „Produktinformationen" → `/dashboard/kurzfristige-planung/produktinformationen` in `KURZFRISTIGE_PLANUNG_NAV_GROUPS` ergänzt
+- `src/app/dashboard/kurzfristige-planung/page.tsx` — Kachel „Produktinformationen" im Einstellungs-Grid ergänzt
+
+### Build
+- `npm run build` ✅ — Route `/dashboard/kurzfristige-planung/produktinformationen` korrekt in der Build-Ausgabe, keine TypeScript-Fehler
 
 ## QA Test Results
 _To be added by /qa_

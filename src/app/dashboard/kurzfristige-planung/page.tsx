@@ -116,6 +116,24 @@ export default function KurzfristigePlanungPage() {
                   Wiederkehrende operative Fixkosten mit Frequenz und Fälligkeitsmonaten pflegen
                 </p>
               </a>
+              <a
+                href="/dashboard/kurzfristige-planung/finanzierungseinstellungen"
+                className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+              >
+                <p className="font-medium">Finanzierungseinstellungen</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Wiederkehrende Finanzierungskosten (Kredite, Leasing, Zinsen) mit Frequenz und Fälligkeitsmonaten pflegen
+                </p>
+              </a>
+              <a
+                href="/dashboard/kurzfristige-planung/produktinformationen"
+                className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+              >
+                <p className="font-medium">Produktinformationen</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Hersteller, MOQ, Containerkapazität, Lieferzeit, Zahlungskonditionen, Kosten &amp; Bestandsverwaltung je Produkt pflegen
+                </p>
+              </a>
             </div>
           </div>
 
