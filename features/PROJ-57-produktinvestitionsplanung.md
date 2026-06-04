@@ -324,7 +324,108 @@ Notizen (PROJ-53)
 - Alle 14 Tests bestehen ✅
 
 ## QA Test Results
-_To be added by /qa_
+
+**QA Datum:** 2026-06-04
+**QA Status:** ✅ APPROVED — Keine Critical/High Bugs
+
+### Testergebnisse
+
+| Kategorie | Bestanden | Gesamt |
+|---|---|---|
+| API-Integrationstests (Vitest) | 14 | 14 |
+| Hook-Unit-Tests (Vitest) | 29 | 29 |
+| E2E-Tests (Playwright) | 14 | 14 |
+| **Gesamt** | **57** | **57** |
+
+### Acceptance Criteria
+
+#### Navigation & Einstieg
+- [x] Linke Navigation enthält „Produktinvestitionsplanung" → `/dashboard/kurzfristige-planung/produktinvestitionsplanung`
+- [x] Kachel „Produktinvestitionsplanung" auf Dashboard-Übersichtsseite vorhanden
+- [x] Auth-Guard → Redirect zu `/login` für unauthentifizierte Nutzer
+
+#### Tabellenstruktur & Spalten
+- [x] Spalten starten mit der nächsten Kalenderwoche (ISO 8601)
+- [x] Spaltenanzahl = `planungshorizont_wochen` aus Grundeinstellungen (Fallback: 13)
+- [x] Spaltenüberschriften zeigen Format „KW24 / 2026"
+- [x] Tabelle ist horizontal scrollbar
+- [x] Erste Spalte (Zeilenbeschriftung) ist sticky links
+- [x] Spaltenheader zeigt „Produktinvestition" als Zeilenbeschriftung
+
+#### Zeilenhierarchie
+- [x] Gesamtergebnis-Zeile „Produktinvestitionen (Gesamt)" immer oben, nicht editierbar
+- [x] L1-Kategorien mit Untergruppen als einklappbare Sektionen
+- [x] L1-Kategorien ohne Untergruppen als direkt editierbare Leaf-Zeilen (identisches Styling)
+- [x] L2-Untergruppen eingerückt unter L1-Gruppe
+- [x] Nur Kategorien unter dem „Produktinvestitionen"-Knoten sichtbar
+- [x] Kategorien außerhalb des Produktinvestitionen-Subtrees nicht sichtbar
+- [x] Alle ausklappen / Alle einklappen-Button oben rechts
+
+#### Rollierender Planungshorizont
+- [x] Planungshorizont berechnet sich aus aktuellem Datum zum Ladezeitpunkt
+- [x] Neue Woche am Ende des Horizonts wird rot markiert (Header + Zellen)
+- [x] Tooltip „Neue Woche — Bitte Werte prüfen"
+- [x] Rote Markierung verschwindet nach erster Eingabe in der neuen Woche
+
+#### Leerer Zustand
+- [x] Wenn kein „Produktinvestitionen"-Knoten im KPI-Modell: Hinweis + Link zur KPI-Verwaltung
+
+#### Manuelle Eingabe & Persistenz
+- [x] Inline-Editing per Klick auf editierbare Zellen
+- [x] Eingabe Dezimalzahl ≥ 0 (onBlur-Speicherung)
+- [x] Leeres Feld → NULL-Wert (Eintrag gelöscht), Zelle zeigt „—"
+- [x] Betrag = 0 gültig
+- [x] Optimistisches Update + Toast + Rollback bei API-Fehler
+- [x] Keine historische Vorabbefüllung
+- [x] Aggregationszeilen summieren Leaf-Kinder reaktiv
+
+#### Betragsselektion
+- [x] Ctrl+Klick zur Selektion einzelner Zellen
+- [x] Panel rechts unten mit Anzahl + Summe
+- [x] Panel verschwindet bei Aufhebung der Selektion
+- [x] Aggregations- und Gesamtzeilen ebenfalls selektierbar
+
+#### Notizen (PROJ-53)
+- [x] Notiz-Icon bei Hover auf Zelle
+- [x] Notizen-Dialog öffnet sich per Klick
+- [x] Notiz-Indikator in Zelle bei vorhandener Notiz
+- [x] `kontext = 'produktinvestitions_planung'` — separate Notizen von anderen Planungsseiten
+
+#### Datenbankschema & API
+- [x] Tabelle `produktinvestitions_planung` mit korrektem Schema, RLS, Indexes
+- [x] `GET /api/produktinvestitions-planung` — 200 mit Einträgen
+- [x] `PUT /api/produktinvestitions-planung` — Upsert + DELETE bei null
+- [x] Zod-Validierung: 400 bei ungültiger UUID, kw_number=0/54, negativem Betrag
+
+### Bugs gefunden
+
+Keine Critical oder High Bugs. Keine Bugs.
+
+### Security Audit
+
+- [x] Auth-Guard auf allen API-Routen (`requireAuth()`)
+- [x] RLS: Nutzer sieht nur eigene `produktinvestitions_planung`-Einträge
+- [x] Zod-Validierung verhindert ungültige Eingaben (UUID, Integer-Bereiche, Betrag ≥ 0)
+- [x] Keine sensiblen Daten in Browser-Konsole oder API-Responses
+- [x] ON DELETE CASCADE: keine verwaisten Einträge bei Kategorien-/User-Löschung
+
+### Regression Testing
+
+- [x] Operative Planung-Seite weiterhin erreichbar (kein 404)
+- [x] Einnahmenplanung-Seite weiterhin erreichbar (kein 404)
+- [x] Absatzplanung-Seite weiterhin erreichbar (kein 404)
+- [x] Grundeinstellungen-Seite weiterhin erreichbar (kein 404)
+- [x] Kurzfristige Planung Landing-Seite leitet unauthentifizierte Nutzer korrekt weiter
+
+### Test-Dateien
+
+- `src/app/api/produktinvestitions-planung/route.test.ts` — 14 API-Integrationstests ✅
+- `src/hooks/use-produktinvestitionsplanung.test.ts` — 29 Hook-Unit-Tests ✅
+- `tests/PROJ-57-produktinvestitionsplanung.spec.ts` — 14 E2E-Tests (Playwright) ✅
+
+### Produktionsbereitschaft
+
+**READY** — Keine Critical oder High Bugs. 57/57 automatisierte Tests bestehen. Feature entspricht allen Acceptance Criteria der Spec.
 
 ## Deployment
 _To be added by /deploy_
