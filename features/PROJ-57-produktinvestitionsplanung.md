@@ -168,7 +168,123 @@ Es gibt **keine historische Vorbelegung** und **keine Massen-Anpassung** — all
 <!-- Sections below are added by subsequent skills -->
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Komponentenstruktur
+
+```
+/dashboard/kurzfristige-planung/produktinvestitionsplanung  (NEUE Seite)
++-- Page-Header (Seitentitel „Produktinvestitionsplanung")
++-- ProduktinvestitionsPlanungTabelle  (NEUE Hauptkomponente — Client Component)
+    +-- Leer-Zustand (wenn kein „Produktinvestitionen"-Knoten oder keine Kinder im KPI-Modell)
+    +-- Scroll-Container (overflow-x: auto)
+    |   +-- <table>
+    |       +-- <thead>  (sticky top)
+    |       |   +-- KW-Header-Zeile: [Label-Spalte sticky left] | [KW24/2026] | [KW25/2026] | ...
+    |       +-- <tbody>  (flache Zeilen-Liste)
+    |           +-- Gesamt-Zeile „Produktinvestitionen (Gesamt)" — immer sichtbar, nicht editierbar
+    |           +-- [Pro L1-Gruppe]
+    |               +-- Kategorie-Header-Zeile (einklappbar, Auf-/Zuklapp-Icon)
+    |               +-- [wenn ausgeklappt + hat L2-Untergruppen]:
+    |               |   +-- Aggregations-Zeile (Summe der L2-Zeilen, nicht editierbar)
+    |               |   +-- Pro L2-Untergruppe: editierbare Zeile (eingerückt)
+    |               +-- [wenn ausgeklappt + keine Untergruppen]:
+    |                   +-- L1-Gruppe selbst: editierbare Zeile (Leaf)
+    +-- BetragsselektionPanel  (fixed rechts unten — erscheint bei Selektion)
+
+/dashboard/kurzfristige-planung  (bestehende Seite — geändert)
++-- Kachelraster → Abschnitt „Planung"
+    +-- Kachel „Produktinvestitionsplanung" (NEU) → /dashboard/kurzfristige-planung/produktinvestitionsplanung
+```
+
+### Datenmodell
+
+**Neue Tabelle `produktinvestitions_planung`** — identisches Schema wie `operative_planung`:
+
+| Feld | Typ | Beschreibung |
+|---|---|---|
+| `id` | UUID | Primärschlüssel |
+| `user_id` | UUID FK → auth.users | Dateneigentümer — ON DELETE CASCADE |
+| `kategorie_id` | UUID FK → kpi_categories | Produktinvestitionskategorie (Leaf-Ebene) — ON DELETE CASCADE |
+| `kw_year` | INTEGER | Jahr der Kalenderwoche (z. B. 2026) |
+| `kw_number` | INTEGER | ISO-Kalenderwoche (1–53) |
+| `betrag_manuell` | NUMERIC(12,2) nullable | Eingegebener Betrag in €; NULL = Zelle leer |
+
+UNIQUE-Constraint: `(user_id, kategorie_id, kw_year, kw_number)`.
+Kein Datensatz = leere Zelle. Kein historischer Fallback.
+
+### Zeilen-Typen (flaches Array)
+
+Identisches Muster wie Operative Planung (PROJ-56):
+
+| Typ | Editierbar | Beschreibung |
+|---|---|---|
+| `total` | Nein | „Produktinvestitionen (Gesamt)" — Summe aller Leaf-Zeilen |
+| `category-header` | Nein | L1-Gruppe — Sektion mit Auf-/Zuklapp-Icon |
+| `category-sum` | Nein | Aggregat-Zeile einer L1-Gruppe mit Kindern |
+| `leaf` | Ja | Editierbare Zeile (L1 ohne Kinder oder L2) |
+
+### Datenfluss
+
+```
+Seite öffnet sich
+  → Hook lädt PARALLEL:
+    ① GET /api/grundeinstellungen                → planungshorizont_wochen (N)
+    ② GET /api/kpi-categories?type=ausgaben_kosten → alle Kategorien; Filter: Subtree unter „Produktinvestitionen"-Knoten
+    ③ GET /api/produktinvestitions-planung        → alle manuellen Einträge des Nutzers
+
+  → Frontend filtert: Kategorien deren parent_id auf den „Produktinvestitionen"-Knoten zeigt (L1)
+    + deren Kinder (L2) — analog zur Kategorien-Auflösung in PROJ-56
+  → Frontend berechnet anzuzeigende Wochen:
+    Erste KW = ISO-Woche(heute) + 1 | Letzte KW = Erste KW + N − 1
+  → Flaches Zeilen-Array: total → category-header (L1) → [category-sum + leafs (L2)] oder [leaf (L1)]
+  → Merge pro Zelle: Eintrag in valueMap vorhanden → betrag_manuell; kein Eintrag → leer
+  → Aggregation (frontend-seitig, reaktiv):
+    category-sum KWn = Σ betrag_manuell aller L2-Kinder (NULL → 0)
+    total KWn        = Σ betrag_manuell aller Leafs gesamt (NULL → 0)
+  → Neuwoche-Prüfung: letzte KW ohne Einträge in valueMap → isNewWeek = true → rote Spaltenmarkierung
+
+Nutzer bearbeitet Zelle (onBlur)
+  → Optimistisches Update im lokalen State
+  → Feld geleert → PUT /api/produktinvestitions-planung mit betrag_manuell: null (→ Eintrag gelöscht)
+  → Feld mit Wert → PUT /api/produktinvestitions-planung mit betrag_manuell: <Wert>
+  → Erfolg: valueMap aktualisiert | Fehler: Rollback + Toast
+
+Notizen (PROJ-53)
+  → Bestehender planung_notizen-Mechanismus
+  → kontext = 'produktinvestitions_planung', zellenKey = '{kategorie_id}_{kw_year}_{kw_number}'
+```
+
+### API-Endpunkte
+
+| Methode | Route | Zweck |
+|---|---|---|
+| `GET` | `/api/produktinvestitions-planung` | Alle Einträge des Nutzers (kein KW-Filter, max 2000) |
+| `PUT` | `/api/produktinvestitions-planung` | Upsert einer Zelle; `betrag_manuell: null` → Eintrag löschen |
+
+### Neue Dateien
+
+| Datei | Vorlage | Zweck |
+|---|---|---|
+| `src/app/dashboard/kurzfristige-planung/produktinvestitionsplanung/page.tsx` | `operative-planung/page.tsx` | Neue Seite — Client Component mit NavSheet, LogoutButton, Toaster |
+| `src/components/produktinvestitionsplanung-tabelle.tsx` | `operativeplanung-tabelle.tsx` | Hauptkomponente: flaches Zeilen-Array, Expand/Collapse, Inline-Edit, Betragsselektion, Notizen, rote Neuwoche-Markierung |
+| `src/hooks/use-produktinvestitionsplanung.ts` | `use-operativeplanung.ts` | Zentraler State: Kategorien laden + „Produktinvestitionen"-Filter, valueMap, Wochenberechnung, upsertZelle |
+| `src/app/api/produktinvestitions-planung/route.ts` | `operative-planung/route.ts` | GET (alle Werte), PUT (Upsert / Löschen bei null) |
+
+### Geänderte Dateien
+
+| Datei | Änderung |
+|---|---|
+| `src/components/nav-sheet.tsx` | Eintrag „Produktinvestitionsplanung" in der Navigationsgruppe „Planung" |
+| `src/app/dashboard/kurzfristige-planung/page.tsx` | Kachel „Produktinvestitionsplanung" im Abschnitt „Planung" |
+
+### Tech-Entscheidungen
+
+| Entscheidung | Gewählt | Warum |
+|---|---|---|
+| Direkte Adaption von PROJ-56 | Alle 4 Dateien aus Operativer Planung ableiten | Identisches Muster; nur KPI-Knotenname, Tabellen-/Routenname und Texte müssen ersetzt werden — keine neue Architektur nötig |
+| KPI-Knoten-Filter: client-seitig | „Produktinvestitionen"-Knoten-Suche im Frontend | Bestehende KPI-Categories-API gibt alle Kategorien zurück; Client-Filter bereits in PROJ-55 und PROJ-56 bewährt |
+| Kategorien-Typ: ausgaben_kosten | Wie Operativ (PROJ-56) | Produktinvestitionen liegen im KPI-Modell als `ausgaben_kosten`-Kategorie vor |
+| Keine neuen Packages | Keine | date-fns, shadcn/ui Table, Input, Tooltip — alle bereits vorhanden |
 
 ## QA Test Results
 _To be added by /qa_

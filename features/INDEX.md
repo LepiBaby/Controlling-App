@@ -78,7 +78,7 @@
 | PROJ-54 | Marketing-Planung — Kurzfristige Planung | Approved | [PROJ-54-marketingplanung.md](PROJ-54-marketingplanung.md) | 2026-06-04 |
 | PROJ-55 | Operative Fixkosten-Einstellungen — Kurzfristige Planung | Approved | [PROJ-55-operative-fixkosten-einstellungen.md](PROJ-55-operative-fixkosten-einstellungen.md) | 2026-06-04 |
 | PROJ-56 | Operative Planung — Kurzfristige Planung | Approved | [PROJ-56-operative-planung.md](PROJ-56-operative-planung.md) | 2026-06-04 |
-| PROJ-57 | Produktinvestitionsplanung — Kurzfristige Planung | Planned | [PROJ-57-produktinvestitionsplanung.md](PROJ-57-produktinvestitionsplanung.md) | 2026-06-04 |
+| PROJ-57 | Produktinvestitionsplanung — Kurzfristige Planung | Architected | [PROJ-57-produktinvestitionsplanung.md](PROJ-57-produktinvestitionsplanung.md) | 2026-06-04 |
 
 <!-- Add features above this line -->
 
