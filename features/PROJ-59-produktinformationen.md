@@ -2,7 +2,7 @@
 
 ## Status: In Progress
 **Created:** 2026-06-04
-**Last Updated:** 2026-06-04 (Frontend)
+**Last Updated:** 2026-06-04 (Backend)
 
 ## Dependencies
 - Requires: PROJ-1 (Authentifizierung) — nur eingeloggte Nutzer
@@ -675,6 +675,44 @@ Alle Routen: `requireAuth()` + Zod-Validierung der Eingaben.
 
 ### Build
 - `npm run build` ✅ — Route `/dashboard/kurzfristige-planung/produktinformationen` korrekt in der Build-Ausgabe, keine TypeScript-Fehler
+
+## Implementation Notes (Backend)
+
+### Supabase Migration
+Alle 11 Tabellen in einer Migration `proj_59_produktinformationen` erstellt:
+- `produktinformationen_hersteller` — Hersteller-Stammdaten mit `UNIQUE(user_id, name)`
+- `produktinformationen_hersteller_zuordnung` — Hersteller→Produkt-Zuordnung mit `UNIQUE(user_id, produkt_id)`
+- `produktinformationen_moq` — MOQ auf Produktebene mit enum-Check `('produkt', 'sku')`
+- `produktinformationen_moq_sku` — MOQ auf SKU-Ebene
+- `produktinformationen_container_global` — Globale Containervolumen mit `UNIQUE(user_id)`
+- `produktinformationen_containerkapazitaet` — Paketmaße je Produkt
+- `produktinformationen_lieferzeit` — Lieferzeiten je Produkt
+- `produktinformationen_zahlungskonditionen` — Zahlungskonditionen je Produkt
+- `produktinformationen_kosten_global` — Globale Kosten-Stammdaten mit `UNIQUE(user_id)`
+- `produktinformationen_produktkosten` — Warenkosten & Zollsatz je Produkt
+- `produktinformationen_bestandsverwaltung` — Sicherheitsbestand & Zielreichweite je Produkt
+
+Alle Tabellen: RLS aktiviert, ALL-Policy `auth.uid() = user_id`, Indexes auf `user_id` und `produkt_id`/`sku_id`.
+
+### API Routes (11 Routen)
+Alle unter `src/app/api/produktinformationen/`:
+- `hersteller/` — GET (Liste), POST (Erstellen, 409 bei Duplikat)
+- `hersteller-zuordnung/` — GET, PUT (Upsert, `hersteller_id` nullable)
+- `moq/` — GET, PUT (Upsert, `ebene` enum validation)
+- `moq-sku/` — GET, PUT (Upsert)
+- `container-global/` — GET (`maybeSingle`), PUT (Upsert `onConflict: user_id`)
+- `containerkapazitaet/` — GET, PUT (Upsert)
+- `lieferzeit/` — GET, PUT (Upsert)
+- `zahlungskonditionen/` — GET, PUT (Upsert)
+- `kosten-global/` — GET (`maybeSingle`), PUT (Upsert `onConflict: user_id`)
+- `produktkosten/` — GET, PUT (Upsert)
+- `bestandsverwaltung/` — GET, PUT (Upsert)
+
+Pattern: `requireAuth()` → `{ user, supabase, error }`, Zod-Validierung, Upsert mit `onConflict`.
+
+### Tests
+- 11 Testdateien, 84 Tests — alle bestanden ✅
+- Happy path, Validation (400), Auth (401), DB-Fehler (500) je Route
 
 ## QA Test Results
 _To be added by /qa_
