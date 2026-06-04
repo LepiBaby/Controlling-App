@@ -107,6 +107,15 @@ export default function KurzfristigePlanungPage() {
                   Planungshorizont und weitere allgemeine Parameter der kurzfristigen Planung konfigurieren
                 </p>
               </a>
+              <a
+                href="/dashboard/kurzfristige-planung/operative-fixkosten-einstellungen"
+                className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+              >
+                <p className="font-medium">Operative Fixkosten-Einstellungen</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Wiederkehrende operative Fixkosten mit Frequenz und Fälligkeitsmonaten pflegen
+                </p>
+              </a>
             </div>
           </div>
 
@@ -122,6 +131,42 @@ export default function KurzfristigePlanungPage() {
                 <p className="font-medium">Absatzplanung</p>
                 <p className="text-sm text-muted-foreground mt-1">
                   Absatz und effektiven VK je Plattform &amp; Produkt für den Planungshorizont planen
+                </p>
+              </a>
+              <a
+                href="/dashboard/kurzfristige-planung/einnahmenplanung"
+                className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+              >
+                <p className="font-medium">Einnahmenplanung</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Sonstige Einnahmen je Kategorie für den Planungshorizont manuell erfassen
+                </p>
+              </a>
+              <a
+                href="/dashboard/kurzfristige-planung/marketingplanung"
+                className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+              >
+                <p className="font-medium">Marketing-Planung</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Marketingkosten % je Plattform &amp; Produkt für den Planungshorizont planen
+                </p>
+              </a>
+              <a
+                href="/dashboard/kurzfristige-planung/operative-planung"
+                className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+              >
+                <p className="font-medium">Operative Planung</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Operative Kosten je Kategorie für den Planungshorizont manuell erfassen
+                </p>
+              </a>
+              <a
+                href="/dashboard/kurzfristige-planung/produktinvestitionsplanung"
+                className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+              >
+                <p className="font-medium">Produktinvestitionsplanung</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Produktinvestitionen je Kategorie für den Planungshorizont manuell erfassen
                 </p>
               </a>
             </div>

@@ -62,12 +62,17 @@ const KURZFRISTIGE_PLANUNG_NAV_GROUPS = [
       { href: '/dashboard/kurzfristige-planung/ersatzteile-kulanz-einstellungen', label: 'Ersatzteile/Kulanz-Einstellungen' },
       { href: '/dashboard/kurzfristige-planung/marketing-einstellungen', label: 'Marketing-Einstellungen' },
       { href: '/dashboard/kurzfristige-planung/grundeinstellungen', label: 'Grundeinstellungen' },
+      { href: '/dashboard/kurzfristige-planung/operative-fixkosten-einstellungen', label: 'Operative Fixkosten-Einstellungen' },
     ],
   },
   {
     label: 'Planung',
     items: [
       { href: '/dashboard/kurzfristige-planung/absatzplanung', label: 'Absatzplanung' },
+      { href: '/dashboard/kurzfristige-planung/einnahmenplanung', label: 'Einnahmenplanung' },
+      { href: '/dashboard/kurzfristige-planung/marketingplanung', label: 'Marketing-Planung' },
+      { href: '/dashboard/kurzfristige-planung/operative-planung', label: 'Operative Planung' },
+      { href: '/dashboard/kurzfristige-planung/produktinvestitionsplanung', label: 'Produktinvestitionsplanung' },
     ],
   },
 ]

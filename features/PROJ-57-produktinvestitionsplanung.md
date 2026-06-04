@@ -286,6 +286,20 @@ Notizen (PROJ-53)
 | Kategorien-Typ: ausgaben_kosten | Wie Operativ (PROJ-56) | Produktinvestitionen liegen im KPI-Modell als `ausgaben_kosten`-Kategorie vor |
 | Keine neuen Packages | Keine | date-fns, shadcn/ui Table, Input, Tooltip — alle bereits vorhanden |
 
+## Implementation Notes (Frontend — 2026-06-04)
+
+### Neue Dateien
+- `src/hooks/use-produktinvestitionsplanung.ts` — Hook analog zu `use-operativeplanung.ts`; filtert auf „Produktinvestitionen"-Subtree (case-insensitiv), lädt von `/api/produktinvestitions-planung`, `isNewWeek`-Erkennung, `getWert`, `upsertZelle` mit optimistischem Update + Rollback
+- `src/components/produktinvestitionsplanung-tabelle.tsx` — Hauptkomponente analog zu `operativeplanung-tabelle.tsx`: flaches Zeilen-Array (total / category-header / leaf), Expand/Collapse, Inline-Editing, Betragsselektion, Notizen-Integration (`kontext='produktinvestitions_planung'`), rote Neuwoche-Markierung
+- `src/app/dashboard/kurzfristige-planung/produktinvestitionsplanung/page.tsx` — Client Component, Header + ProduktinvestitionsPlanungTabelle + Toaster
+
+### Geänderte Dateien
+- `src/components/nav-sheet.tsx` — Eintrag „Produktinvestitionsplanung" in der Gruppe „Planung"
+- `src/app/dashboard/kurzfristige-planung/page.tsx` — Kachel „Produktinvestitionsplanung" im Abschnitt „Planung"
+
+### Build
+- `npm run build` ✅ — Route `/dashboard/kurzfristige-planung/produktinvestitionsplanung` korrekt in Build-Ausgabe
+
 ## QA Test Results
 _To be added by /qa_
 
