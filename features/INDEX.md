@@ -73,8 +73,13 @@
 | PROJ-49 | Marketing-Einstellungen — Kurzfristige Planung | Approved | [PROJ-49-marketing-einstellungen.md](PROJ-49-marketing-einstellungen.md) | 2026-06-02 |
 | PROJ-50 | Grundeinstellungen — Kurzfristige Planung | In Review | [PROJ-50-grundeinstellungen.md](PROJ-50-grundeinstellungen.md) | 2026-06-03 |
 | PROJ-51 | Absatzplanung — Kurzfristige Planung | Approved | [PROJ-51-absatzplanung.md](PROJ-51-absatzplanung.md) | 2026-06-03 |
-| PROJ-52 | Einnahmenplanung — Kurzfristige Planung | In Progress | [PROJ-52-einnahmenplanung.md](PROJ-52-einnahmenplanung.md) | 2026-06-04 |
+| PROJ-52 | Einnahmenplanung — Kurzfristige Planung | Approved | [PROJ-52-einnahmenplanung.md](PROJ-52-einnahmenplanung.md) | 2026-06-04 |
+| PROJ-53 | Zellen-Notizen in der Kurzfristigen Planung | Approved | [PROJ-53-zellen-notizen-planung.md](PROJ-53-zellen-notizen-planung.md) | 2026-06-04 |
+| PROJ-54 | Marketing-Planung — Kurzfristige Planung | Approved | [PROJ-54-marketingplanung.md](PROJ-54-marketingplanung.md) | 2026-06-04 |
+| PROJ-55 | Operative Fixkosten-Einstellungen — Kurzfristige Planung | Approved | [PROJ-55-operative-fixkosten-einstellungen.md](PROJ-55-operative-fixkosten-einstellungen.md) | 2026-06-04 |
+| PROJ-56 | Operative Planung — Kurzfristige Planung | Approved | [PROJ-56-operative-planung.md](PROJ-56-operative-planung.md) | 2026-06-04 |
+| PROJ-57 | Produktinvestitionsplanung — Kurzfristige Planung | Planned | [PROJ-57-produktinvestitionsplanung.md](PROJ-57-produktinvestitionsplanung.md) | 2026-06-04 |
 
 <!-- Add features above this line -->
 
-## Next Available ID: PROJ-53
+## Next Available ID: PROJ-58
