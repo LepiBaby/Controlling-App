@@ -187,6 +187,15 @@ export default function KurzfristigePlanungPage() {
                   Produktinvestitionen je Kategorie für den Planungshorizont manuell erfassen
                 </p>
               </a>
+              <a
+                href="/dashboard/kurzfristige-planung/bestellplanung"
+                className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+              >
+                <p className="font-medium">Bestellplanung</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Planbestellungen via Algorithmus generieren, laufende Bestellungen verwalten und abgeschlossene Bestellungen einsehen
+                </p>
+              </a>
             </div>
           </div>
         </div>

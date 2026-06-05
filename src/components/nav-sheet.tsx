@@ -75,6 +75,7 @@ const KURZFRISTIGE_PLANUNG_NAV_GROUPS = [
       { href: '/dashboard/kurzfristige-planung/marketingplanung', label: 'Marketing-Planung' },
       { href: '/dashboard/kurzfristige-planung/operative-planung', label: 'Operative Planung' },
       { href: '/dashboard/kurzfristige-planung/produktinvestitionsplanung', label: 'Produktinvestitionsplanung' },
+      { href: '/dashboard/kurzfristige-planung/bestellplanung', label: 'Bestellplanung' },
     ],
   },
 ]

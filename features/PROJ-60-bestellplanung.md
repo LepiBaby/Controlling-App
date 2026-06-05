@@ -1,8 +1,18 @@
 # PROJ-60: Bestellplanung — Kurzfristige Planung
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-06-05
 **Last Updated:** 2026-06-05
+
+## Implementation Notes (Backend)
+- **DB Migration applied**: 4 tables — `bestellungen`, `bestellungen_produkte`, `bestellungen_sku_mengen`, `bestellungen_konsolidierungen` — all with RLS enabled
+- **Algorithm**: `src/lib/planbestelllauf-algorithmus.ts` — pure TypeScript, no DB access; KW-arithmetic, Meldebestand, MOQ, container optimization, consolidation check
+- **API Routes**:
+  - `GET/POST /api/bestellplanung/bestellungen?status=` — list and create bestellungen
+  - `GET/PUT/DELETE /api/bestellplanung/bestellungen/[id]` — single bestellung CRUD
+  - `POST /api/bestellplanung/planbestelllauf` — runs algorithm, collects all required data from 10+ DB tables
+  - `POST /api/bestellplanung/planbestelllauf/anwenden` — applies accepted changes + creates new plan bestellungen
+- **Tests**: 20 unit tests passing for bestellungen routes
 
 ## Dependencies
 - Requires: PROJ-1 (Authentifizierung) — nur eingeloggte Nutzer
