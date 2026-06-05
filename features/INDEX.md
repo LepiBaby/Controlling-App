@@ -80,7 +80,7 @@
 | PROJ-56 | Operative Planung — Kurzfristige Planung | Approved | [PROJ-56-operative-planung.md](PROJ-56-operative-planung.md) | 2026-06-04 |
 | PROJ-57 | Produktinvestitionsplanung — Kurzfristige Planung | Approved | [PROJ-57-produktinvestitionsplanung.md](PROJ-57-produktinvestitionsplanung.md) | 2026-06-04 |
 | PROJ-58 | Finanzierungseinstellungen — Kurzfristige Planung | Approved | [PROJ-58-finanzierungseinstellungen.md](PROJ-58-finanzierungseinstellungen.md) | 2026-06-04 |
-| PROJ-59 | Produktinformationen — Kurzfristige Planung | In Progress | [PROJ-59-produktinformationen.md](PROJ-59-produktinformationen.md) | 2026-06-04 |
+| PROJ-59 | Produktinformationen — Kurzfristige Planung | Approved | [PROJ-59-produktinformationen.md](PROJ-59-produktinformationen.md) | 2026-06-04 |
 
 <!-- Add features above this line -->
 

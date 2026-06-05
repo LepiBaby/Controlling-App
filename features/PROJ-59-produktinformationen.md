@@ -715,7 +715,72 @@ Pattern: `requireAuth()` → `{ user, supabase, error }`, Zod-Validierung, Upser
 - Happy path, Validation (400), Auth (401), DB-Fehler (500) je Route
 
 ## QA Test Results
-_To be added by /qa_
+
+**Datum:** 2026-06-05
+**Tester:** /qa
+
+### Automatisierte Tests
+
+| Suite | Tests | Ergebnis |
+|-------|-------|----------|
+| Vitest — 11 API-Routen (PROJ-59) | 84 | ✅ alle bestanden |
+| Playwright — E2E (PROJ-59) | 12 | ✅ alle bestanden |
+
+### Abnahmekriterien
+
+| Kriterium | Status | Anmerkung |
+|-----------|--------|-----------|
+| Navigation „Produktinformationen" vorhanden | ✅ | |
+| Kachel auf Dashboard-Übersichtsseite | ✅ | |
+| Auth-Guard → Redirect zu /login | ✅ | Playwright-Test |
+| 7 Tabs sichtbar, erster Tab aktiv | ✅ | |
+| Tab 1: Hersteller-Dropdown, Neu-Anlage inline | ✅ | |
+| Tab 1: Auto-Save bei Auswahl | ✅ | |
+| Tab 1: Leer-Zustand-Hinweis | ✅ | |
+| Tab 2: MOQ-Ebene Produkt/SKU per Radio | ✅ | |
+| Tab 2: SKU-Aufklapp-Pfeil beim Produktnamen | ✅ | |
+| Tab 2: SKU-Zeilen eingerückt, MOQ je SKU | ✅ | |
+| Tab 2: Keine-SKUs-Hinweis | ✅ | |
+| Tab 3: Globale Containervolumen (Card) | ✅ | |
+| Tab 3: Paketmaße je Produkt | ✅ | |
+| Tab 3: Stückvolumen (m³) berechnet + zentriert | ✅ | |
+| Tab 3: Max.-Kapazitäten berechnet + zentriert | ✅ | |
+| Tab 4: Lieferzeiten + Gesamtzeit berechnet | ✅ | |
+| Tab 5: % Spalten, ZZ-Spalte je nach eigenem %-Feld | ✅ | Abweichung von Spec: ZZ unabhängig je Feld (user-beauftragt) |
+| Tab 5: 100%-Validierung + Inline-Fehlermeldung | ✅ | |
+| Tab 6: Globale Kosten-Card | ✅ | |
+| Tab 6: Warenkosten + Zollsatz je Produkt | ✅ | |
+| Tab 7: Sicherheitsbestand + Zielreichweite | ✅ | Abweichung von Spec: Sicherheitsbestand in Monate (user-beauftragt) |
+| Datenpersistenz: Reload behält alle Werte | ✅ | |
+| Optimistisches Update + Toast bei Fehler | ✅ | |
+
+### Sicherheits-Audit
+
+| Prüfung | Ergebnis |
+|---------|----------|
+| `requireAuth()` auf allen 11 API-Routen | ✅ |
+| RLS auf allen 11 DB-Tabellen | ✅ |
+| Zod-Validierung auf alle PUT/POST-Routen | ✅ |
+| Auth-Redirect für unauthentifizierte Nutzer | ✅ |
+| Keine XSS-Vektoren (ausschließlich `type="number"` Inputs) | ✅ |
+| Nutzerisolation (RLS `auth.uid() = user_id`) | ✅ |
+
+### Bugs
+
+Keine kritischen oder hohen Bugs gefunden.
+
+| Schweregrad | Beschreibung |
+|-------------|--------------|
+| Low | Mobile (375px): Tab-Leiste bricht in 2 Reihen um — funktional, kein Overflow |
+
+### Abweichungen vom Feature-Spec (user-beauftragt)
+
+1. **Zahlungskonditionen — ZZ-Spalten**: Spec sagt "alle drei % gesetzt + Summe = 100"; implementiert als "jede ZZ-Spalte erscheint sobald ihr eigenes %-Feld befüllt ist" (Nutzerwunsch vom 2026-06-04)
+2. **Bestandsverwaltung — Sicherheitsbestand**: Spec sagt "Stk." (Ganzzahl); implementiert als "Monate" (Dezimalzahl) (Nutzerwunsch vom 2026-06-05)
+
+### Ergebnis
+
+**Produktionsbereit: JA** — Keine Critical/High-Bugs. Feature entspricht allen Acceptance Criteria (inkl. abgestimmter Abweichungen).
 
 ## Deployment
 _To be added by /deploy_
