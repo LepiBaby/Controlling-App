@@ -1,4 +1,6 @@
 import type { createSupabaseServerClient } from '@/lib/supabase-server'
+import { generiereBestellkosten } from '@/lib/bestellkosten-generierung'
+import type { BestellungDaten, ProduktKosten, Zahlungskonditionen, KostenGlobal, KpiKategorie } from '@/lib/bestellkosten-generierung'
 
 type SupabaseClient = Awaited<ReturnType<typeof createSupabaseServerClient>>
 
@@ -174,4 +176,160 @@ export async function enrichBestellungen(
     konsolidierungspartner: partnerByBestId.get(b.id) ?? [],
     container_anteil: containerAnteilByBestId.get(b.id) ?? null,
   }))
+}
+
+// ─── Bestellkosten-Generierung ────────────────────────────────────────────────
+
+interface BestellungForKosten {
+  id: string
+  bestelldatum: string | null
+  produktionsende_datum: string | null
+  shippingdatum: string | null
+  ankunftsdatum: string | null
+  verfuegbarkeitsdatum: string | null
+  anzahl_40hq: number
+  anzahl_20dc: number
+  produkt_ids: string[]
+  sku_mengen: Array<{ sku_id: string; menge_praktisch: number; produkt_id?: string }>
+}
+
+export async function generiereUndSpeichereBestellkosten(
+  supabase: SupabaseClient,
+  userId: string,
+  bestellungen: BestellungForKosten[],
+): Promise<void> {
+  if (bestellungen.length === 0) return
+
+  const allProduktIds = [...new Set(bestellungen.flatMap(b => b.produkt_ids))]
+  if (allProduktIds.length === 0) return
+
+  // Load all stammdaten in parallel
+  const [pkRes, zkRes, kgRes, catRes] = await Promise.all([
+    supabase
+      .from('produktinformationen_produktkosten')
+      .select('produkt_id, warenkosten, zollsatz_prozent')
+      .eq('user_id', userId)
+      .in('produkt_id', allProduktIds),
+    supabase
+      .from('produktinformationen_zahlungskonditionen')
+      .select('produkt_id, vor_produktion_prozent, nach_produktion_prozent, nach_ankunft_prozent, zahlungsziel_vor_produktion_tage, zahlungsziel_nach_produktion_tage, zahlungsziel_nach_ankunft_tage')
+      .eq('user_id', userId)
+      .in('produkt_id', allProduktIds),
+    supabase
+      .from('produktinformationen_kosten_global')
+      .select('shipping_kosten_20dc, shipping_kosten_40hq, shipping_zahlungsziel_tage, inspektion_kosten_20dc, inspektion_kosten_40hq, inspektion_zahlungsziel_tage, einlagerung_kosten_20dc, einlagerung_kosten_40hq, einlagerung_zahlungsziel_tage, zoll_zahlungsziel_tage')
+      .eq('user_id', userId)
+      .maybeSingle(),
+    // Find "Produkt" parent category and its children
+    supabase
+      .from('kpi_categories')
+      .select('id, name, parent_id, level')
+      .eq('user_id', userId)
+      .in('level', [1, 2]),
+  ])
+
+  const produktkostenListe: ProduktKosten[] = (pkRes.data ?? []) as ProduktKosten[]
+  const zahlungskonditionenListe: Zahlungskonditionen[] = (zkRes.data ?? []) as Zahlungskonditionen[]
+  const kostenGlobal: KostenGlobal | null = kgRes.data as KostenGlobal | null
+
+  // Find "Produkt" parent and its direct children (Unterkategorien)
+  const allCats = (catRes.data ?? []) as Array<{ id: string; name: string; parent_id: string | null; level: number }>
+  const produktParent = allCats.find(c => c.level === 1 && c.name.toLowerCase().trim() === 'produkt')
+  const produktUnterkategorien: KpiKategorie[] = produktParent
+    ? allCats.filter(c => c.parent_id === produktParent.id)
+    : []
+
+  // Build sku → produkt_id map from bestellungen_produkte + bestellungen_sku_mengen
+  // We need to know which SKU belongs to which product for multi-product orders
+  const allBestellungIds = bestellungen.map(b => b.id)
+  const { data: skuMengenRows } = await supabase
+    .from('bestellungen_sku_mengen')
+    .select('bestellung_id, sku_id, menge_praktisch')
+    .in('bestellung_id', allBestellungIds)
+
+  const { data: produkteRows } = await supabase
+    .from('bestellungen_produkte')
+    .select('bestellung_id, produkt_id')
+    .in('bestellung_id', allBestellungIds)
+
+  // Build: bestellung_id → [{ produkt_id, sku_ids }]
+  // We need to map skus to their parent product
+  const { data: skuCats } = await supabase
+    .from('kpi_categories')
+    .select('id, parent_id')
+    .in('id', (skuMengenRows ?? []).map((s: { sku_id: string }) => s.sku_id))
+
+  const skuParentMap = new Map<string, string>()
+  for (const c of (skuCats ?? []) as Array<{ id: string; parent_id: string | null }>) {
+    if (c.parent_id) skuParentMap.set(c.id, c.parent_id)
+  }
+
+  // Generate and insert costs for each bestellung
+  const allInserts: Array<{
+    bestellung_id: string
+    user_id: string
+    kpi_kategorie_id: string | null
+    datum: string
+    nettobetrag: number
+    begruendung: string
+    ist_automatisch: boolean
+  }> = []
+
+  for (const b of bestellungen) {
+    // Build per-product sku_mengen
+    const bestSkuMengen = (skuMengenRows ?? []).filter((s: { bestellung_id: string }) => s.bestellung_id === b.id) as Array<{ sku_id: string; menge_praktisch: number }>
+    const bestProduktIds = (produkteRows ?? [])
+      .filter((p: { bestellung_id: string }) => p.bestellung_id === b.id)
+      .map((p: { produkt_id: string }) => p.produkt_id)
+
+    // Group SKUs by their parent product
+    const produktSkuMap = new Map<string, Array<{ menge_praktisch: number }>>()
+    for (const pid of bestProduktIds) {
+      produktSkuMap.set(pid, [])
+    }
+    for (const sm of bestSkuMengen) {
+      const parentId = skuParentMap.get(sm.sku_id)
+      if (parentId && produktSkuMap.has(parentId)) {
+        produktSkuMap.get(parentId)!.push({ menge_praktisch: sm.menge_praktisch })
+      }
+    }
+
+    const bestellungDaten: BestellungDaten = {
+      bestelldatum: b.bestelldatum,
+      produktionsende_datum: b.produktionsende_datum,
+      shippingdatum: b.shippingdatum,
+      ankunftsdatum: b.ankunftsdatum,
+      verfuegbarkeitsdatum: b.verfuegbarkeitsdatum,
+      anzahl_40hq: b.anzahl_40hq,
+      anzahl_20dc: b.anzahl_20dc,
+      produkte: bestProduktIds.map(pid => ({
+        produkt_id: pid,
+        sku_mengen: produktSkuMap.get(pid) ?? [],
+      })),
+    }
+
+    const generierte = generiereBestellkosten(
+      bestellungDaten,
+      produktkostenListe.filter(pk => bestProduktIds.includes(pk.produkt_id)),
+      zahlungskonditionenListe.filter(zk => bestProduktIds.includes(zk.produkt_id)),
+      kostenGlobal,
+      produktUnterkategorien,
+    )
+
+    for (const eintrag of generierte) {
+      allInserts.push({
+        bestellung_id: b.id,
+        user_id: userId,
+        kpi_kategorie_id: eintrag.kpi_kategorie_id,
+        datum: eintrag.datum,
+        nettobetrag: eintrag.nettobetrag,
+        begruendung: eintrag.begruendung,
+        ist_automatisch: true,
+      })
+    }
+  }
+
+  if (allInserts.length > 0) {
+    await supabase.from('bestellungen_kosten').insert(allInserts)
+  }
 }

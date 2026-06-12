@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/supabase-server'
-import { enrichBestellungen } from '../_utils'
+import { enrichBestellungen, generiereUndSpeichereBestellkosten } from '../_utils'
 
 const STATUS_VALUES = ['plan', 'laufend', 'abgeschlossen'] as const
 
@@ -110,6 +110,22 @@ export async function POST(request: Request) {
         begruendung_anpassung: sm.begruendung_anpassung ?? null,
       }))
     )
+  }
+
+  // Auto-generate Bestellkosten for new plan orders
+  if (d.status === 'plan') {
+    await generiereUndSpeichereBestellkosten(supabase, user!.id, [{
+      id: bid,
+      bestelldatum: d.bestelldatum ?? null,
+      produktionsende_datum: d.produktionsende_datum ?? null,
+      shippingdatum: d.shippingdatum ?? null,
+      ankunftsdatum: d.ankunftsdatum ?? null,
+      verfuegbarkeitsdatum: d.verfuegbarkeitsdatum ?? null,
+      anzahl_40hq: d.anzahl_40hq,
+      anzahl_20dc: d.anzahl_20dc,
+      produkt_ids: d.produkt_ids,
+      sku_mengen: d.sku_mengen.map(sm => ({ sku_id: sm.sku_id, menge_praktisch: sm.menge_praktisch })),
+    }])
   }
 
   const [enriched] = await enrichBestellungen(supabase, [bestellung])
