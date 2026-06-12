@@ -27,15 +27,15 @@ const baseBestellung: BestellungDaten = {
 }
 
 const baseProduktkosten: ProduktKosten[] = [
-  { produkt_id: 'p-1', warenkosten: 10.00, zollsatz_prozent: 8 },
+  { produkt_id: 'p-1', warenkosten: 10.00, zollsatz_pct: 8 },
 ]
 
 const baseZahlungskonditionen: Zahlungskonditionen[] = [
   {
     produkt_id: 'p-1',
-    vor_produktion_prozent: 30,
-    nach_produktion_prozent: 50,
-    nach_ankunft_prozent: 20,
+    vor_produktion_pct: 30,
+    nach_produktion_pct: 50,
+    nach_ankunft_pct: 20,
     zahlungsziel_vor_produktion_tage: 0,
     zahlungsziel_nach_produktion_tage: 0,
     zahlungsziel_nach_ankunft_tage: 0,
@@ -86,9 +86,9 @@ describe('generiereBestellkosten', () => {
   it('generates 1 Ware entry for 100/0/0 split', () => {
     const zk: Zahlungskonditionen[] = [{
       ...baseZahlungskonditionen[0],
-      vor_produktion_prozent: 100,
-      nach_produktion_prozent: 0,
-      nach_ankunft_prozent: 0,
+      vor_produktion_pct: 100,
+      nach_produktion_pct: 0,
+      nach_ankunft_pct: 0,
     }]
     const result = generiereBestellkosten(baseBestellung, baseProduktkosten, zk, null, kategorien)
     const wareEintraege = result.filter(e => e.kpi_kategorie_id === 'ware-id')
@@ -167,7 +167,7 @@ describe('generiereBestellkosten', () => {
   })
 
   it('skips Zoll when zollsatz is 0', () => {
-    const pk: ProduktKosten[] = [{ produkt_id: 'p-1', warenkosten: 10, zollsatz_prozent: 0 }]
+    const pk: ProduktKosten[] = [{ produkt_id: 'p-1', warenkosten: 10, zollsatz_pct: 0 }]
     const result = generiereBestellkosten(baseBestellung, pk, baseZahlungskonditionen, baseKostenGlobal, kategorien)
     const zoll = result.find(e => e.kpi_kategorie_id === 'zoll-id')
     expect(zoll).toBeUndefined()
@@ -175,7 +175,7 @@ describe('generiereBestellkosten', () => {
 
   it('skips Ware when bestelldatum missing for Vor Produktion phase', () => {
     const b: BestellungDaten = { ...baseBestellung, bestelldatum: null }
-    const zk: Zahlungskonditionen[] = [{ ...baseZahlungskonditionen[0], nach_produktion_prozent: 0, nach_ankunft_prozent: 0 }]
+    const zk: Zahlungskonditionen[] = [{ ...baseZahlungskonditionen[0], nach_produktion_pct: 0, nach_ankunft_pct: 0 }]
     const result = generiereBestellkosten(b, baseProduktkosten, zk, null, kategorien)
     const ware = result.filter(e => e.kpi_kategorie_id === 'ware-id')
     expect(ware).toHaveLength(0) // no datum available for Vor Produktion
@@ -211,9 +211,9 @@ describe('generiereBestellkosten', () => {
   it('handles zahlungsziel correctly (adds days to base date)', () => {
     const zk: Zahlungskonditionen[] = [{
       ...baseZahlungskonditionen[0],
-      vor_produktion_prozent: 100,
-      nach_produktion_prozent: 0,
-      nach_ankunft_prozent: 0,
+      vor_produktion_pct: 100,
+      nach_produktion_pct: 0,
+      nach_ankunft_pct: 0,
       zahlungsziel_vor_produktion_tage: 14,
     }]
     const result = generiereBestellkosten(baseBestellung, baseProduktkosten, zk, null, kategorien)

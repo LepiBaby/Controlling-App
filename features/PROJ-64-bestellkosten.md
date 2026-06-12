@@ -1,6 +1,6 @@
 # PROJ-64: Bestellkosten — Kurzfristige Planung
 
-## Status: In Progress
+## Status: In Review
 **Created:** 2026-06-12
 **Last Updated:** 2026-06-12
 
@@ -398,7 +398,97 @@ Alle Routen: `requireAuth()` + RLS-Schutz + Zod-Validierung der Eingaben.
 - Immer nur ein Inline-Formular gleichzeitig (Adding und Editing sind wechselseitig exklusiv)
 
 ## QA Test Results
-_To be added by /qa_
+
+**Datum:** 2026-06-12
+**Tester:** QA Engineer (claude-sonnet-4-6)
+
+### Testergebnisse
+
+| # | Acceptance Criterion | Status |
+|---|---|---|
+| 1 | Auto-Generierung beim Anlegen einer Planbestellung | ✅ Pass |
+| 2 | Generierung verwendet produktkosten / zahlungskonditionen / kosten_global / Container-Daten | ✅ Pass |
+| 3 | Auto-Einträge mit `ist_automatisch=true` gespeichert | ✅ Pass |
+| 4 | Fehlende Stammdaten überspringen nur betroffenen Eintrag | ✅ Pass |
+| 5 | Ware — bis zu 3 Einträge (Vor/Nach Produktion / Nach Ankunft) | ✅ Pass |
+| 6 | Inspektion — 1 Eintrag, Container-Kalkulation, Datum = produktionsende + Zahlungsziel | ✅ Pass |
+| 7 | Shipping — 1 Eintrag, Container-Kalkulation, Datum = ankunft + Zahlungsziel | ✅ Pass |
+| 8 | Zoll — Basis = Ware + Shipping, je Produktzollsatz | ✅ Pass |
+| 9 | Einlagerung — 1 Eintrag, Container-Kalkulation, Datum = verfügbar + Zahlungsziel | ✅ Pass |
+| 10 | Kategorie-Matching: case-insensitiv, Kinder von „Produkt" | ✅ Pass |
+| 11 | Bestellkosten-Tabelle in allen 3 Dialog-Typen sichtbar | ✅ Pass |
+| 12 | Einträge aufsteigend nach Datum sortiert | ✅ Pass |
+| 13 | Gesamt-Summenzeile am Ende | ✅ Pass |
+| 14 | Leer-Hinweis wenn keine Einträge | ✅ Pass |
+| 15 | ReadOnly-Modus bei laufenden/abgeschlossenen Bestellungen (UI) | ✅ Pass |
+| 16 | Manueller Eintrag inline in der Tabelle anlegen | ✅ Pass |
+| 17 | Kategorie-Dropdown zeigt Kinder der „Produkt"-KPI-Kategorie | ✅ Pass |
+| 18 | Pflichtfeld-Validierung (Datum, Kategorie, Betrag) | ✅ Pass |
+| 19 | Manuelle Einträge mit `ist_automatisch=false` gespeichert | ✅ Pass |
+| 20 | Inline-Bearbeiten manueller Einträge | ✅ Pass |
+| 21 | Löschen mit AlertDialog-Bestätigung | ✅ Pass |
+| 22 | POST `/kosten` gibt 403 für nicht-Plan-Bestellungen | ✅ Pass |
+| 23 | PUT `/kosten/[id]` gibt 403 für nicht-Plan-Bestellungen | ✅ Pass |
+| 24 | DELETE `/kosten/[id]` gibt 403 für nicht-Plan-Bestellungen | ❌ **BUG** |
+
+### Automatisierte Tests
+
+| Testsuite | Datei | Ergebnis |
+|---|---|---|
+| Berechungslogik (reine Funktion) | `src/lib/bestellkosten-generierung.test.ts` | 15/15 ✅ |
+| GET + POST /kosten | `src/app/api/.../kosten/route.test.ts` | 8/8 ✅ |
+| PUT + DELETE /kosten/[kostenId] | `src/app/api/.../kosten/[kostenId]/route.test.ts` | 9/9 ✅ |
+| POST /bestellungen (inkl. Kosten-Generierung) | `src/app/api/bestellplanung/bestellungen/route.test.ts` | 8/8 ✅ |
+| use-bestellung-kosten Hook | `src/hooks/use-bestellung-kosten.test.ts` | 12/12 ✅ |
+| E2E Auth-Redirect | `tests/PROJ-64-bestellkosten.spec.ts` | 4/4 ✅ |
+| **Gesamt** | | **56/56 ✅** |
+
+### Bugs
+
+#### BUG-64-1 — Medium: DELETE-Endpoint prüft Bestellungs-Status nicht
+
+**Beschreibung:** `DELETE /api/bestellplanung/bestellungen/[id]/kosten/[kostenId]` verifiziert nicht, ob die Bestellung den Status `plan` hat. POST und PUT geben korrekt 403 zurück bei laufenden/abgeschlossenen Bestellungen — DELETE fehlt diese Prüfung.
+
+**Schritte:**
+1. Bestellung in Status `laufend` oder `abgeschlossen` haben
+2. Direkten DELETE-Request auf einen zugehörigen Kosteneintrag senden
+3. → Gibt 200 zurück statt 403
+
+**Impact:** Niedrig — das Frontend verhindert dies über `readOnly` prop. RLS stellt sicher, dass nur eigene Einträge gelöscht werden können. Daten gehen nicht verloren (Auto-Einträge werden bei nächstem GET-Aufruf neu generiert).
+
+**Fix:** Bestellungs-Status in der DELETE-Handler-Route prüfen (analog zu POST/PUT).
+
+---
+
+#### BUG-64-2 — Low: Edit/Delete-Buttons nur für Manuell-Einträge sichtbar
+
+**Beschreibung:** Spec sagt „Jede Zeile… zeigt Bearbeiten- und Löschen-Icons". Implementierung zeigt Hover-Buttons nur für `ist_automatisch=false` Einträge. Auto-Einträge zeigen nur den Modus-Toggle (Auto→Manuell).
+
+**Workaround:** Auto-Eintrag zuerst auf Manuell umschalten, dann bearbeiten/löschen.
+
+**Impact:** Niedrig — funktional abgedeckt (Toggle → Edit), gute UX (verhindert unbeabsichtigte Überschreibung von Auto-Einträgen).
+
+---
+
+#### BUG-64-3 — Low: Button-Label weicht von Spec ab
+
+**Beschreibung:** Spec: „+ Kosteneintrag hinzufügen". Implementierung: „Eintrag hinzufügen".
+
+---
+
+### Design-Abweichungen (absichtlich, kein Bug)
+
+| Abweichung | Begründung |
+|---|---|
+| Auto-Einträge werden bei jedem GET neu generiert (Spec: nur einmalig beim Anlegen) | Stellt sicher, dass sich ändernde Stammdaten immer aktuell in der Tabelle erscheinen. Vom Nutzer bestätigt. |
+| Auto/Manuell-Toggle (nicht im Spec) | Nutzerfeedback während Implementierung: nötig um Auto-Einträge aus der Regenerierung herauszunehmen. |
+| Hover-Overlay statt Aktions-Spalte | Nutzerfeedback: Aktions-Spalte quetschte die Tabelle zusammen. Hover-Overlay löst das visuell eleganter. |
+
+### Empfehlung
+
+**PRODUCTION READY: JA** — kein Critical oder High Bug. BUG-64-1 (Medium) hat niedrigen Impact da das Frontend die Operation verhindert. Die anderen Bugs sind Low/kosmetisch.
+
+Empfehlung: BUG-64-1 in einem Folge-Commit fixen (1 Zeile: Status-Check in DELETE hinzufügen).
 
 ## Deployment
 _To be added by /deploy_

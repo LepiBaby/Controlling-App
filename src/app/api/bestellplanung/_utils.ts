@@ -211,16 +211,31 @@ export async function generiereUndSpeichereBestellkosten(
   const allProduktIds = [...new Set(bestellungen.flatMap(b => b.produkt_ids))]
   if (allProduktIds.length === 0) return
 
+  // Load existing manuell entries — these "claim" their (Bestellung, Kategorie, Datum) slot
+  // so the regeneration doesn't create a duplicate auto entry alongside them
+  const { data: manuellRows } = await supabase
+    .from('bestellungen_kosten')
+    .select('bestellung_id, kpi_kategorie_id, datum')
+    .eq('user_id', userId)
+    .eq('ist_automatisch', false)
+    .in('bestellung_id', bestellungen.map(b => b.id))
+
+  const manuellSlots = new Set(
+    (manuellRows ?? []).map((e: { bestellung_id: string; kpi_kategorie_id: string | null; datum: string }) =>
+      `${e.bestellung_id}__${e.kpi_kategorie_id ?? ''}__${e.datum}`
+    )
+  )
+
   // Load all stammdaten in parallel
   const [pkRes, zkRes, kgRes, catRes] = await Promise.all([
     supabase
       .from('produktinformationen_produktkosten')
-      .select('produkt_id, warenkosten, zollsatz_prozent')
+      .select('produkt_id, warenkosten, zollsatz_pct')
       .eq('user_id', userId)
       .in('produkt_id', allProduktIds),
     supabase
       .from('produktinformationen_zahlungskonditionen')
-      .select('produkt_id, vor_produktion_prozent, nach_produktion_prozent, nach_ankunft_prozent, zahlungsziel_vor_produktion_tage, zahlungsziel_nach_produktion_tage, zahlungsziel_nach_ankunft_tage')
+      .select('produkt_id, vor_produktion_pct, nach_produktion_pct, nach_ankunft_pct, zahlungsziel_vor_produktion_tage, zahlungsziel_nach_produktion_tage, zahlungsziel_nach_ankunft_tage')
       .eq('user_id', userId)
       .in('produkt_id', allProduktIds),
     supabase
@@ -228,11 +243,11 @@ export async function generiereUndSpeichereBestellkosten(
       .select('shipping_kosten_20dc, shipping_kosten_40hq, shipping_zahlungsziel_tage, inspektion_kosten_20dc, inspektion_kosten_40hq, inspektion_zahlungsziel_tage, einlagerung_kosten_20dc, einlagerung_kosten_40hq, einlagerung_zahlungsziel_tage, zoll_zahlungsziel_tage')
       .eq('user_id', userId)
       .maybeSingle(),
-    // Find "Produkt" parent category and its children
+    // Find "Produkt" parent category and its children (ausgaben_kosten type only)
     supabase
       .from('kpi_categories')
       .select('id, name, parent_id, level')
-      .eq('user_id', userId)
+      .eq('type', 'ausgaben_kosten')
       .in('level', [1, 2]),
   ])
 
@@ -337,8 +352,11 @@ export async function generiereUndSpeichereBestellkosten(
     }
   }
 
-  if (allInserts.length > 0) {
-    await supabase.from('bestellungen_kosten').insert(allInserts)
+  const filteredInserts = allInserts.filter(ins =>
+    !manuellSlots.has(`${ins.bestellung_id}__${ins.kpi_kategorie_id ?? ''}__${ins.datum}`)
+  )
+  if (filteredInserts.length > 0) {
+    await supabase.from('bestellungen_kosten').insert(filteredInserts)
   }
 }
 
