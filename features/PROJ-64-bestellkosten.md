@@ -381,6 +381,22 @@ Alle Routen: `requireAuth()` + RLS-Schutz + Zod-Validierung der Eingaben.
 - `src/app/api/bestellplanung/bestellungen/[id]/kosten/[kostenId]/route.test.ts`: 9 Tests (PUT + DELETE)
 - Alle 35 Tests grün
 
+## Frontend Implementation Notes
+
+**Implementiert:** 2026-06-12
+
+### Was gebaut wurde
+
+- **`src/hooks/use-bestellung-kosten.ts`**: Hook mit `kosten`, `loading`, `error`, `add`, `update`, `remove`. Optimistische Updates für update/remove mit automatischem Rollback bei API-Fehler. Daten werden beim Dialog-Öffnen geladen (Component-Mount).
+- **`src/components/bestellkosten-tabelle.tsx`**: Inline-Edit-Tabelle mit InlineDatePicker (Popover+Calendar), Kategorie-Select (Kinder von "Produkt" unter ausgaben_kosten), Nettobetrag-Input und Begründung. AlertDialog für Löschbestätigung. Tooltip bei leerem Kategorie-Dropdown. Gesamtsumme-Footer.
+- **`src/components/bestellung-detail-dialog.tsx`**: Import und Einbindung von `<BestellkostenTabelle>` nach dem Konsolidierungspartner-Abschnitt, vor dem Notizen-Feld. `readOnly={!isEditable}` — nur Planbestellungen können bearbeitet werden.
+
+### Verhalten
+- Alle drei Dialog-Typen (Plan, laufend, abgeschlossen) zeigen die Tabelle
+- Nur Planbestellungen haben Edit/Delete-Buttons und "+ Kosteneintrag hinzufügen"
+- Kategorie-Dropdown zeigt Kinder der "Produkt"-Kategorie (type: ausgaben_kosten) aus dem KPI-Modell
+- Immer nur ein Inline-Formular gleichzeitig (Adding und Editing sind wechselseitig exklusiv)
+
 ## QA Test Results
 _To be added by /qa_
 
