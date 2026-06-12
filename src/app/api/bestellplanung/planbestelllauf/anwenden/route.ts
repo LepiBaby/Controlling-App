@@ -10,15 +10,10 @@ const skuMengeSchema = z.object({
   sku_id: z.string().uuid(),
   sku_name: z.string(),
   menge_theoretisch: z.number().int().min(0),
+  menge_nach_moq: z.number().int().min(0).optional(),
   menge_praktisch: z.number().int().min(0),
   begruendung_anpassung: z.string(),
-})
-
-const konsolidierungSchema = z.object({
-  mit_temp_id: z.string().optional(),
-  mit_bestellung_id: z.string().uuid().optional(),
-  mit_produkt_namen: z.array(z.string()),
-  containerart: z.string(),
+  is_trigger: z.boolean().optional(),
 })
 
 const neuePlanbestellungSchema = z.object({
@@ -32,8 +27,8 @@ const neuePlanbestellungSchema = z.object({
   ankunftsdatum: dateOrNull,
   verfuegbarkeitsdatum: dateOrNull,
   sku_mengen: z.array(skuMengeSchema),
-  konsolidierungen: z.array(konsolidierungSchema),
   warnungen: z.array(z.string()),
+  container: z.array(z.enum(['20DC', '40HQ'])).optional(),
 })
 
 const neueDatenSchema = z.object({
@@ -43,8 +38,10 @@ const neueDatenSchema = z.object({
   shippingdatum: z.string().regex(DATE_RE).optional(),
   ankunftsdatum: z.string().regex(DATE_RE).optional(),
   verfuegbarkeitsdatum: z.string().regex(DATE_RE).optional(),
+  container: z.array(z.enum(['20DC', '40HQ'])).optional(),
   sku_mengen: z.array(z.object({
     sku_id: z.string().uuid(),
+    menge_nach_moq: z.number().int().min(0).optional(),
     menge_praktisch: z.number().int().min(0),
     begruendung_anpassung: z.string(),
   })).optional(),
@@ -53,7 +50,7 @@ const neueDatenSchema = z.object({
 const aenderungSchema = z.object({
   bestellung_id: z.string().uuid(),
   produkt_namen: z.array(z.string()),
-  aenderungsart: z.enum(['bestelldatum', 'menge', 'konsolidierung']),
+  aenderungsart: z.enum(['bestelldatum', 'menge', 'bestelldatum_und_menge', 'keine_aenderung', 'kein_bedarf', 'konsolidierung']),
   alt_wert: z.string(),
   neu_wert: z.string(),
   begruendung: z.string(),
@@ -81,12 +78,25 @@ export async function POST(request: Request) {
   // ─── 1. Apply accepted changes to existing plan orders ───────────────────────
   for (const aend of akzeptierte_aenderungen as PlanbestelllaufAenderung[]) {
     const nd = aend.neue_daten
-    if (!nd) continue
+    if (!nd) {
+      // Kein Bedarf: Planbestellung löschen
+      await supabase
+        .from('bestellungen')
+        .delete()
+        .eq('id', aend.bestellung_id)
+        .eq('user_id', user!.id)
+        .eq('status', 'plan')
+      continue
+    }
 
-    const dateUpdate: Record<string, string | null | undefined> = {}
+    const dateUpdate: Record<string, string | number | null | undefined> = {}
     const dateFields = ['bestelldatum', 'produktionsstart_datum', 'produktionsende_datum', 'shippingdatum', 'ankunftsdatum', 'verfuegbarkeitsdatum'] as const
     for (const f of dateFields) {
       if (nd[f] !== undefined) dateUpdate[f] = nd[f]
+    }
+    if (nd.container !== undefined) {
+      dateUpdate.anzahl_40hq = nd.container.filter(c => c === '40HQ').length
+      dateUpdate.anzahl_20dc = nd.container.filter(c => c === '20DC').length
     }
 
     if (Object.keys(dateUpdate).length > 0) {
@@ -103,6 +113,7 @@ export async function POST(request: Request) {
           bestellung_id: aend.bestellung_id,
           user_id: user!.id,
           sku_id: sm.sku_id,
+          menge_nach_moq: sm.menge_nach_moq ?? null,
           menge_praktisch: sm.menge_praktisch,
           begruendung_anpassung: sm.begruendung_anpassung,
         }, { onConflict: 'bestellung_id,sku_id' })
@@ -119,13 +130,17 @@ export async function POST(request: Request) {
       .insert({
         user_id: user!.id,
         status: 'plan',
+        herkunft: 'algorithmus',
+        containerart: null,
+        anzahl_40hq: (nb.container ?? []).filter(c => c === '40HQ').length,
+        anzahl_20dc: (nb.container ?? []).filter(c => c === '20DC').length,
         bestelldatum: nb.bestelldatum ?? null,
         produktionsstart_datum: nb.produktionsstart_datum ?? null,
         produktionsende_datum: nb.produktionsende_datum ?? null,
         shippingdatum: nb.shippingdatum ?? null,
         ankunftsdatum: nb.ankunftsdatum ?? null,
         verfuegbarkeitsdatum: nb.verfuegbarkeitsdatum ?? null,
-        notizen: nb.warnungen.length > 0 ? nb.warnungen.join('\n') : null,
+        notizen: null,
       })
       .select('id')
       .single()
@@ -148,40 +163,20 @@ export async function POST(request: Request) {
           user_id: user!.id,
           sku_id: sm.sku_id,
           menge_theoretisch: sm.menge_theoretisch,
+          menge_nach_moq: sm.menge_nach_moq ?? null,
           menge_praktisch: sm.menge_praktisch,
           begruendung_anpassung: sm.begruendung_anpassung || null,
+          is_trigger: sm.is_trigger ?? false,
         }))
       )
     }
   }
 
-  // ─── 3. Create konsolidierungen ──────────────────────────────────────────────
-  for (const nb of neue_bestellungen as NeuePlanbestellung[]) {
-    const myId = tempIdToRealId.get(nb.temp_id)
-    if (!myId) continue
-
-    for (const k of nb.konsolidierungen) {
-      let otherId: string | undefined
-      if (k.mit_temp_id) {
-        otherId = tempIdToRealId.get(k.mit_temp_id)
-      } else if (k.mit_bestellung_id) {
-        otherId = k.mit_bestellung_id
-      }
-      if (!otherId) continue
-
-      const [id1, id2] = [myId, otherId].sort()
-      const containerart = (['20DC', '40DC', '40HQ'] as const).includes(k.containerart as '20DC' | '40DC' | '40HQ')
-        ? k.containerart as '20DC' | '40DC' | '40HQ'
-        : '20DC'
-
-      await supabase.from('bestellungen_konsolidierungen').upsert({
-        bestellung_id_1: id1,
-        bestellung_id_2: id2,
-        containerart,
-        user_id: user!.id,
-      }, { onConflict: 'bestellung_id_1,bestellung_id_2' })
-    }
+  // Return temp_id → real_id map so the frontend can reference created orders for consolidation
+  const idMap: Record<string, string> = {}
+  for (const [tempId, realId] of tempIdToRealId) {
+    idMap[tempId] = realId
   }
 
-  return NextResponse.json({ success: true, erstellt: tempIdToRealId.size })
+  return NextResponse.json(idMap)
 }

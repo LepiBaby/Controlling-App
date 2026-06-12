@@ -1,8 +1,30 @@
 # PROJ-63: Konsolidierung — Neubau (Kurzfristige Planung)
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-06-12
 **Last Updated:** 2026-06-12
+
+## Implementation Notes (Backend — 2026-06-12)
+
+### Datenbankschema (Supabase MCP — kdmpghtdoguppfqhdscq)
+- `bestellungen_konsolidierungen` (Paar-Tabelle) wurde per Migration gedropt (CASCADE)
+- `bestellungen_konsolidierungsgruppen` angelegt mit RLS (SELECT, INSERT, DELETE)
+- `bestellungen_konsolidierungsmitglieder` angelegt mit JSONB `container_anteil` + `snapshot_vor_konsolidierung`, RLS, Indexes
+
+### Neue / geänderte API-Routen
+- **`POST /api/bestellplanung/konsolidierung`**: Erstellt Gruppe, wendet Änderungen (Daten + SKU-Mengen) auf alle Bestellungen an, legt Mitglieder-Zeilen mit Snapshot an. Gibt `{ gruppe_id, success }` zurück. Validiert mit Zod.
+- **`DELETE /api/bestellplanung/konsolidierung/[gruppe_id]`**: Liest alle Mitglieder + Snapshots, stellt Bestellungen zurück (Daten + SKU-Mengen + Container-Zähler), löscht Gruppe (CASCADE).
+- **`PUT /api/bestellplanung/bestellungen/[id]`**: Neu — 409-Check wenn `status` nach `laufend` oder `abgeschlossen` geändert wird und Bestellung in einer Gruppe ist. Response: `{ error: 'in_gruppe', konsolidierungsgruppe_id }`.
+- **`POST /api/bestellplanung/planbestelllauf/route.ts`**: `produkt_stammdaten` (inkl. `stueckvolumen_m3`, `hersteller_name`, Lieferzeit-Felder) und `container_global` werden dem Response angehängt (für Wizard-Schritt 3).
+- **`POST /api/bestellplanung/planbestelllauf/anwenden`**: Konsolidierungsschreiben entfernt; Response ist jetzt `Record<string, string>` (temp_id → real_id Map).
+- **`GET /api/bestellplanung/bestellungen`**: `enrichBestellungen()` liefert `konsolidierungsgruppe_id`, `konsolidierungspartner[]`, `container_anteil` statt des alten `konsolidierungen[]`.
+- **`src/app/api/bestellplanung/_utils.ts`**: Komplett neu auf Gruppenmodell umgestellt.
+
+### Tests
+- `src/app/api/bestellplanung/konsolidierung/route.test.ts` — 6 Tests (401, 400×2, 404, 409, 201)
+- `src/app/api/bestellplanung/bestellungen/[id]/route.test.ts` — Neuer 409-Test; bestehende Tests auf neue Mock-Reihenfolge aktualisiert
+- `src/app/api/bestellplanung/bestellungen/route.test.ts` — Response-Assertions auf neue Felder aktualisiert
+- Build: ✅ sauber, alle 40 Bestellplanung-Tests bestehen
 
 ## Dependencies
 - Requires: PROJ-60 (Bestellplanung) — Basis-Seite, DB-Schema, Wizard, Algorithmus

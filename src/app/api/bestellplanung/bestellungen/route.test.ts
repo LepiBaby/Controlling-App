@@ -71,7 +71,7 @@ describe('GET /api/bestellplanung/bestellungen', () => {
 
   it('returns enriched bestellung on happy path', async () => {
     const baseRow = {
-      id: 'b-1', status: 'plan', bestelldatum: '2026-07-01',
+      id: 'b-1', status: 'plan', herkunft: 'algorithmus', containerart: null, bestelldatum: '2026-07-01',
       produktionsstart_datum: null, produktionsende_datum: null,
       shippingdatum: null, ankunftsdatum: null, verfuegbarkeitsdatum: null,
       abgeschlossen_am: null, notizen: null, created_at: '2026-06-01T00:00:00Z', updated_at: '2026-06-01T00:00:00Z',
@@ -80,7 +80,7 @@ describe('GET /api/bestellplanung/bestellungen', () => {
       .mockReturnValueOnce(ch({ data: [baseRow], error: null })) // bestellungen
       .mockReturnValueOnce(ch({ data: [{ id: 'bp-1', bestellung_id: 'b-1', produkt_id: 'prod-1' }], error: null })) // bestellungen_produkte
       .mockReturnValueOnce(EMPTY) // bestellungen_sku_mengen
-      .mockReturnValueOnce(EMPTY) // bestellungen_konsolidierungen
+      .mockReturnValueOnce(EMPTY) // bestellungen_konsolidierungsmitglieder
       .mockReturnValueOnce(ch({ data: [{ id: 'prod-1', name: 'Produkt A' }], error: null })) // kpi_categories
 
     const res = await GET(req('http://localhost/api/bestellplanung/bestellungen?status=plan'))
@@ -90,7 +90,9 @@ describe('GET /api/bestellplanung/bestellungen', () => {
     expect(body[0].id).toBe('b-1')
     expect(body[0].produkte[0].produkt_name).toBe('Produkt A')
     expect(body[0].sku_mengen).toEqual([])
-    expect(body[0].konsolidierungen).toEqual([])
+    expect(body[0].konsolidierungsgruppe_id).toBeNull()
+    expect(body[0].konsolidierungspartner).toEqual([])
+    expect(body[0].container_anteil).toBeNull()
   })
 
   it('returns 500 when db query fails', async () => {
@@ -137,7 +139,7 @@ describe('POST /api/bestellplanung/bestellungen', () => {
 
   it('creates bestellung and returns 201 on happy path', async () => {
     const newBestellung = {
-      id: 'new-b-1', status: 'plan', bestelldatum: '2026-07-01',
+      id: 'new-b-1', status: 'plan', herkunft: 'algorithmus', containerart: null, bestelldatum: '2026-07-01',
       produktionsstart_datum: null, produktionsende_datum: null,
       shippingdatum: null, ankunftsdatum: null, verfuegbarkeitsdatum: null,
       abgeschlossen_am: null, notizen: null, created_at: '2026-06-01T00:00:00Z', updated_at: '2026-06-01T00:00:00Z',
@@ -162,6 +164,48 @@ describe('POST /api/bestellplanung/bestellungen', () => {
     const body = await res.json()
     expect(body.id).toBe('new-b-1')
     expect(body.status).toBe('plan')
+  })
+
+  it('creates manuell bestellung with herkunft=manuell', async () => {
+    const newBestellung = {
+      id: 'new-b-2', status: 'plan', herkunft: 'manuell', containerart: '40HQ', bestelldatum: '2026-07-01',
+      produktionsstart_datum: null, produktionsende_datum: null,
+      shippingdatum: null, ankunftsdatum: null, verfuegbarkeitsdatum: null,
+      abgeschlossen_am: null, notizen: null, created_at: '2026-06-01T00:00:00Z', updated_at: '2026-06-01T00:00:00Z',
+    }
+    mockFrom
+      .mockReturnValueOnce(ch({ data: newBestellung, error: null }))
+      .mockReturnValueOnce(OK_NULL)
+      .mockReturnValueOnce(EMPTY)
+      .mockReturnValueOnce(EMPTY)
+      .mockReturnValueOnce(EMPTY)
+      .mockReturnValueOnce(EMPTY)
+
+    const res = await POST(req('http://localhost/api/bestellplanung/bestellungen', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        produkt_ids: ['a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'],
+        herkunft: 'manuell',
+        bestelldatum: '2026-07-01',
+      }),
+    }))
+    expect(res.status).toBe(201)
+    const body = await res.json()
+    expect(body.herkunft).toBe('manuell')
+    expect(body.containerart).toBe('40HQ')
+  })
+
+  it('returns 400 for invalid herkunft value', async () => {
+    const res = await POST(req('http://localhost/api/bestellplanung/bestellungen', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        produkt_ids: ['a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'],
+        herkunft: 'ungueltig',
+      }),
+    }))
+    expect(res.status).toBe(400)
   })
 
   it('returns 500 when db insert fails', async () => {

@@ -10,6 +10,10 @@ const dateOrNull = z.string().regex(DATE_RE).nullable().optional()
 
 const postSchema = z.object({
   status: z.enum(STATUS_VALUES).default('plan'),
+  herkunft: z.enum(['algorithmus', 'manuell']).default('algorithmus'),
+  containerart: z.enum(['20DC', '40DC', '40HQ']).nullable().optional(),
+  anzahl_40hq: z.number().int().min(0).default(0),
+  anzahl_20dc: z.number().int().min(0).default(0),
   bestelldatum: dateOrNull,
   produktionsstart_datum: dateOrNull,
   produktionsende_datum: dateOrNull,
@@ -23,10 +27,6 @@ const postSchema = z.object({
     menge_theoretisch: z.number().int().min(0).nullable().optional(),
     menge_praktisch: z.number().int().min(0),
     begruendung_anpassung: z.string().nullable().optional(),
-  })).default([]),
-  konsolidierungen: z.array(z.object({
-    mit_bestellung_id: z.string().uuid(),
-    containerart: z.enum(['20DC', '40DC', '40HQ']),
   })).default([]),
 })
 
@@ -43,7 +43,7 @@ export async function GET(request: Request) {
 
   const { data: baseRows, error: dbErr } = await supabase
     .from('bestellungen')
-    .select('id, status, bestelldatum, produktionsstart_datum, produktionsende_datum, shippingdatum, ankunftsdatum, verfuegbarkeitsdatum, abgeschlossen_am, notizen, created_at, updated_at')
+    .select('id, status, herkunft, containerart, anzahl_40hq, anzahl_20dc, bestelldatum, produktionsstart_datum, produktionsende_datum, shippingdatum, ankunftsdatum, verfuegbarkeitsdatum, produktionsstart_datum_ist, produktionsende_datum_ist, shippingdatum_ist, ankunftsdatum_ist, verfuegbarkeitsdatum_ist, abgeschlossen_am, notizen, created_at, updated_at')
     .eq('user_id', user!.id)
     .eq('status', statusParam)
     .order('bestelldatum', { ascending: true, nullsFirst: false })
@@ -72,6 +72,10 @@ export async function POST(request: Request) {
     .insert({
       user_id: user!.id,
       status: d.status,
+      herkunft: d.herkunft,
+      containerart: d.containerart ?? null,
+      anzahl_40hq: d.anzahl_40hq,
+      anzahl_20dc: d.anzahl_20dc,
       bestelldatum: d.bestelldatum ?? null,
       produktionsstart_datum: d.produktionsstart_datum ?? null,
       produktionsende_datum: d.produktionsende_datum ?? null,
@@ -80,7 +84,7 @@ export async function POST(request: Request) {
       verfuegbarkeitsdatum: d.verfuegbarkeitsdatum ?? null,
       notizen: d.notizen ?? null,
     })
-    .select('id, status, bestelldatum, produktionsstart_datum, produktionsende_datum, shippingdatum, ankunftsdatum, verfuegbarkeitsdatum, abgeschlossen_am, notizen, created_at, updated_at')
+    .select('id, status, herkunft, containerart, anzahl_40hq, anzahl_20dc, bestelldatum, produktionsstart_datum, produktionsende_datum, shippingdatum, ankunftsdatum, verfuegbarkeitsdatum, produktionsstart_datum_ist, produktionsende_datum_ist, shippingdatum_ist, ankunftsdatum_ist, verfuegbarkeitsdatum_ist, abgeschlossen_am, notizen, created_at, updated_at')
     .single()
 
   if (insertErr || !bestellung) {
@@ -106,16 +110,6 @@ export async function POST(request: Request) {
         begruendung_anpassung: sm.begruendung_anpassung ?? null,
       }))
     )
-  }
-
-  for (const k of d.konsolidierungen) {
-    const [id1, id2] = [bid, k.mit_bestellung_id].sort()
-    await supabase.from('bestellungen_konsolidierungen').upsert({
-      bestellung_id_1: id1,
-      bestellung_id_2: id2,
-      containerart: k.containerart,
-      user_id: user!.id,
-    }, { onConflict: 'bestellung_id_1,bestellung_id_2' })
   }
 
   const [enriched] = await enrichBestellungen(supabase, [bestellung])
