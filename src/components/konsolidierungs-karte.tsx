@@ -131,45 +131,117 @@ function ContainerBadge({ karte }: { karte: KarteData }) {
   return <Badge variant="outline" className="text-xs font-mono shrink-0">{parts}</Badge>
 }
 
-// ─── Inline detail content ────────────────────────────────────────────────────
+// ─── Inline detail content (matches AenderungItem layout exactly) ────────────
 
 function DetailInhalt({ karte }: { karte: KarteData }) {
-  const skuMengen = karte.bestellungData?.sku_mengen ?? karte.neueBestellungData?.sku_mengen ?? []
-  const warnungen = karte.neueBestellungData?.warnungen ?? []
-  const notizen = karte.bestellungData?.notizen ?? null
+  const b = karte.bestellungData
+  const n = karte.neueBestellungData
 
-  if (skuMengen.length === 0 && warnungen.length === 0 && !notizen) return null
+  const fmt = (d: string | null | undefined) =>
+    d ? new Date(d + 'T00:00:00').toLocaleDateString('de-DE') : '–'
+
+  const warnungen = n?.warnungen ?? []
+  const skuMengen = b?.sku_mengen ?? n?.sku_mengen ?? []
+  const gesamtmenge = skuMengen.reduce((s, m) => s + m.menge_praktisch, 0)
+
+  const bestelldatum        = b?.bestelldatum ?? n?.bestelldatum
+  const produktionsstart    = b?.produktionsstart_datum ?? null
+  const produktionsende     = b?.produktionsende_datum ?? n?.produktionsende_datum
+  const shippingdatum       = b?.shippingdatum ?? n?.shippingdatum
+  const ankunftsdatum       = b?.ankunftsdatum ?? n?.ankunftsdatum
+  const verfuegbarkeitsdatum = b?.verfuegbarkeitsdatum ?? n?.verfuegbarkeitsdatum
+
+  const hq = b?.anzahl_40hq ?? (n?.container?.filter(c => c === '40HQ').length ?? 0)
+  const dc = b?.anzahl_20dc ?? (n?.container?.filter(c => c === '20DC').length ?? 0)
 
   return (
-    <div className="border-t px-3 pb-3 pt-2 bg-muted/10 space-y-2">
-      {skuMengen.length > 0 && (
+    <div className="border-t p-3 space-y-4 bg-muted/10">
+      {warnungen.length > 0 && (
         <div className="space-y-1">
-          {skuMengen.map(s => (
-            <div key={s.sku_id} className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground truncate">{s.sku_name}</span>
-              <div className="flex items-center gap-3 shrink-0 ml-2 tabular-nums">
-                {s.menge_nach_moq != null && (
-                  <span className="text-muted-foreground">MOQ: {s.menge_nach_moq.toLocaleString('de-DE')}</span>
-                )}
-                <span className="font-medium">{s.menge_praktisch.toLocaleString('de-DE')} Stk.</span>
-              </div>
+          {warnungen.map((w, i) => (
+            <div key={i} className="flex items-start gap-2 text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded px-2 py-1.5">
+              <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+              <span>{w}</span>
             </div>
           ))}
         </div>
       )}
 
-      {notizen && (
-        <p className="text-xs text-muted-foreground italic">{notizen}</p>
+      <div>
+        <p className="text-xs font-medium text-muted-foreground mb-2">Datumsfelder</p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1.5 text-xs">
+          {[
+            { label: 'Bestelldatum',       value: bestelldatum },
+            { label: 'Produktionsstart',   value: produktionsstart },
+            { label: 'Produktionsende',    value: produktionsende },
+            { label: 'Shippingdatum',      value: shippingdatum },
+            { label: 'Ankunftsdatum',      value: ankunftsdatum },
+            { label: 'Verfügbarkeitsdatum', value: verfuegbarkeitsdatum },
+          ].map(({ label, value }) => (
+            <div key={label}>
+              <p className="text-muted-foreground">{label}</p>
+              <p className="font-medium">{fmt(value)}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {skuMengen.length > 0 && (
+        <div>
+          <p className="text-xs font-medium text-muted-foreground mb-2">Bestellmengen je SKU</p>
+          <div className="rounded-md border overflow-hidden">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b bg-muted/40">
+                  <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">SKU</th>
+                  <th className="px-2 py-1.5 text-right font-medium text-muted-foreground">Theoretisch</th>
+                  <th className="px-2 py-1.5 text-right font-medium text-muted-foreground">Nach MOQ</th>
+                  <th className="px-2 py-1.5 text-right font-medium text-muted-foreground">Praktisch</th>
+                  <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Begründung</th>
+                </tr>
+              </thead>
+              <tbody>
+                {skuMengen.map(s => (
+                  <tr key={s.sku_id} className={`border-b last:border-0 ${s.menge_praktisch === 0 ? 'opacity-50' : ''}`}>
+                    <td className="px-2 py-1.5">
+                      <div>{s.sku_name ?? s.sku_id}</div>
+                      {s.is_trigger && <div className="text-[10px] text-blue-500 leading-tight">Trigger-SKU</div>}
+                    </td>
+                    <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">
+                      {s.menge_theoretisch != null ? s.menge_theoretisch.toLocaleString('de-DE') : '—'}
+                    </td>
+                    <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">
+                      {s.menge_nach_moq != null ? s.menge_nach_moq.toLocaleString('de-DE') : '—'}
+                    </td>
+                    <td className="px-2 py-1.5 text-right tabular-nums font-medium">
+                      {s.menge_praktisch.toLocaleString('de-DE')}
+                    </td>
+                    <td className="px-2 py-1.5 text-muted-foreground max-w-[180px] truncate" title={s.begruendung_anpassung ?? undefined}>
+                      {s.begruendung_anpassung || '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t bg-muted/20">
+                  <td className="px-2 py-1.5 font-medium" colSpan={3}>Gesamt</td>
+                  <td className="px-2 py-1.5 text-right font-semibold tabular-nums">
+                    {gesamtmenge.toLocaleString('de-DE')}
+                  </td>
+                  <td />
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
       )}
 
-      {warnungen.length > 0 && (
-        <div className="space-y-0.5">
-          {warnungen.map((w, i) => (
-            <p key={i} className="text-xs text-amber-600 flex items-start gap-1">
-              <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
-              {w}
-            </p>
-          ))}
+      {(hq > 0 || dc > 0) && (
+        <div>
+          <p className="text-xs font-medium text-muted-foreground mb-1.5">Container</p>
+          <p className="text-xs">
+            {[hq > 0 && `${hq}× 40HQ`, dc > 0 && `${dc}× 20DC`].filter(Boolean).join(' + ')}
+          </p>
         </div>
       )}
     </div>
@@ -206,10 +278,7 @@ export function KonsolidierungsKarte({
   }
 
   const hatVorherige = karte.konsolidierungspartner.length > 0
-  const hatDetails = (karte.bestellungData?.sku_mengen.length ?? 0) > 0
-    || (karte.neueBestellungData?.sku_mengen.length ?? 0) > 0
-    || !!karte.bestellungData?.notizen
-    || (karte.neueBestellungData?.warnungen.length ?? 0) > 0
+  const hatDetails = !!(karte.bestellungData || karte.neueBestellungData)
 
   const borderClass = isInGruppe && gruppefarbe
     ? `border-l-4 ${gruppefarbe}`
