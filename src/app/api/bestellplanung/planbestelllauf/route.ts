@@ -288,8 +288,9 @@ export async function POST() {
 
   // ─── 11. Add ProduktStammdaten + ContainerGlobal for Wizard Step 3 ──────────
   const herstellerNamenRes = await supabase
-    .from('kpi_categories')
+    .from('produktinformationen_hersteller')
     .select('id, name')
+    .eq('user_id', user!.id)
     .in('id', [...new Set((herstellerRes.data ?? []).map((r: { hersteller_id: string | null }) => r.hersteller_id).filter(Boolean) as string[])])
     .limit(200)
 
