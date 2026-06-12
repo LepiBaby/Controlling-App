@@ -333,7 +333,7 @@ export function KonsolidierungsKarte({
                 {karte.produktionsendeDatum && (
                   <span className="inline-flex items-center gap-1 text-primary font-semibold">
                     Prod.ende:
-                    <Badge className="text-xs h-5 px-1.5 rounded font-bold">
+                    <Badge variant="secondary" className="text-xs h-5 px-1.5 rounded font-bold text-foreground">
                       {fmt(karte.produktionsendeDatum)}
                     </Badge>
                   </span>
