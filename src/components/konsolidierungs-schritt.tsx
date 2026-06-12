@@ -291,6 +291,7 @@ export function KonsolidierungsSchritt({
           produktionsende_datum: k.produktionsendeDatum,
           sku_mengen: neueBestlg?.sku_mengen.map(s => ({
             sku_id: s.sku_id,
+            menge_nach_moq: s.menge_nach_moq,
             menge_praktisch: s.menge_praktisch,
             begruendung_anpassung: s.begruendung_anpassung,
           })) ?? [],
@@ -302,6 +303,7 @@ export function KonsolidierungsSchritt({
         produktionsende_datum: k.produktionsendeDatum,
         sku_mengen: k.bestellungData?.sku_mengen.map(s => ({
           sku_id: s.sku_id,
+          menge_nach_moq: s.menge_nach_moq ?? s.menge_praktisch,
           menge_praktisch: s.menge_praktisch,
           begruendung_anpassung: s.begruendung_anpassung,
         })) ?? [],
