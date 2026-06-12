@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/supabase-server'
+import { generiereUndSpeichereBestellkosten } from '../../../_utils'
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
@@ -17,15 +18,42 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
   const { id } = await params
 
-  // Verify the bestellung belongs to this user
+  // Load bestellung with fields needed for cost regeneration
   const { data: bestellung, error: bErr } = await supabase
     .from('bestellungen')
-    .select('id')
+    .select('id, bestelldatum, produktionsende_datum, shippingdatum, ankunftsdatum, verfuegbarkeitsdatum, anzahl_40hq, anzahl_20dc')
     .eq('id', id)
     .eq('user_id', user!.id)
     .maybeSingle()
 
   if (bErr || !bestellung) return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 })
+
+  // Load produkt_ids for this bestellung
+  const { data: produkteRows } = await supabase
+    .from('bestellungen_produkte')
+    .select('produkt_id')
+    .eq('bestellung_id', id)
+
+  const produkt_ids = (produkteRows ?? []).map((p: { produkt_id: string }) => p.produkt_id)
+
+  // Regenerate auto costs from current Stammdaten on every load
+  const b = bestellung as {
+    id: string; bestelldatum: string | null; produktionsende_datum: string | null
+    shippingdatum: string | null; ankunftsdatum: string | null; verfuegbarkeitsdatum: string | null
+    anzahl_40hq: number; anzahl_20dc: number
+  }
+  await generiereUndSpeichereBestellkosten(supabase, user!.id, [{
+    id: b.id,
+    bestelldatum: b.bestelldatum,
+    produktionsende_datum: b.produktionsende_datum,
+    shippingdatum: b.shippingdatum,
+    ankunftsdatum: b.ankunftsdatum,
+    verfuegbarkeitsdatum: b.verfuegbarkeitsdatum,
+    anzahl_40hq: b.anzahl_40hq,
+    anzahl_20dc: b.anzahl_20dc,
+    produkt_ids,
+    sku_mengen: [],
+  }])
 
   const { data: kosten, error: kErr } = await supabase
     .from('bestellungen_kosten')

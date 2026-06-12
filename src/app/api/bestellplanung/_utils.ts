@@ -200,6 +200,14 @@ export async function generiereUndSpeichereBestellkosten(
 ): Promise<void> {
   if (bestellungen.length === 0) return
 
+  // Delete existing auto-generated entries before regenerating (runs even when no products)
+  await supabase
+    .from('bestellungen_kosten')
+    .delete()
+    .eq('user_id', userId)
+    .eq('ist_automatisch', true)
+    .in('bestellung_id', bestellungen.map(b => b.id))
+
   const allProduktIds = [...new Set(bestellungen.flatMap(b => b.produkt_ids))]
   if (allProduktIds.length === 0) return
 
@@ -332,4 +340,49 @@ export async function generiereUndSpeichereBestellkosten(
   if (allInserts.length > 0) {
     await supabase.from('bestellungen_kosten').insert(allInserts)
   }
+}
+
+// Loads all plan Bestellungen and regenerates their costs from current Stammdaten.
+// Called after every Planbestelllauf so container/product changes are reflected.
+export async function ladeUndRegenerierePlanBestellkosten(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<void> {
+  const { data: rows } = await supabase
+    .from('bestellungen')
+    .select('id, bestelldatum, produktionsende_datum, shippingdatum, ankunftsdatum, verfuegbarkeitsdatum, anzahl_40hq, anzahl_20dc')
+    .eq('user_id', userId)
+    .eq('status', 'plan')
+    .limit(500)
+
+  if (!rows || rows.length === 0) return
+
+  const ids = (rows as Array<{ id: string }>).map(b => b.id)
+  const { data: produkteRows } = await supabase
+    .from('bestellungen_produkte')
+    .select('bestellung_id, produkt_id')
+    .in('bestellung_id', ids)
+
+  const produkteByBest = new Map<string, string[]>()
+  for (const p of (produkteRows ?? []) as Array<{ bestellung_id: string; produkt_id: string }>) {
+    if (!produkteByBest.has(p.bestellung_id)) produkteByBest.set(p.bestellung_id, [])
+    produkteByBest.get(p.bestellung_id)!.push(p.produkt_id)
+  }
+
+  const bestellungenForKosten = (rows as Array<{
+    id: string
+    bestelldatum: string | null
+    produktionsende_datum: string | null
+    shippingdatum: string | null
+    ankunftsdatum: string | null
+    verfuegbarkeitsdatum: string | null
+    anzahl_40hq: number
+    anzahl_20dc: number
+  }>).map(b => ({
+    ...b,
+    produkt_ids: produkteByBest.get(b.id) ?? [],
+    sku_mengen: [] as Array<{ sku_id: string; menge_praktisch: number }>,
+  }))
+
+  await generiereUndSpeichereBestellkosten(supabase, userId, bestellungenForKosten)
 }

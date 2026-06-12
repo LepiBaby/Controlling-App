@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/supabase-server'
 import type { PlanbestelllaufAenderung, NeuePlanbestellung } from '@/lib/planbestelllauf-algorithmus'
-import { generiereUndSpeichereBestellkosten } from '../../_utils'
+import { ladeUndRegenerierePlanBestellkosten } from '../../_utils'
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const dateOrNull = z.string().regex(DATE_RE).nullable().optional()
@@ -173,25 +173,8 @@ export async function POST(request: Request) {
     }
   }
 
-  // Auto-generate Bestellkosten for all newly created plan orders
-  if (tempIdToRealId.size > 0) {
-    const neueBestellungenFuerKosten = (neue_bestellungen as NeuePlanbestellung[])
-      .filter(nb => tempIdToRealId.has(nb.temp_id))
-      .map(nb => ({
-        id: tempIdToRealId.get(nb.temp_id)!,
-        bestelldatum: nb.bestelldatum ?? null,
-        produktionsende_datum: nb.produktionsende_datum ?? null,
-        shippingdatum: nb.shippingdatum ?? null,
-        ankunftsdatum: nb.ankunftsdatum ?? null,
-        verfuegbarkeitsdatum: nb.verfuegbarkeitsdatum ?? null,
-        anzahl_40hq: (nb.container ?? []).filter(c => c === '40HQ').length,
-        anzahl_20dc: (nb.container ?? []).filter(c => c === '20DC').length,
-        produkt_ids: nb.produkt_ids,
-        sku_mengen: nb.sku_mengen.map(sm => ({ sku_id: sm.sku_id, menge_praktisch: sm.menge_praktisch })),
-      }))
-
-    await generiereUndSpeichereBestellkosten(supabase, user!.id, neueBestellungenFuerKosten)
-  }
+  // Regenerate Bestellkosten for ALL plan orders (new + existing, since containers may have changed)
+  await ladeUndRegenerierePlanBestellkosten(supabase, user!.id)
 
   // Return temp_id → real_id map so the frontend can reference created orders for consolidation
   const idMap: Record<string, string> = {}

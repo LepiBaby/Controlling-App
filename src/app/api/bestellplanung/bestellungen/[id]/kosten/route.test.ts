@@ -76,8 +76,10 @@ describe('GET /api/bestellplanung/bestellungen/[id]/kosten', () => {
 
   it('returns empty array when no kosten', async () => {
     mockFrom
-      .mockReturnValueOnce(BESTELLUNG_PLAN)  // bestellungen verify
-      .mockReturnValueOnce(EMPTY)            // bestellungen_kosten
+      .mockReturnValueOnce(BESTELLUNG_PLAN)  // bestellungen (select with date fields)
+      .mockReturnValueOnce(EMPTY)            // bestellungen_produkte (produkt_ids → empty → regeneration no-op after delete)
+      .mockReturnValueOnce(OK_NULL)          // bestellungen_kosten DELETE auto entries
+      .mockReturnValueOnce(EMPTY)            // bestellungen_kosten SELECT
     const res = await GET(req('http://localhost/api/bestellplanung/bestellungen/b-1/kosten'), makeParams('b-1'))
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -86,9 +88,11 @@ describe('GET /api/bestellplanung/bestellungen/[id]/kosten', () => {
 
   it('returns kosten with category names', async () => {
     mockFrom
-      .mockReturnValueOnce(BESTELLUNG_PLAN)
-      .mockReturnValueOnce(ch({ data: [KOSTEN_ROW], error: null }))
-      .mockReturnValueOnce(ch({ data: [{ id: CAT_ID, name: 'Ware' }], error: null }))
+      .mockReturnValueOnce(BESTELLUNG_PLAN)                              // bestellungen
+      .mockReturnValueOnce(EMPTY)                                        // bestellungen_produkte (empty → regeneration: only delete)
+      .mockReturnValueOnce(OK_NULL)                                      // bestellungen_kosten DELETE auto entries
+      .mockReturnValueOnce(ch({ data: [KOSTEN_ROW], error: null }))     // bestellungen_kosten SELECT
+      .mockReturnValueOnce(ch({ data: [{ id: CAT_ID, name: 'Ware' }], error: null })) // kpi_categories
     const res = await GET(req('http://localhost/api/bestellplanung/bestellungen/b-1/kosten'), makeParams('b-1'))
     expect(res.status).toBe(200)
     const body = await res.json()
