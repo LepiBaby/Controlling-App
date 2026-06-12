@@ -83,7 +83,9 @@
 | PROJ-59 | Produktinformationen — Kurzfristige Planung | Approved | [PROJ-59-produktinformationen.md](PROJ-59-produktinformationen.md) | 2026-06-04 |
 | PROJ-60 | Bestellplanung — Kurzfristige Planung | In Progress | [PROJ-60-bestellplanung.md](PROJ-60-bestellplanung.md) | 2026-06-05 |
 | PROJ-61 | Lagerbestandsdiagramm — Kurzfristige Planung | Approved | [PROJ-61-lagerbestandsdiagramm.md](PROJ-61-lagerbestandsdiagramm.md) | 2026-06-09 |
+| PROJ-62 | Erstplanbestellung anlegen — Kurzfristige Planung | Approved | [PROJ-62-erstplanbestellung.md](PROJ-62-erstplanbestellung.md) | 2026-06-10 |
+| PROJ-63 | Konsolidierung — Neubau (Kurzfristige Planung) | Architected | [PROJ-63-konsolidierung-neubau.md](PROJ-63-konsolidierung-neubau.md) | 2026-06-12 |
 
 <!-- Add features above this line -->
 
-## Next Available ID: PROJ-62
+## Next Available ID: PROJ-64
