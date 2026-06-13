@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -458,13 +459,48 @@ export function BestellungDetailDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 flex-wrap pr-8">
               <span>{titlePrefix}</span>
               <span className="text-muted-foreground font-normal">—</span>
               <span className="text-sm font-normal text-muted-foreground">{produktNamen}</span>
+              {b.herkunft === 'manuell' && (
+                <Badge variant="outline" className="text-xs shrink-0 font-normal">Erstbestellung</Badge>
+              )}
+              {b.konsolidierungsgruppe_id !== null && (
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge variant="outline" className="text-xs shrink-0 font-normal text-violet-600 border-violet-200 bg-violet-50">
+                        Konsolidiert
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="max-w-xs text-xs">
+                      {b.konsolidierungspartner.length > 0 ? (
+                        <div>
+                          <p className="font-medium mb-1">Konsolidiert mit:</p>
+                          {b.konsolidierungspartner.map(p => (
+                            <p key={p.bestellung_id}>{p.produkt_namen.join(', ') || 'Weitere Bestellung'}</p>
+                          ))}
+                        </div>
+                      ) : 'Teil einer Konsolidierungsgruppe'}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
               {(() => {
+                const anteil = b.container_anteil
+                if (anteil && Object.keys(anteil).length > 0) {
+                  const parts = Object.entries(anteil)
+                    .filter(([, v]) => v > 0)
+                    .map(([art, v]) => {
+                      const rounded = Math.round(v * 100) / 100
+                      return `${rounded % 1 === 0 ? rounded : rounded.toFixed(1)}× ${art}`
+                    })
+                    .join(' + ')
+                  if (parts) return <Badge variant="outline" className="text-xs font-mono font-normal shrink-0">{parts}</Badge>
+                }
                 const hq = b.anzahl_40hq ?? 0
                 const dc = b.anzahl_20dc ?? 0
                 if (hq === 0 && dc === 0) return null
@@ -586,85 +622,128 @@ export function BestellungDetailDialog({
               </div>
               {skuMengen.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Keine SKU-Mengen hinterlegt.</p>
-              ) : (
-                <div className="rounded-md border overflow-hidden">
-                  <table className="w-full table-fixed text-sm">
-                    <thead>
-                      <tr className="border-b bg-muted/40">
-                        <th className="px-3 py-2 text-left font-medium text-muted-foreground">SKU</th>
-                        {skuMengen.some(s => s.menge_theoretisch !== null) && (
-                          <th className="px-3 py-2 text-right font-medium text-muted-foreground">Theoretisch</th>
-                        )}
-                        {skuMengen.some(s => s.menge_nach_moq !== null) && (
-                          <th className="px-3 py-2 text-right font-medium text-muted-foreground">Nach MOQ</th>
-                        )}
-                        <th className="px-3 py-2 text-right font-medium text-muted-foreground">Praktisch</th>
-                        {skuMengen.some(s => s.begruendung_anpassung) && (
-                          <th className="px-3 py-2 text-left font-medium text-muted-foreground">Begründung</th>
-                        )}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {skuMengen.map((sku, idx) => (
-                        <tr key={sku.sku_id} className="border-b last:border-0 hover:bg-muted/20">
-                          <td className="px-3 py-2">
-                            <div>{sku.sku_name}</div>
-                            {sku.is_trigger && <div className="text-[10px] text-blue-500 leading-tight">Trigger-SKU</div>}
-                          </td>
-                          {skuMengen.some(s => s.menge_theoretisch !== null) && (
-                            <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
-                              {sku.menge_theoretisch !== null ? sku.menge_theoretisch.toLocaleString('de-DE') : '—'}
-                            </td>
+              ) : (() => {
+                const snap = b.snapshot_vor_konsolidierung
+                const snapBySkuId = new Map(snap?.sku_mengen.map(s => [s.sku_id, s.menge_praktisch]) ?? [])
+                // Show Konsolidierung column only when a real snapshot exists
+                const showKonsolidierungsSpalte = !!snap && snap.sku_mengen.length > 0
+                const showTheoretisch = skuMengen.some(s => s.menge_theoretisch !== null)
+                const showNachMoq = skuMengen.some(s => s.menge_nach_moq !== null)
+                const showBegruendung = skuMengen.some(s => s.begruendung_anpassung)
+                // colSpan for footer "Gesamt" label: SKU + Theoretisch? + NachMOQ? (value goes in Praktisch column)
+                const colSpanGesamt = 1 + (showTheoretisch ? 1 : 0) + (showNachMoq ? 1 : 0)
+                return (
+                  <div className="rounded-md border overflow-hidden">
+                    <table className="w-full table-auto text-sm">
+                      <thead>
+                        <tr className="border-b bg-muted/40">
+                          <th className="px-3 py-2 text-left font-medium text-muted-foreground">SKU</th>
+                          {showTheoretisch && (
+                            <th className="px-3 py-2 text-right font-medium text-muted-foreground">Theoretisch</th>
                           )}
-                          {skuMengen.some(s => s.menge_nach_moq !== null) && (
-                            <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
-                              {sku.menge_nach_moq !== null ? sku.menge_nach_moq.toLocaleString('de-DE') : '—'}
-                            </td>
+                          {showNachMoq && (
+                            <th className="px-3 py-2 text-right font-medium text-muted-foreground">Nach MOQ</th>
                           )}
-                          <td className="px-3 py-2 text-right">
-                            {isEditable ? (
-                              <Input
-                                type="number"
-                                min="0"
-                                className="w-24 h-7 text-right text-sm ml-auto"
-                                value={sku.menge_praktisch}
-                                onChange={e => {
-                                  const val = parseInt(e.target.value) || 0
-                                  setSkuMengen(prev => prev.map((s, i) =>
-                                    i === idx ? { ...s, menge_praktisch: val } : s
-                                  ))
-                                }}
-                              />
-                            ) : (
-                              <span className="tabular-nums">{sku.menge_praktisch.toLocaleString('de-DE')}</span>
-                            )}
-                          </td>
-                          {skuMengen.some(s => s.begruendung_anpassung) && (
-                            <td className="px-3 py-2 text-xs text-muted-foreground">
-                              {sku.begruendung_anpassung ?? '—'}
-                            </td>
+                          <th className="px-3 py-2 text-right font-medium text-muted-foreground">Praktisch</th>
+                          {showKonsolidierungsSpalte && (
+                            <th className="px-3 py-2 text-right font-medium text-blue-600">Konsolidierung</th>
+                          )}
+                          {showBegruendung && (
+                            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Begründung</th>
                           )}
                         </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr className="border-t bg-muted/20">
-                        <td className="px-3 py-2 font-medium text-sm" colSpan={
-                          1
-                          + (skuMengen.some(s => s.menge_theoretisch !== null) ? 1 : 0)
-                          + (skuMengen.some(s => s.menge_nach_moq !== null) ? 1 : 0)
-                        }>
-                          Gesamt
-                        </td>
-                        <td className="px-3 py-2 text-right font-semibold tabular-nums">
-                          {skuMengen.reduce((s, m) => s + m.menge_praktisch, 0).toLocaleString('de-DE')}
-                        </td>
-                        {skuMengen.some(s => s.begruendung_anpassung) && <td />}
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              )}
+                      </thead>
+                      <tbody>
+                        {skuMengen.map((sku, idx) => {
+                          // When consolidated: "Praktisch" = pre-consolidation snapshot value (read-only)
+                          // "Konsolidierung" = absolute menge_praktisch (editable, blue)
+                          const snapPraktisch = snapBySkuId.get(sku.sku_id)
+                          const praktischAnzeige = showKonsolidierungsSpalte && snapPraktisch !== undefined
+                            ? snapPraktisch
+                            : sku.menge_praktisch
+                          return (
+                            <tr key={sku.sku_id} className="border-b last:border-0 hover:bg-muted/20">
+                              <td className="px-3 py-2">
+                                <div>{sku.sku_name}</div>
+                                {sku.is_trigger && <div className="text-[10px] text-blue-500 leading-tight">Trigger-SKU</div>}
+                              </td>
+                              {showTheoretisch && (
+                                <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                                  {sku.menge_theoretisch !== null ? sku.menge_theoretisch.toLocaleString('de-DE') : '—'}
+                                </td>
+                              )}
+                              {showNachMoq && (
+                                <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                                  {sku.menge_nach_moq !== null ? sku.menge_nach_moq.toLocaleString('de-DE') : '—'}
+                                </td>
+                              )}
+                              {/* Praktisch: snapshot value (read-only) when consolidated, editable otherwise */}
+                              <td className="px-3 py-2 text-right">
+                                {isEditable && !showKonsolidierungsSpalte ? (
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    className="w-24 h-7 text-right text-sm ml-auto"
+                                    value={sku.menge_praktisch}
+                                    onChange={e => {
+                                      const val = parseInt(e.target.value) || 0
+                                      setSkuMengen(prev => prev.map((s, i) =>
+                                        i === idx ? { ...s, menge_praktisch: val } : s
+                                      ))
+                                    }}
+                                  />
+                                ) : (
+                                  <span className="tabular-nums">{praktischAnzeige.toLocaleString('de-DE')}</span>
+                                )}
+                              </td>
+                              {/* Konsolidierung: absolute menge_praktisch (total after consolidation), editable, blue */}
+                              {showKonsolidierungsSpalte && (
+                                <td className="px-3 py-2 text-right">
+                                  {isEditable ? (
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      className="w-24 h-7 text-right text-sm ml-auto text-blue-600"
+                                      value={sku.menge_praktisch}
+                                      onChange={e => {
+                                        const val = parseInt(e.target.value) || 0
+                                        setSkuMengen(prev => prev.map((s, i) =>
+                                          i === idx ? { ...s, menge_praktisch: val } : s
+                                        ))
+                                      }}
+                                    />
+                                  ) : (
+                                    <span className="tabular-nums font-medium text-blue-600">
+                                      {sku.menge_praktisch.toLocaleString('de-DE')}
+                                    </span>
+                                  )}
+                                </td>
+                              )}
+                              {showBegruendung && (
+                                <td className="px-3 py-2 text-xs text-muted-foreground">
+                                  {sku.begruendung_anpassung ?? '—'}
+                                </td>
+                              )}
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t bg-muted/20">
+                          {/* Span up to (but not including) the last numeric column */}
+                          <td className="px-3 py-2 font-medium text-sm" colSpan={colSpanGesamt + (showKonsolidierungsSpalte ? 1 : 0)}>
+                            Gesamt
+                          </td>
+                          <td className="px-3 py-2 text-right font-semibold tabular-nums">
+                            {skuMengen.reduce((s, m) => s + m.menge_praktisch, 0).toLocaleString('de-DE')}
+                          </td>
+                          {showBegruendung && <td />}
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )
+              })()}
             </div>
 
             {/* Container */}
@@ -737,12 +816,40 @@ export function BestellungDetailDialog({
                 <Separator />
                 <div>
                   <p className="text-sm font-medium mb-3">Konsolidiert mit</p>
-                  <div className="flex flex-wrap gap-2">
-                    {bestellung.konsolidierungspartner.map(p => (
-                      <Badge key={p.bestellung_id} variant="secondary">
-                        {p.produkt_namen.join(', ') || 'Weitere Bestellung'}
-                      </Badge>
-                    ))}
+                  <div className="space-y-2">
+                    {bestellung.konsolidierungspartner.map(p => {
+                      const anteil = p.container_anteil
+                      let containerLabel = ''
+                      if (anteil && Object.keys(anteil).length > 0) {
+                        containerLabel = Object.entries(anteil)
+                          .filter(([, v]) => v > 0)
+                          .map(([art, v]) => {
+                            const r = Math.round(v * 100) / 100
+                            return `${r % 1 === 0 ? r : r.toFixed(2)}× ${art}`
+                          })
+                          .join(' + ')
+                      } else {
+                        containerLabel = [
+                          p.anzahl_40hq > 0 && `${p.anzahl_40hq}× 40HQ`,
+                          p.anzahl_20dc > 0 && `${p.anzahl_20dc}× 20DC`,
+                        ].filter(Boolean).join(' + ')
+                      }
+                      return (
+                        <div key={p.bestellung_id} className="flex items-center justify-between rounded-lg border bg-muted/20 px-4 py-2.5">
+                          <span className="text-sm font-medium">{p.produkt_namen.join(', ') || 'Weitere Bestellung'}</span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {p.bestelldatum && (
+                              <span className="text-xs text-muted-foreground tabular-nums">
+                                {new Date(p.bestelldatum + 'T00:00:00').toLocaleDateString('de-DE')}
+                              </span>
+                            )}
+                            {containerLabel && (
+                              <Badge variant="outline" className="text-xs font-mono">{containerLabel}</Badge>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               </>

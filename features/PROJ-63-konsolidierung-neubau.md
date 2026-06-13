@@ -1,6 +1,6 @@
 # PROJ-63: Konsolidierung — Neubau (Kurzfristige Planung)
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-06-12
 **Last Updated:** 2026-06-12
 
@@ -585,7 +585,103 @@ Nutzer versucht einzelne Bestellung aus Gruppe in "Laufend" umzuwandeln
 | `src/app/api/bestellplanung/bestellungen/[id]/route.ts` | Gruppen-Check + HTTP 409 bei Einzel-Statuswechsel |
 
 ## QA Test Results
-_To be added by /qa_
+
+**QA Date:** 2026-06-13
+**QA Status:** ✅ Approved — Keine Critical/High Bugs
+
+### Automated Tests
+
+| Suite | Tests | Status |
+|---|---|---|
+| Vitest — Bestellplanung API (inkl. Konsolidierung, 409, enrichBestellungen) | 61 | ✅ Alle bestanden |
+| Vitest — Konsolidierungsalgorithmus (Unit) | 10 | ✅ Alle bestanden |
+| Playwright E2E | 8 | ✅ Alle bestanden |
+| TypeScript Build (`npm run build`) | — | ✅ Keine Fehler |
+
+### Acceptance Criteria
+
+#### Algorithmus-Bereinigung
+- ✅ `checkKonsolidierungen()` aus `planbestelllauf-algorithmus.ts` entfernt
+- ✅ `NeuePlanbestellung`-Typ enthält kein `konsolidierungen`-Feld
+- ✅ `POST /api/bestellplanung/planbestelllauf` liefert keine Konsolidierungsfelder
+- ✅ `POST /api/bestellplanung/planbestelllauf/anwenden` schreibt keine Konsolidierungsdaten
+
+#### Erstplanbestellung-Dialog
+- ✅ Kein "Konsolidierung (optional)"-Abschnitt im Dialog
+- ✅ Keine `bestellungen_konsolidierungsmitglieder`-Einträge beim Anlegen
+
+#### Wizard Schritt 3: Darstellung
+- ✅ "Weiter zur Konsolidierung →"-Button in Schritt 2
+- ✅ Schritt 3 zeigt alle Planbestellungen (DB + neu ausgewählt)
+- ✅ Herstellergruppen mit Header
+- ✅ "Kein Hersteller"-Gruppe am Ende
+- ✅ Sortierung innerhalb Gruppe nach Prod.ende-Datum aufsteigend
+- ✅ Prod.ende-Datum fett/badge-hervorgehoben
+
+#### Planbestellungs-Karte
+- ✅ Produktname, Stückzahl-Badge, Container-Badge (mit Dezimalanteil)
+- ✅ "Erstbestellung"-Badge bei herkunft=manuell
+- ✅ 4 Datumsfelder read-only
+- ✅ Containerauslastung (Progress-Bar + %) nach Spec-Logik (20DC/40HQ/voll)
+- ✅ Klick → BestellungDetailDialog
+
+#### Konsolidierung auslösen
+- ✅ Checkbox je Karte
+- ✅ "Konsolidieren"-Button bei ≥ 2 gleicher Hersteller
+- ✅ Hinweis bei gemischter Herstellerauswahl
+- ✅ Clientseitiger Algorithmus, sofortiges Preview
+- ✅ Visuelle Gruppenmarkierung (farbiger Rahmen)
+
+#### Konsolidierungsalgorithmus (10/10 Unit-Tests ✅)
+- ✅ Frühestes Prod.ende als Zieldatum
+- ✅ Datumskaskade korrekt (Prod.start, Bestelldatum, Shipping, Ankunft, Verfügbar)
+- ✅ Restvolumen-Zusammenführung und Container-Anteil proportional
+- ✅ Volle 40HQ bleiben unverändert
+- ✅ Rest = 0: nur Datumskaskade, Mengen unverändert + Hinweis
+- ✅ Fehlende Stückvolumen: Mengen unverändert, Datum angepasst
+- ✅ Konsolidierungs-Vermerk in begruendung_anpassung
+
+#### Konsolidierung aufheben
+- ✅ "Konsolidierung aufheben"-Button bei vollständiger Gruppenauswahl
+- ✅ Snapshot-Wiederherstellung (Mengen + Container)
+- ✅ DELETE `/api/bestellplanung/konsolidierung/[gruppe_id]` mit dissolve_only-Modus
+
+#### Speichern
+- ✅ Sequenzielles Speichern: Bestellungen → Konsolidierungsgruppen
+- ✅ temp_id → real_id Auflösung vor Konsolidierung
+- ✅ "Übernehmen"-Button aktiv auch mit nur Konsolidierungen (ohne neue Bestellungen)
+
+#### Übersicht nach dem Speichern
+- ✅ Violetter Streifen links bei konsolidierten Bestellungen
+- ✅ "Konsolidiert"-Badge (violett) mit Tooltip
+- ✅ Container-Badge mit Dezimalanteil
+- ✅ Status-Übergang nutzt changeStatusGruppe (alle Mitglieder gemeinsam)
+- ✅ 409-Handling: AlertDialog bei Einzel-Statuswechsel
+
+#### Re-Run
+- ✅ Bestehende Konsolidierungen werden beim Wizard-Start automatisch dissolve_only aufgehoben
+- ✅ Mengen/Container aus Snapshot wiederhergestellt, Datum bleibt
+- ✅ "!"-Indikator mit Tooltip ("War konsolidiert mit: ...")
+
+#### Detail-Dialog (konsolidierte Bestellung)
+- ✅ "Konsolidiert"-Badge (violett) mit Tooltip im Header
+- ✅ Erstbestellung-Badge sichtbar
+- ✅ SKU-Tabelle: Theoretisch | Nach MOQ | Praktisch | Konsolidierung
+- ✅ Praktisch = Snapshot-Wert (read-only), Konsolidierung = editierbarer Gesamtwert (blau)
+- ✅ Gesamt in Konsolidierung-Spalte (letzter numerischer Wert)
+
+### Sicherheitsaudit
+- ✅ POST/DELETE `/api/bestellplanung/konsolidierung` — 401 ohne Auth (Vitest ✅)
+- ✅ PUT `/api/bestellplanung/bestellungen/[id]` — 409 bei Einzel-Statuswechsel konsolidierter Bestellung (Vitest ✅)
+- ✅ RLS auf `bestellungen_konsolidierungsgruppen` und `bestellungen_konsolidierungsmitglieder`
+- ✅ Kein SQL Injection-Risiko (Supabase Parametrized Queries)
+
+### Bugs gefunden
+Keine Critical oder High Bugs. Keine offenen Issues.
+
+### Testdateien
+- `src/lib/konsolidierungs-algorithmus.test.ts` — 10 Unit-Tests
+- `tests/PROJ-63-konsolidierung-neubau.spec.ts` — 8 E2E-Tests
 
 ## Deployment
 _To be added by /deploy_
