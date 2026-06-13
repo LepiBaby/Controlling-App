@@ -1,0 +1,36 @@
+import { NavSheet } from '@/components/nav-sheet'
+import { LogoutButton } from '@/components/logout-button'
+import { Toaster } from '@/components/ui/toaster'
+import { SalesPlattformPlanungTabelle } from '@/components/sales-plattform-planung-tabelle'
+
+export default function SalesPlattformPlanungPage() {
+  return (
+    <div className="flex min-h-screen flex-col">
+      <header className="border-b bg-background px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <NavSheet />
+            <h1 className="text-lg font-semibold">Controlling App</h1>
+          </div>
+          <div className="flex items-center gap-4">
+            <LogoutButton />
+          </div>
+        </div>
+      </header>
+
+      <main className="flex-1 p-6">
+        <div className="mx-auto max-w-full space-y-4">
+          <div>
+            <h2 className="text-xl font-semibold">Sales Plattform Planung</h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Umsätze und Kosten je Sales Plattform und Produkt für Vergangenheit und Planung
+            </p>
+          </div>
+          <SalesPlattformPlanungTabelle />
+        </div>
+      </main>
+
+      <Toaster />
+    </div>
+  )
+}

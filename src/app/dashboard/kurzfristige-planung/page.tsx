@@ -27,30 +27,12 @@ export default function KurzfristigePlanungPage() {
             </h2>
             <div className="grid gap-3 sm:grid-cols-3">
               <a
-                href="/dashboard/kurzfristige-planung/absatzeinstellungen"
+                href="/dashboard/kurzfristige-planung/grundeinstellungen"
                 className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
               >
-                <p className="font-medium">Absatzeinstellungen</p>
+                <p className="font-medium">Grundeinstellungen</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Absatzberechnungsmethode je Plattform &amp; Produkt konfigurieren
-                </p>
-              </a>
-              <a
-                href="/dashboard/kurzfristige-planung/verkaufsgebuehr-einstellungen"
-                className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
-              >
-                <p className="font-medium">Verkaufsgebühr-Einstellungen</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Prozentuale Verkaufsgebühr je Plattform &amp; Produkt pflegen
-                </p>
-              </a>
-              <a
-                href="/dashboard/kurzfristige-planung/versand-einstellungen"
-                className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
-              >
-                <p className="font-medium">Versand-Einstellungen</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Versandgebühr (Spediteur &amp; 3PL) sowie Zahlungsziel je Plattform &amp; Produkt pflegen
+                  Planungshorizont und weitere allgemeine Parameter der kurzfristigen Planung konfigurieren
                 </p>
               </a>
               <a
@@ -63,30 +45,39 @@ export default function KurzfristigePlanungPage() {
                 </p>
               </a>
               <a
-                href="/dashboard/kurzfristige-planung/lager-einstellungen"
+                href="/dashboard/kurzfristige-planung/absatzeinstellungen"
                 className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
               >
-                <p className="font-medium">Lager-Einstellungen</p>
+                <p className="font-medium">Absatzeinstellungen</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Lagerkosten (€/m³) je Plattform &amp; Produkt sowie Zahlungswoche pflegen
+                  Absatzberechnungsmethode je Plattform &amp; Produkt konfigurieren
                 </p>
               </a>
               <a
-                href="/dashboard/kurzfristige-planung/retouren-einstellungen"
+                href="/dashboard/kurzfristige-planung/produktinformationen"
                 className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
               >
-                <p className="font-medium">Retoureneinstellungen</p>
+                <p className="font-medium">Produktinformationen</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Retourenquote, Rückversandkosten &amp; Handling-Kosten je Plattform &amp; Produkt pflegen
+                  Hersteller, MOQ, Containerkapazität, Lieferzeit, Zahlungskonditionen, Kosten &amp; Bestandsverwaltung je Produkt pflegen
                 </p>
               </a>
               <a
-                href="/dashboard/kurzfristige-planung/ersatzteile-kulanz-einstellungen"
+                href="/dashboard/kurzfristige-planung/vertriebseinstellungen"
                 className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
               >
-                <p className="font-medium">Ersatzteile/Kulanz-Einstellungen</p>
+                <p className="font-medium">Vertriebseinstellungen</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Ersatzteile/Kulanz-Quote &amp; Kosten pro Stück je Plattform &amp; Produkt pflegen
+                  Versand, Lager, Retouren &amp; Ersatzteile/Kulanz zentral konfigurieren
+                </p>
+              </a>
+              <a
+                href="/dashboard/kurzfristige-planung/verkaufsgebuehr-einstellungen"
+                className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+              >
+                <p className="font-medium">Verkaufsgebühr-Einstellungen</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Prozentuale Verkaufsgebühr je Plattform &amp; Produkt pflegen
                 </p>
               </a>
               <a
@@ -96,15 +87,6 @@ export default function KurzfristigePlanungPage() {
                 <p className="font-medium">Marketing-Einstellungen</p>
                 <p className="text-sm text-muted-foreground mt-1">
                   Marketing-Berechnungsmethode je Plattform &amp; Produkt konfigurieren
-                </p>
-              </a>
-              <a
-                href="/dashboard/kurzfristige-planung/grundeinstellungen"
-                className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
-              >
-                <p className="font-medium">Grundeinstellungen</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Planungshorizont und weitere allgemeine Parameter der kurzfristigen Planung konfigurieren
                 </p>
               </a>
               <a
@@ -126,12 +108,12 @@ export default function KurzfristigePlanungPage() {
                 </p>
               </a>
               <a
-                href="/dashboard/kurzfristige-planung/produktinformationen"
+                href="/dashboard/kurzfristige-planung/steuereinstellungen"
                 className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
               >
-                <p className="font-medium">Produktinformationen</p>
+                <p className="font-medium">Steuereinstellungen</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Hersteller, MOQ, Containerkapazität, Lieferzeit, Zahlungskonditionen, Kosten &amp; Bestandsverwaltung je Produkt pflegen
+                  UST-Zahlungsfrequenz, Zahlungsverschiebung, UST-Sätze je Kategorie und Einfuhrumsatzsteuer-Zahlungsziel pflegen
                 </p>
               </a>
             </div>
@@ -152,12 +134,12 @@ export default function KurzfristigePlanungPage() {
                 </p>
               </a>
               <a
-                href="/dashboard/kurzfristige-planung/einnahmenplanung"
+                href="/dashboard/kurzfristige-planung/bestellplanung"
                 className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
               >
-                <p className="font-medium">Einnahmenplanung</p>
+                <p className="font-medium">Bestellplanung</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Sonstige Einnahmen je Kategorie für den Planungshorizont manuell erfassen
+                  Planbestellungen via Algorithmus generieren, laufende Bestellungen verwalten und abgeschlossene Bestellungen einsehen
                 </p>
               </a>
               <a
@@ -167,6 +149,15 @@ export default function KurzfristigePlanungPage() {
                 <p className="font-medium">Marketing-Planung</p>
                 <p className="text-sm text-muted-foreground mt-1">
                   Marketingkosten % je Plattform &amp; Produkt für den Planungshorizont planen
+                </p>
+              </a>
+              <a
+                href="/dashboard/kurzfristige-planung/einnahmenplanung"
+                className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+              >
+                <p className="font-medium">Einnahmenplanung</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Sonstige Einnahmen je Kategorie für den Planungshorizont manuell erfassen
                 </p>
               </a>
               <a
@@ -188,12 +179,12 @@ export default function KurzfristigePlanungPage() {
                 </p>
               </a>
               <a
-                href="/dashboard/kurzfristige-planung/bestellplanung"
+                href="/dashboard/kurzfristige-planung/sales-plattform-planung"
                 className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
               >
-                <p className="font-medium">Bestellplanung</p>
+                <p className="font-medium">Sales Plattform Planung</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Planbestellungen via Algorithmus generieren, laufende Bestellungen verwalten und abgeschlossene Bestellungen einsehen
+                  Bruttoumsatz, Rückerstattungen, Verkaufsgebühr und weitere Kategorien je Plattform &amp; Produkt für Vergangenheit und Planung einsehen
                 </p>
               </a>
             </div>

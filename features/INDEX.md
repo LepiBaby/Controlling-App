@@ -86,7 +86,9 @@
 | PROJ-62 | Erstplanbestellung anlegen — Kurzfristige Planung | Approved | [PROJ-62-erstplanbestellung.md](PROJ-62-erstplanbestellung.md) | 2026-06-10 |
 | PROJ-63 | Konsolidierung — Neubau (Kurzfristige Planung) | Approved | [PROJ-63-konsolidierung-neubau.md](PROJ-63-konsolidierung-neubau.md) | 2026-06-12 |
 | PROJ-64 | Bestellkosten — Kurzfristige Planung | Approved | [PROJ-64-bestellkosten.md](PROJ-64-bestellkosten.md) | 2026-06-12 |
+| PROJ-65 | Steuereinstellungen — Kurzfristige Planung | In Progress | [PROJ-65-steuereinstellungen.md](PROJ-65-steuereinstellungen.md) | 2026-06-13 |
+| PROJ-66 | Sales Plattform Planung — Kurzfristige Planung | In Progress | [PROJ-66-sales-plattform-planung.md](PROJ-66-sales-plattform-planung.md) | 2026-06-13 |
 
 <!-- Add features above this line -->
 
-## Next Available ID: PROJ-65
+## Next Available ID: PROJ-67
