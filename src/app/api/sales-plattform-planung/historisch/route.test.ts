@@ -121,8 +121,8 @@ describe('GET /api/sales-plattform-planung/historisch', () => {
       .mockReturnValueOnce(EMPTY) // umsatz
       .mockReturnValueOnce(ch({
         data: [
-          { produkt_id: 'prod-1', sales_plattform_id: 'platt-1', leistungsdatum: testDate, betrag_netto: 100, kategorie_id: 'vkgeb-1' },
-          { produkt_id: 'prod-1', sales_plattform_id: 'platt-1', leistungsdatum: testDate, betrag_netto: 50, kategorie_id: 'mkt-1' },
+          { produkt_id: 'prod-1', sales_plattform_id: 'platt-1', leistungsdatum: testDate, betrag_brutto: 100, kategorie_id: 'vkgeb-1', gruppe_id: null, relevanz: 'rentabilitaet' },
+          { produkt_id: 'prod-1', sales_plattform_id: 'platt-1', leistungsdatum: testDate, betrag_brutto: 50, kategorie_id: 'mkt-1', gruppe_id: null, relevanz: 'rentabilitaet' },
         ],
         error: null,
       }))

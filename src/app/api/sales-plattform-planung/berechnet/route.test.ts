@@ -42,15 +42,15 @@ const KAT_ROWS = [
   { id: 'mkt-1', name: 'Marketing', parent_id: null, type: 'ausgaben_kosten', ist_abzugsposten: false, level: 1 },
 ]
 
-// Provide all 10 parallel mocks for the data loading phase
+// Provide all parallel mocks for the data loading phase
 function setupParallelMocks(overrides: Partial<Record<number, object>> = {}) {
-  // 0: grundeinstellungen (first call in round 1, already done)
-  // In round 2: 10 parallel calls:
+  // retouren_plattform_einstellungen is Promise.resolve (no mockFrom call)
   // 0: absatz_planung, 1: absatz_einstellungen, 2: bestand_transaktionen,
-  // 3: retouren_einstellungen, 4: retouren_plattform_einstellungen, 5: verkaufsgebuehr_einstellungen,
-  // 6: marketing_planung, 7: marketing_einstellungen,
-  // 8: umsatz_transaktionen, 9: ausgaben_kosten_transaktionen
-  const defaults: object[] = [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
+  // 3: retouren_einstellungen, 4: verkaufsgebuehr_einstellungen,
+  // 5: marketing_planung, 6: marketing_einstellungen,
+  // 7: umsatz_transaktionen, 8: ausgaben_kosten_transaktionen,
+  // 9: ust_kategorie_saetze (PROJ-65), 10: auszahlungs_marketing_gruppen (PROJ-66)
+  const defaults: object[] = [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
   const resolved = defaults.map((d, i) => overrides[i] ?? d)
   for (const m of resolved) mockFrom.mockReturnValueOnce(m)
 }
@@ -147,7 +147,7 @@ describe('GET /api/sales-plattform-planung/berechnet', () => {
         ],
         error: null,
       }),
-      5: ch({ data: [{ sales_plattform_id: 'platt-1', produkt_id: 'prod-1', verkaufsgebuehr_prozent: 15 }], error: null }),
+      4: ch({ data: [{ sales_plattform_id: 'platt-1', produkt_id: 'prod-1', verkaufsgebuehr_prozent: 15 }], error: null }),
     })
     const res = await GET()
     expect(res.status).toBe(200)
@@ -178,10 +178,15 @@ describe('GET /api/sales-plattform-planung/berechnet', () => {
         ],
         error: null,
       }),
-      6: ch({
-        data: [{ produkt_id: 'prod-1', sales_plattform_id: 'platt-1', kw_year: year, kw_number: week, marketingkosten_pct_manuell: 10 }],
+      5: ch({
+        data: [{ produkt_id: 'prod-1', kategorie_id: 'mkt-sub-1', kw_year: year, kw_number: week, marketingkosten_pct_manuell: 10 }],
         error: null,
       }),
+      6: ch({
+        data: [{ kategorie_id: 'mkt-sub-1', produkt_id: 'prod-1', berechnungsart: 'mittelwert_30', gewichtung_erstes_drittel: null, gewichtung_zweites_drittel: null, gewichtung_drittes_drittel: null }],
+        error: null,
+      }),
+      10: ch({ data: [{ kpi_kategorie_id: 'mkt-sub-1' }], error: null }), // auszahlungs_marketing_gruppen: mkt-sub-1 is inkludiert
     })
     const res = await GET()
     expect(res.status).toBe(200)

@@ -73,7 +73,7 @@
 | PROJ-49 | Marketing-Einstellungen — Kurzfristige Planung | Approved | [PROJ-49-marketing-einstellungen.md](PROJ-49-marketing-einstellungen.md) | 2026-06-02 |
 | PROJ-50 | Grundeinstellungen — Kurzfristige Planung | In Review | [PROJ-50-grundeinstellungen.md](PROJ-50-grundeinstellungen.md) | 2026-06-03 |
 | PROJ-51 | Absatzplanung — Kurzfristige Planung | Approved | [PROJ-51-absatzplanung.md](PROJ-51-absatzplanung.md) | 2026-06-03 |
-| PROJ-52 | Einnahmenplanung — Kurzfristige Planung | Approved | [PROJ-52-einnahmenplanung.md](PROJ-52-einnahmenplanung.md) | 2026-06-04 |
+| PROJ-52 | Einnahmenplanung — Kurzfristige Planung | In Review | [PROJ-52-einnahmenplanung.md](PROJ-52-einnahmenplanung.md) | 2026-06-04 |
 | PROJ-53 | Zellen-Notizen in der Kurzfristigen Planung | Approved | [PROJ-53-zellen-notizen-planung.md](PROJ-53-zellen-notizen-planung.md) | 2026-06-04 |
 | PROJ-54 | Marketing-Planung — Kurzfristige Planung | Approved | [PROJ-54-marketingplanung.md](PROJ-54-marketingplanung.md) | 2026-06-04 |
 | PROJ-55 | Operative Fixkosten-Einstellungen — Kurzfristige Planung | Approved | [PROJ-55-operative-fixkosten-einstellungen.md](PROJ-55-operative-fixkosten-einstellungen.md) | 2026-06-04 |
@@ -86,8 +86,8 @@
 | PROJ-62 | Erstplanbestellung anlegen — Kurzfristige Planung | Approved | [PROJ-62-erstplanbestellung.md](PROJ-62-erstplanbestellung.md) | 2026-06-10 |
 | PROJ-63 | Konsolidierung — Neubau (Kurzfristige Planung) | Approved | [PROJ-63-konsolidierung-neubau.md](PROJ-63-konsolidierung-neubau.md) | 2026-06-12 |
 | PROJ-64 | Bestellkosten — Kurzfristige Planung | Approved | [PROJ-64-bestellkosten.md](PROJ-64-bestellkosten.md) | 2026-06-12 |
-| PROJ-65 | Steuereinstellungen — Kurzfristige Planung | In Progress | [PROJ-65-steuereinstellungen.md](PROJ-65-steuereinstellungen.md) | 2026-06-13 |
-| PROJ-66 | Sales Plattform Planung — Kurzfristige Planung | In Progress | [PROJ-66-sales-plattform-planung.md](PROJ-66-sales-plattform-planung.md) | 2026-06-13 |
+| PROJ-65 | Steuereinstellungen — Kurzfristige Planung | Approved | [PROJ-65-steuereinstellungen.md](PROJ-65-steuereinstellungen.md) | 2026-06-13 |
+| PROJ-66 | Sales Plattform Planung — Kurzfristige Planung | Approved | [PROJ-66-sales-plattform-planung.md](PROJ-66-sales-plattform-planung.md) | 2026-06-13 |
 
 <!-- Add features above this line -->
 
