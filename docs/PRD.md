@@ -75,6 +75,11 @@ Eine interne Controlling-Plattform für das Finanzreporting eines E-Commerce Unt
 | P1 | PROJ-61: Lagerbestandsdiagramm — Kurzfristige Planung | Planned |
 | P1 | PROJ-62: Erstplanbestellung anlegen — Kurzfristige Planung | Planned |
 | P1 | PROJ-63: Konsolidierung — Neubau (Kurzfristige Planung) | Planned |
+| P1 | PROJ-64: Bestellkosten — Kurzfristige Planung | Planned |
+| P1 | PROJ-65: Steuereinstellungen — Kurzfristige Planung | Planned |
+| P1 | PROJ-66: Sales Plattform Planung — Kurzfristige Planung | Planned |
+| P1 | PROJ-67: Umsatzausgaben — Kurzfristige Planung | Planned |
+| P1 | PROJ-68: Operative Ausgaben — Kurzfristige Planung (Redesign PROJ-56) | Planned |
 
 ## Success Metrics
 - Alle Finanzdaten werden in einer zentralen Plattform erfasst (kein Excel-Chaos)
