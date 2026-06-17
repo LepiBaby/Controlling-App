@@ -1,8 +1,26 @@
 # PROJ-69: Produktinvestitionsausgaben — Kurzfristige Planung (Redesign PROJ-57)
 
-## Status: Planned
+## Status: In Progress
 **Created:** 2026-06-17
 **Last Updated:** 2026-06-17
+
+## Implementation Notes (Backend)
+
+**Implementiert 2026-06-17:**
+
+### Neue Dateien
+- `src/app/api/produktinvestitions-planung/ist-tatsaechlich/route.ts` — GET-Endpoint: aggregiert `ausgaben_kosten_transaktionen` nach `(gruppe_id, kw_year, kw_number)` für den Vergangenheitshorizont. Filterung: `relevanz IN ['liquiditaet', 'beides']`, `zahlungsdatum` im Zeitraum, `gruppe_id NOT NULL`. Rückgabe: `{ data: [{ kategorie_id, kw_year, kw_number, betrag }] }`
+- `src/app/api/produktinvestitions-planung/ist-tatsaechlich/route.test.ts` — 7 Tests (400-Validierung, 401, 500, 200 leer, Aggregation, Null-Handling, Rundung)
+- `src/hooks/use-produktinvestitionsausgaben.ts` — Neuer Hook: 4-phasiges Laden (grundeinstellungen → 3 parallele: kpi-categories, produktinvestitions-planung, ist-tatsaechlich). Filtert KPI-Kategorien auf "Produktinvestitionen"-Subtree. Key-Format: `${kategorieId}:${year}:${week}`. Kein berechnet, kein resetAll, kein produkt_id.
+- `src/components/produktinvestitionsausgaben-tabelle.tsx` — Neue Tabellenkomponente: Dual-Spalten-Vergangenheitsbereich (Ist-Tatsächlich + Ist-Plan), blauer Indikator für manuelle Soll-Werte, Gesamt-Zeile unten, zwei separate Expand/Collapse-Buttons, Zellen-Notizen, Multi-Zellen-Selektion. Kein Reset-Button.
+
+### Gelöschte Dateien (PROJ-57)
+- `src/hooks/use-produktinvestitionsplanung.ts`
+- `src/hooks/use-produktinvestitionsplanung.test.ts`
+- `src/components/produktinvestitionsplanung-tabelle.tsx`
+
+### Geänderte Dateien
+- `src/app/dashboard/kurzfristige-planung/produktinvestitionsplanung/page.tsx` — Import und Usage auf `ProduktinvestitionsausgabenTabelle` umgestellt
 
 ## Dependencies
 - Requires: PROJ-1 (Authentifizierung) — nur eingeloggte Nutzer

@@ -2,7 +2,7 @@
 
 import { NavSheet } from '@/components/nav-sheet'
 import { LogoutButton } from '@/components/logout-button'
-import { ProduktinvestitionsPlanungTabelle } from '@/components/produktinvestitionsplanung-tabelle'
+import { ProduktinvestitionsausgabenTabelle } from '@/components/produktinvestitionsausgaben-tabelle'
 import { Toaster } from '@/components/ui/toaster'
 
 export default function ProduktinvestitionsPlanungPage() {
@@ -12,7 +12,7 @@ export default function ProduktinvestitionsPlanungPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <NavSheet />
-            <h1 className="text-lg font-semibold">Produktinvestitionsplanung</h1>
+            <h1 className="text-lg font-semibold">Produktinvestitionsausgaben</h1>
           </div>
           <div className="flex items-center gap-4">
             <LogoutButton />
@@ -22,7 +22,7 @@ export default function ProduktinvestitionsPlanungPage() {
 
       <main className="flex-1 p-6">
         <div className="mx-auto max-w-full">
-          <ProduktinvestitionsPlanungTabelle />
+          <ProduktinvestitionsausgabenTabelle />
         </div>
       </main>
 
