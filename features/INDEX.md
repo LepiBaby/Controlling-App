@@ -89,7 +89,7 @@
 | PROJ-65 | Steuereinstellungen — Kurzfristige Planung | Approved | [PROJ-65-steuereinstellungen.md](PROJ-65-steuereinstellungen.md) | 2026-06-13 |
 | PROJ-66 | Sales Plattform Planung — Kurzfristige Planung | Approved | [PROJ-66-sales-plattform-planung.md](PROJ-66-sales-plattform-planung.md) | 2026-06-13 |
 | PROJ-67 | Umsatzausgaben — Kurzfristige Planung | Approved | [PROJ-67-umsatzausgaben.md](PROJ-67-umsatzausgaben.md) | 2026-06-15 |
-| PROJ-68 | Operative Ausgaben — Kurzfristige Planung (Redesign PROJ-56) | Planned | [PROJ-68-operative-ausgaben.md](PROJ-68-operative-ausgaben.md) | 2026-06-17 |
+| PROJ-68 | Operative Ausgaben — Kurzfristige Planung (Redesign PROJ-56) | Architected | [PROJ-68-operative-ausgaben.md](PROJ-68-operative-ausgaben.md) | 2026-06-17 |
 
 <!-- Add features above this line -->
 

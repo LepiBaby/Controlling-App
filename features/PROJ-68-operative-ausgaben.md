@@ -1,6 +1,6 @@
 # PROJ-68: Operative Ausgaben — Kurzfristige Planung
 
-## Status: Planned
+## Status: Architected
 **Created:** 2026-06-17
 **Last Updated:** 2026-06-17
 
@@ -300,3 +300,168 @@ Falls diese Felder bereits existieren: keine Änderung nötig. Falls nicht: DB-M
    ↓
 8. Alte PROJ-56-Artefakte entfernen
 ```
+
+## Deployment
+_To be added by /deploy_
+
+---
+
+## Tech Design (Solution Architect — 2026-06-17)
+
+### Komponentenstruktur
+
+```
+/dashboard/kurzfristige-planung/operative-planung  (bestehende URL — vollständig neu)
++-- Page-Header
+|   +-- Titel „Operative Ausgaben"
+|   +-- Button-Gruppe rechts:
+|       +-- „Alle ausklappen" (separater Button)
+|       +-- „Alle einklappen" (separater Button)
+|       +-- „Zurücksetzen" (öffnet AlertDialog)
++-- OperativeAusgabenTabelle  (NEUE Hauptkomponente)
+    +-- Scroll-Container (overflow-x: auto)
+    |   +-- <table>
+    |       +-- <thead> (sticky top)
+    |       |   +-- KW-Gruppenzeile:
+    |       |       [Label sticky links] | [KW22 colspan=2 | KW23 colspan=2 | ...] ‖ [KW26 | KW27 | ...]
+    |       |   +-- Sub-Label-Zeile:
+    |       |       [leer sticky] | [Ist-Tatsächlich | Ist-Plan | ...] ‖ [leer | leer | ...]
+    |       +-- <tbody> (flaches Zeilen-Array)
+    |           +-- [Pro L1-Gruppe direkt unter „Operativ"]
+    |           |   +-- category-header-Zeile (Name + Toggle, summiert Kinder)
+    |           |   +-- [wenn ausgeklappt + hat L2-Kinder]:
+    |           |       +-- category-sum-Zeile (Aggregat, nicht editierbar)
+    |           |       +-- Pro L2: leaf-Zeile (eingerückt, editierbar im Soll-Bereich)
+    |           |   +-- [wenn ausgeklappt + kein L2]:
+    |           |       +-- L1 selbst als leaf-Zeile (editierbar im Soll-Bereich)
+    |           +-- Gesamt-Zeile „Operative Ausgaben (Gesamt)"  ← GANZ UNTEN
+    +-- BetragsselektionPanel  (fixed rechts unten, ab 1 selektierter Zelle)
+    +-- EinzelzelleResetButton  (rechts unten, wenn fokussierte Soll-Zelle = blauer Punkt)
+    +-- ResetConfirmDialog  (shadcn AlertDialog)
+
+nav-sheet.tsx  (bestehend — Umbenennung)
+→ „Operative Planung" → „Operative Ausgaben"
+
+/dashboard/kurzfristige-planung/page.tsx  (bestehend — Umbenennung der Kachel)
+```
+
+### Tabellenaufbau (Spaltenstruktur)
+
+Der Tabellenkopf hat **zwei Header-Zeilen** (identisch zu Umsatzausgaben, PROJ-67):
+
+- **Zeile 1 (KW-Gruppe)**: Vergangene KWs als `colspan=2` (z. B. „KW22 / 2026"), zukünftige KWs als einzelne Spalte. Dicker vertikaler Separator zwischen Vergangenheit und Zukunft.
+- **Zeile 2 (Sub-Labels)**: Unter jeder vergangenen KW: „Ist-Tatsächlich" (links) + „Ist-Plan" (rechts).
+
+Zeilentypen (flaches Array):
+
+| Typ | Editierbar | Beschreibung |
+|---|---|---|
+| `category-header` | Nein | L1-Gruppe, einklappbar, zeigt Summe |
+| `category-sum` | Nein | Aggregat-Zeile L1 mit L2-Kindern |
+| `leaf` | Ja (nur Soll) | L2-Untergruppe oder L1 ohne Kinder |
+| `total` | Nein | „Operative Ausgaben (Gesamt)" — ganz unten |
+
+### Datenfluss beim Laden
+
+```
+Seite öffnet sich → Hook useOperativeAusgaben lädt PARALLEL (alle 5 gleichzeitig):
+
+  ① GET /api/grundeinstellungen
+       → planungshorizont_wochen, vergangenheitshorizont_wochen
+
+  ② GET /api/kpi-categories?type=ausgaben_kosten
+       → alle KPI-Kategorien; Hook filtert client-seitig auf „Operativ"-Subtree
+
+  ③ GET /api/operative-planung
+       → alle manuellen DB-Einträge des Nutzers (ZWEI Zwecke):
+         a) Ist-Plan (vergangene KWs): der damalige Planwert
+         b) Soll-Manuell (zukünftige KWs): aktuelle manuelle Overrides
+
+  ④ GET /api/operative-planung/ist-tatsaechlich?von_kw=&von_jahr=&bis_kw=&bis_jahr=
+       → tatsächliche Ausgaben je Kategorie je vergangene KW
+       → aus ausgaben_kosten_transaktionen, gefiltert nach zahlungsdatum + relevanz
+
+  ⑤ GET /api/operative-planung/berechnet?von_kw=&von_jahr=&bis_kw=&bis_jahr=
+       → auto-berechnete Soll-Werte je Kategorie + KW aus operative_fixkosten_einstellungen
+       → Fixkosten-Defaults werden NICHT in DB gespeichert → kein 2-Phasen-Laden nötig
+
+→ Hook baut flaches Zeilen-Array (category-header → [category-sum +] leaf → ... → total)
+→ Pro Zelle: Ist-Tatsächlich aus ④, Ist-Plan aus ③ (vergangene Einträge)
+             Soll: Eintrag in ③ für Zukunfts-KW = blauer Punkt (manuell)
+                   Auto-Wert aus ⑤ ohne ③-Eintrag = grauer Punkt
+                   Kein Wert aus ③ oder ⑤ = leer
+```
+
+**Wesentlicher Unterschied zu PROJ-67 Umsatzausgaben**: Kein 2-Phasen-Laden nötig, da Fixkosten-Defaults nie in `operative_planung` persistiert werden. Alle 5 Requests starten gleichzeitig.
+
+### Neue `berechnet`-Route — Fixkosten-Berechnung (server-seitig)
+
+`GET /api/operative-planung/berechnet`
+
+Diese Route ersetzt die bisherige client-seitige Berechnung aus PROJ-56. Algorithmus:
+
+```
+Für jeden aktiven Fixkosten-Eintrag (aktiv = true):
+  1. Fälligkeitsmonate aus zahlungsfrequenz ableiten
+       monatlich    → alle 12 Monate
+       quartalsweise → die 4 gespeicherten faelligkeits_monate
+       jaehrlich     → der 1 gespeicherte Monat
+  2. Basis-Datum je Monat:
+       anfang → 4. des Monats    (NEU gegenüber PROJ-56, war 1.)
+       mitte  → 15. des Monats   (unverändert)
+       ende   → 26. des Monats   (NEU gegenüber PROJ-56, war letzter Tag)
+  3. Aktiv-Zeitraum prüfen mit Basis-Datum (vor Zahlungsziel-Addition)
+  4. Zahlungsdatum = Basis-Datum + zahlungsziel_tage Tage
+  5. ISO-KW des Zahlungsdatums bestimmen
+  6. Liegt KW im angefragten Bereich → bruttobetrag akkumulieren (kategorie_id, kw_year, kw_number)
+
+Response: [{ kategorie_id, kw_year, kw_number, wert }]
+```
+
+Kein `produkt_id` (Fixkosten sind Kategorie-Ebene, nicht Produkt-Ebene).
+
+### Neue `ist-tatsaechlich`-Route
+
+`GET /api/operative-planung/ist-tatsaechlich`
+
+Identische Logik wie `umsatzausgaben-planung/ist-tatsaechlich`:
+- Liest `ausgaben_kosten_transaktionen` für den Zeitraum via `zahlungsdatum`
+- Filter: `relevanz IN ['liquiditaet', 'beides']`
+- Aggregiert nach `(gruppe_id, kw_year, kw_number)`
+- Hook filtert client-seitig, welche `gruppe_id`s zum „Operativ"-Subtree gehören
+
+Response: `[{ kategorie_id, kw_year, kw_number, betrag }]`
+
+### Datenbankänderungen
+
+**1. Migration `proj68_operative_ausgaben`:**
+- `operative_fixkosten_einstellungen` um `zahlungsziel_tage INTEGER DEFAULT 0` erweitern
+- `aktiv_von` und `aktiv_bis` existieren bereits ✓
+- `operative_planung` Tabelle bleibt unverändert ✓
+
+**2. Route `GET/PUT /api/operative-planung`:**
+- GET und PUT bleiben unverändert ✓
+- **DELETE**: NEU — löscht alle `operative_planung`-Einträge des Nutzers für KWs ≥ erste Zukunfts-KW
+
+### Wiederverwendung bestehender Logik
+
+| Muster | Quelle | Status |
+|---|---|---|
+| ISO-Wochen-Helpers (`getISOWeekInfo`, `addDays`) | `umsatzausgaben/ist-tatsaechlich/route.ts` | 1:1 kopieren |
+| `berechneVergangenheitswochen` / `berechneZukunftswochen` | `use-umsatzausgaben.ts` | 1:1 übernehmen |
+| Doppelspalten-Header (Vergangenheit colspan=2) | `umsatzausgaben-tabelle.tsx` | identisches Pattern |
+| Indikatorpunkte grau/blau | `umsatzausgaben-tabelle.tsx` | identisches Pattern |
+| Betragsselektion-Panel | `absatzplanung-tabelle.tsx` / `umsatzausgaben-tabelle.tsx` | identisches Pattern |
+| Einzelzelle-Reset-Button | `absatzplanung-tabelle.tsx` / `umsatzausgaben-tabelle.tsx` | identisches Pattern |
+| Reset AlertDialog | `umsatzausgaben-tabelle.tsx` | identisches Pattern |
+| Notizen-Integration (PROJ-53) | alle Planungsseiten | identisches Pattern |
+
+### Tech-Entscheidungen
+
+| Entscheidung | Gewählt | Warum |
+|---|---|---|
+| Server-seitige Fixkosten-Berechnung | Neue `berechnet`-Route | Konsistenz mit PROJ-67; verhindert Client-seitige Komplexität; leicht testbar |
+| Kein 2-Phasen-Laden | Alle 5 Requests parallel | Fixkosten-Defaults nie in DB → kein Timing-Problem wie bei Umsatzausgaben |
+| Kein `ist_berechnet`-Feld | Entfällt | Jeder DB-Eintrag für Zukunfts-KW = manuell = blau. Einfache Logik. |
+| Datumslogik Anfang=4., Ende=26. | Neu | Laut Anforderung; realistischere Fälligkeitsdaten |
+| Keine neuen Packages | Keine | date-fns, shadcn/ui Table, Input, AlertDialog, Tooltip — alle vorhanden |
