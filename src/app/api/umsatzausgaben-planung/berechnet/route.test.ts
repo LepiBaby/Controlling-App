@@ -49,10 +49,10 @@ const KAT_ROWS = [
 ]
 
 // Parallel mocks for Promise.all in the berechnet route.
-// Order matches the Promise.all array in the route (20 calls):
+// Order matches the Promise.all array in the route (23 calls):
 //  0: absatz_planung
 //  1: absatz_einstellungen
-//  2: bestand_transaktionen
+//  2: bestand_transaktionen (bestandRes — bestand_sendungen für auto-absatz)
 //  3: versandausgaben_einstellungen
 //  4: versandausgaben_plattform_einstellungen
 //  5: lagerausgaben_einstellungen
@@ -70,12 +70,16 @@ const KAT_ROWS = [
 // 17: bestellungen_kosten
 // 18: ust_kategorie_saetze
 // 19: umsatz_transaktionen
+// 20: bestand_transaktionen (bestandTransFullRes — für geplanten Lagerbestand)
+// 21: ust_l1_ebene_auswahl
+// 22: marketing_einstellungen
 function setupParallelMocks(overrides: Partial<Record<number, object>> = {}) {
   const defaults: object[] = [
     EMPTY, EMPTY, EMPTY, EMPTY, EMPTY,  // 0-4
     EMPTY, EMPTY, EMPTY, EMPTY, NULL_DATA, // 5-9
     EMPTY, EMPTY, EMPTY, EMPTY, EMPTY,  // 10-14
     EMPTY, EMPTY, EMPTY, EMPTY, EMPTY,  // 15-19
+    EMPTY, EMPTY, EMPTY,                 // 20-22
   ]
   const resolved = defaults.map((d, i) => overrides[i] ?? d)
   for (const m of resolved) mockFrom.mockReturnValueOnce(m)
@@ -170,6 +174,8 @@ describe('GET /api/umsatzausgaben-planung/berechnet', () => {
         error: null,
       }),
     })
+    // bestellungen_sku_mengen: second fetch (outside Promise.all), triggered because bestellungenRes has data
+    mockFrom.mockReturnValueOnce(EMPTY)
     const res = await GET(makeRequest())
     expect(res.status).toBe(200)
     const body = await res.json()

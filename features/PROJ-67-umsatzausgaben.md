@@ -1,6 +1,6 @@
 # PROJ-67: Umsatzausgaben — Kurzfristige Planung
 
-## Status: In Progress
+## Status: In Review
 **Created:** 2026-06-15
 **Last Updated:** 2026-06-16
 
@@ -595,7 +595,95 @@ Alle Bausteine bereits vorhanden:
 - Hinweis: Zod v4 UUID-Validierung erfordert korrekte Variant-Bits (`8xxx` im 4. Segment) für Test-UUIDs
 
 ## QA Test Results
-_To be added by /qa_
+
+**QA Date:** 2026-06-17
+**QA Status:** In Review — 1 Medium + 2 Low bugs found
+
+### Tests
+
+| Suite | Tests | Result |
+|---|---|---|
+| Unit Tests (`route.test.ts`) | 11/11 | ✅ Pass |
+| Unit Tests (`berechnet/route.test.ts`) | 17/17 | ✅ Pass (3 fixed during QA) |
+| E2E Tests (`PROJ-67-umsatzausgaben.spec.ts`) | 14/14 | ✅ Pass |
+| Build | — | ✅ Fehlerfrei |
+
+### Bug (während QA gefixt)
+
+**[HIGH — FIXED] 3 Unit-Tests schlugen fehl (`berechnet/route.test.ts`)**
+- Ursache: Route hat 23 parallele DB-Queries (`marketing_einstellungen` als Index 22 hinzugekommen), Test-Mock lieferte nur 22 Einträge
+- Fix: `setupParallelMocks` in Test um Index 22 (`marketing_einstellungen`) erweitert
+- Commit: im aktuellen QA-Commit enthalten
+
+### Offene Bugs
+
+**[MEDIUM] `isNewWeek`-Markierung fehlt in der Tabellen-Komponente**
+- Die letzte zukünftige KW-Spalte sollte eine rote Ring-Markierung haben, wenn keine Planungswerte existieren (analog zu Absatzplanung, Marketingplanung, Operative Planung)
+- Hook (`use-umsatzausgaben.ts`) berechnet `isNewWeek` korrekt und gibt es zurück
+- Komponente (`umsatzausgaben-tabelle.tsx`) destrukturiert `isNewWeek` und `lastWoche` nicht aus dem Hook → keine Markierung
+- Fix: `isNewWeek` und `lastWoche` aus Hook holen, Styling analog `absatzplanung-tabelle.tsx:998` anwenden: `ring-1 ring-red-300 dark:ring-red-700 rounded px-1` für `kwIdx === (zukunftswochen.length - 1) && isNew`
+
+**[LOW] Total-Zeile Label weicht von Spec ab**
+- Spec: „Ausgaben (Gesamt)"
+- Implementation: „Umsatzausgaben (Gesamt)" (Zeile 353 in `umsatzausgaben-tabelle.tsx`)
+
+**[LOW] Einzel-Toggle statt zwei separate Buttons für Expand/Collapse**
+- Spec: Zwei separate Buttons „Alle ausklappen" und „Alle einklappen"
+- Implementation: Ein Toggle-Button mit dynamischem Label (akzeptables UX-Pattern)
+
+### Acceptance Criteria
+
+| Kriterium | Status |
+|---|---|
+| Navigation „Umsatzausgaben" unter Einnahmenplanung | ✅ |
+| Kachel auf kurzfristige-planung/page | ✅ |
+| Auth-Guard → Redirect /login | ✅ |
+| Vergangenheitsspalten: 2 Spalten je KW (Ist-Tatsächlich + Ist-Plan) | ✅ |
+| Zukunftsspalten: 1 Soll-Spalte je KW | ✅ |
+| Trennlinie Vergangenheit / Zukunft | ✅ |
+| ISO-8601-Wochenberechnung | ✅ |
+| Sticky erste Spalte, horizontales Scrollen | ✅ |
+| Neue letzte KW: rote Markierung | ❌ Medium-Bug |
+| Gesamt-Zeile ganz unten | ✅ |
+| L1 einklappbare Sektionen | ✅ |
+| L2 einklappbare Untergruppen | ✅ |
+| sort_order eingehalten | ✅ |
+| „Alle ausklappen" / „Alle einklappen" Buttons | ⚠️ Low-Bug (Single-Toggle) |
+| Ist-Tatsächlich aus Liquiditätsreport-Logik | ✅ |
+| Ist-Plan aus umsatzausgaben_planung | ✅ |
+| Grauer Indikatorpunkt (auto) | ✅ |
+| Blauer Indikatorpunkt (manuell) | ✅ |
+| Inline-Editing onBlur | ✅ |
+| Optimistisches Update + Rollback | ✅ |
+| Produktausgaben (auto) aus Bestellungen | ✅ |
+| Versandausgaben (auto) inkl. Zahlungsziel | ✅ |
+| Lagerausgaben (auto) inkl. M3-Volumen | ✅ |
+| Retourenausgaben (auto) | ✅ |
+| Ersatzteile/Kulanz (auto) | ✅ |
+| Verkaufsgebühren (nur manuell) | ✅ |
+| Marketingausgaben (gefiltert, ohne Plattform-Zuordnung) | ✅ |
+| Zahlungsziel-Verschiebung + Rhythmus-Gruppierung | ✅ |
+| UST-Aufschlag | ✅ |
+| Notizen-Feature (PROJ-53) | ✅ |
+| Betragsselektion | ✅ |
+| Einzelzelle-Reset „Auf automatisch zurücksetzen" | ✅ |
+| Reset-Button mit AlertDialog | ✅ |
+| API GET/PUT/DELETE /api/umsatzausgaben-planung | ✅ |
+| API GET /api/umsatzausgaben-planung/ist-tatsaechlich | ✅ |
+| API GET /api/umsatzausgaben-planung/berechnet | ✅ |
+
+### Security Audit
+
+- ✅ Alle API-Routen prüfen Auth via `requireAuth()`
+- ✅ RLS auf `umsatzausgaben_planung` (aus Migration)
+- ✅ Zod-Validierung auf PUT-Endpoint
+- ✅ `.limit()` auf allen DB-Queries
+- ✅ Kein user_id-Filter auf `ausgaben_kosten_transaktionen` (korrekt — Tabelle hat keinen)
+- ✅ Keine Secrets im Code
+
+### Production-Ready-Entscheidung
+
+**NOT READY** — 1 Medium-Bug (fehlende rote KW-Markierung) muss vor Deployment behoben werden.
 
 ## Deployment
 _To be added by /deploy_
