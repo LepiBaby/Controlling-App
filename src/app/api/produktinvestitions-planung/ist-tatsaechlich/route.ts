@@ -39,7 +39,7 @@ export async function GET(request: Request) {
 
   const { data, error: dbErr } = await supabase
     .from('ausgaben_kosten_transaktionen')
-    .select('gruppe_id, zahlungsdatum, betrag_brutto')
+    .select('gruppe_id, untergruppe_id, zahlungsdatum, betrag_brutto')
     .not('gruppe_id', 'is', null)
     .not('zahlungsdatum', 'is', null)
     .in('relevanz', ['liquiditaet', 'beides'])
@@ -49,23 +49,27 @@ export async function GET(request: Request) {
 
   if (dbErr) return NextResponse.json({ error: dbErr.message }, { status: 500 })
 
-  // Aggregate by (kategorie_id, kw_year, kw_number) — no product-level breakdown needed
+  // Effective leaf category: untergruppe_id (level 3) if set, else gruppe_id (level 2).
+  // This handles both KPI structures: Produktinvestitionen at level 1 (gruppe_id = L1 group,
+  // untergruppe_id = L2 subgroup) and at level 2 (gruppe_id = root, untergruppe_id = L1 group).
   const agg = new Map<string, { kategorie_id: string; kw_year: number; kw_number: number; betrag: number }>()
 
   for (const row of data ?? []) {
-    const { gruppe_id, zahlungsdatum, betrag_brutto } = row as {
-      gruppe_id: string
+    const { gruppe_id, untergruppe_id, zahlungsdatum, betrag_brutto } = row as {
+      gruppe_id: string | null
+      untergruppe_id: string | null
       zahlungsdatum: string
       betrag_brutto: number | null
     }
     if (!gruppe_id || !zahlungsdatum || betrag_brutto == null) continue
 
+    const effKatId = untergruppe_id ?? gruppe_id
     const d = new Date(zahlungsdatum + 'T00:00:00Z')
     const { year, week } = getISOWeekInfo(d)
-    const key = `${gruppe_id}:${year}:${week}`
+    const key = `${effKatId}:${year}:${week}`
 
     if (!agg.has(key)) {
-      agg.set(key, { kategorie_id: gruppe_id, kw_year: year, kw_number: week, betrag: 0 })
+      agg.set(key, { kategorie_id: effKatId, kw_year: year, kw_number: week, betrag: 0 })
     }
     agg.get(key)!.betrag += Number(betrag_brutto)
   }
