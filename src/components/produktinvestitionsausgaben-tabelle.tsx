@@ -141,7 +141,6 @@ export function ProduktinvestitionsausgabenTabelle({ referenceDate }: { referenc
   }, [l1Kategorien, childrenByParent])
 
   const allExpanded = allExpandableIds.size > 0 && [...allExpandableIds].every(id => expandedIds.has(id))
-  const allCollapsed = allExpandableIds.size === 0 || [...allExpandableIds].every(id => !expandedIds.has(id))
 
   useEffect(() => {
     if (!loading && kategorien.length > 0) {
@@ -436,26 +435,16 @@ export function ProduktinvestitionsausgabenTabelle({ referenceDate }: { referenc
                 : ''}
           </span>
           {allExpandableIds.size > 0 && (
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost" size="sm"
-                className="gap-1.5 text-xs text-muted-foreground"
-                disabled={allExpanded}
-                onClick={() => setExpandedIds(new Set(allExpandableIds))}
-              >
-                <ChevronsUpDown className="h-3.5 w-3.5" />
-                Alle ausklappen
-              </Button>
-              <Button
-                variant="ghost" size="sm"
-                className="gap-1.5 text-xs text-muted-foreground"
-                disabled={allCollapsed}
-                onClick={() => setExpandedIds(new Set())}
-              >
-                <ChevronsDownUp className="h-3.5 w-3.5" />
-                Alle einklappen
-              </Button>
-            </div>
+            <Button
+              variant="ghost" size="sm"
+              className="gap-1.5 text-xs text-muted-foreground"
+              onClick={() => setExpandedIds(allExpanded ? new Set() : new Set(allExpandableIds))}
+            >
+              {allExpanded
+                ? <><ChevronsDownUp className="h-3.5 w-3.5" />Alle einklappen</>
+                : <><ChevronsUpDown className="h-3.5 w-3.5" />Alle ausklappen</>
+              }
+            </Button>
           )}
         </div>
 
