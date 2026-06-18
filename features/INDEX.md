@@ -91,7 +91,7 @@
 | PROJ-67 | Umsatzausgaben — Kurzfristige Planung | Approved | [PROJ-67-umsatzausgaben.md](PROJ-67-umsatzausgaben.md) | 2026-06-15 |
 | PROJ-68 | Operative Ausgaben — Kurzfristige Planung (Redesign PROJ-56) | Approved | [PROJ-68-operative-ausgaben.md](PROJ-68-operative-ausgaben.md) | 2026-06-17 |
 | PROJ-69 | Produktinvestitionsausgaben — Kurzfristige Planung (Redesign PROJ-57) | In Progress | [PROJ-69-produktinvestitionsausgaben.md](PROJ-69-produktinvestitionsausgaben.md) | 2026-06-17 |
-| PROJ-70 | Finanzierungsausgaben — Kurzfristige Planung | Planned | [PROJ-70-finanzierungsausgaben.md](PROJ-70-finanzierungsausgaben.md) | 2026-06-18 |
+| PROJ-70 | Finanzierungsausgaben — Kurzfristige Planung | Architected | [PROJ-70-finanzierungsausgaben.md](PROJ-70-finanzierungsausgaben.md) | 2026-06-18 |
 
 <!-- Add features above this line -->
 

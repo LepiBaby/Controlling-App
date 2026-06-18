@@ -322,7 +322,217 @@ Falls diese Felder bereits existieren: keine Migration nötig.
 ---
 
 ## Tech Design (Solution Architect)
-_To be added by /architecture_
+
+### Grundprinzip
+
+PROJ-70 ist eine **direkte Adaption** von PROJ-68 (Operative Ausgaben). Architektur, Datenladefluss, Indikatorpunkte, Persistenzlogik und alle Interaktionsmuster sind identisch — nur Datenquelle und Kategoriebaum-Filter wechseln von „Operativ" auf „Finanzierung". Das verhindert eine erneute Iterations-Schleife durch die bewährte Lösung.
+
+---
+
+### Komponentenstruktur
+
+```
+/dashboard/kurzfristige-planung/finanzierungsausgaben  (NEUE Seite)
++-- Page-Header
+|   +-- Titel „Finanzierungsausgaben"
+|   +-- Button-Gruppe rechts:
+|       +-- „Alle ausklappen"  (separater Button)
+|       +-- „Alle einklappen"  (separater Button)
+|       +-- „Zurücksetzen"     (öffnet AlertDialog)
++-- FinanzierungsausgabenTabelle  (NEUE Hauptkomponente)
+    +-- Scroll-Container (overflow-x: auto)
+    |   +-- <table>
+    |       +-- <thead> (sticky top)
+    |       |   +-- KW-Gruppenzeile:
+    |       |       [Label sticky links] | [KW22 colspan=2 | KW23 colspan=2 | ...] ‖ [KW26 | KW27 | ...]
+    |       |   +-- Sub-Label-Zeile:
+    |       |       [leer sticky] | [Ist-Tatsächlich | Ist-Plan | ...] ‖ [leer | leer | ...]
+    |       +-- <tbody>
+    |           +-- [Pro L1-Gruppe direkt unter „Finanzierung"]
+    |           |   +-- category-header-Zeile (einklappbar, zeigt Summe)
+    |           |   +-- [wenn ausgeklappt + hat L2-Kinder]:
+    |           |       +-- category-sum-Zeile (Aggregat, nicht editierbar)
+    |           |       +-- Pro L2: leaf-Zeile (eingerückt, editierbar im Soll-Bereich)
+    |           |   +-- [wenn ausgeklappt + kein L2]:
+    |           |       +-- L1 selbst als leaf-Zeile (editierbar im Soll-Bereich)
+    |           +-- Gesamt-Zeile „Finanzierungsausgaben (Gesamt)"  ← GANZ UNTEN
+    +-- BetragsselektionPanel  (fixed rechts unten, ab 1 selektierter Zelle)
+    +-- EinzelzelleResetButton  (rechts unten, wenn fokussierte Soll-Zelle = blauer Punkt)
+    +-- ResetConfirmDialog  (shadcn AlertDialog)
+
+nav-sheet.tsx  (bestehend — neuer Eintrag nach „Produktinvestitionsausgaben")
+/dashboard/kurzfristige-planung/page.tsx  (bestehend — neue Kachel nach „Produktinvestitionsausgaben")
+```
+
+---
+
+### Zeilentypen der Tabelle
+
+| Typ | Editierbar | Beschreibung |
+|---|---|---|
+| `category-header` | Nein | L1-Gruppe, einklappbar, zeigt Summe aller Kinder |
+| `category-sum` | Nein | Aggregat-Zeile wenn L1 L2-Kinder hat |
+| `leaf` | Ja (nur Soll-Spalten) | L2-Untergruppe oder L1 ohne Kinder |
+| `total` | Nein | „Finanzierungsausgaben (Gesamt)" — ganz unten |
+
+---
+
+### Datenmodell (plain language)
+
+**Neue Tabelle `finanzierungs_planung`** — zentrale Speicherung aller Planwerte:
+
+| Was gespeichert wird | Bedeutung |
+|---|---|
+| Benutzer-ID, Kategorie-ID, KW-Jahr, KW-Nummer | Eindeutiger Schlüssel je Zelle |
+| `betrag_manuell` (Zahl oder leer) | Der gespeicherte Betrag (auto oder manuell) |
+| `ist_berechnet` (ja/nein) | `ja` = auto-berechnet und eingefroren; `nein` = manuell vom Nutzer |
+
+**Wann wird was gespeichert:**
+- **Auto-Wert für Zukunfts-KW**: `berechnet`-Route schreibt `betrag_manuell = X, ist_berechnet = true` → dient später als eingefrorener Ist-Plan wenn die KW vergangen ist
+- **Manuelle Eingabe**: PUT-Route schreibt `betrag_manuell = X, ist_berechnet = false` → überschreibt den Auto-Wert
+- **Manuell löschen**: PUT mit `betrag_manuell = null` → Eintrag wird gelöscht; Auto-Wert greift wieder (sofern vorhanden)
+- **Reset**: DELETE löscht alle Einträge mit `ist_berechnet = false` für zukünftige KWs; eingefrorene Ist-Plan-Werte (`ist_berechnet = true` für vergangene KWs) bleiben unberührt
+
+**Erweiterung `finanzierungs_einstellungen`**: Die bestehende Einstellungstabelle aus PROJ-58 wird um drei Felder ergänzt — `zahlungsziel_tage`, `aktiv_von`, `aktiv_bis` — falls diese noch nicht existieren.
+
+---
+
+### Datenladefluss (beim Öffnen der Seite)
+
+Alle 5 Requests starten **gleichzeitig**, da Auto-Werte direkt in `finanzierungs_planung` persistiert werden und kein sequenzielles 2-Phasen-Laden nötig ist:
+
+```
+① GET /api/grundeinstellungen
+     → planungshorizont_wochen, vergangenheitshorizont_wochen
+
+② GET /api/kpi-categories?type=ausgaben_kosten
+     → alle KPI-Kategorien; Hook filtert auf „Finanzierung"-Subtree
+
+③ GET /api/finanzierungs-planung
+     → alle DB-Einträge des Nutzers — zwei Zwecke:
+       a) Ist-Plan (vergangene KWs): eingefrorene Planwerte
+       b) Soll-Manuell (zukünftige KWs): aktuelle manuelle Overrides
+
+④ GET /api/finanzierungs-planung/ist-tatsaechlich?von_kw=&...
+     → tatsächliche Ausgaben je Kategorie je vergangene KW
+     → aus ausgaben_kosten_transaktionen, gefiltert auf Finanzierung-Subtree
+
+⑤ GET /api/finanzierungs-planung/berechnet?von_kw=&...
+     → auto-berechnete Soll-Werte je Kategorie + KW aus finanzierungs_einstellungen
+     → persistiert gleichzeitig mit ist_berechnet=true in finanzierungs_planung
+       (nur wenn kein manueller Eintrag für diese Zelle vorhanden)
+
+→ Hook baut flaches Zeilen-Array:
+  category-header → [category-sum +] leaf → ... → total (Gesamt ganz unten)
+
+→ Pro Zelle (zukünftige KW):
+  Eintrag mit ist_berechnet=false in ③ → blauer Punkt (manuell)
+  Kein ③-Eintrag, aber Wert in ⑤                → grauer Punkt (auto)
+  Weder ③ noch ⑤                                → leer
+```
+
+---
+
+### Berechnungslogik (server-seitig, `berechnet`-Route)
+
+Die Route berechnet je Finanzierungseintrag aus `finanzierungs_einstellungen`, in welcher KW eine Zahlung anfällt:
+
+```
+Für jeden aktiven Eintrag (aktiv = true):
+  1. Fälligkeitsmonate aus Zahlungsfrequenz:
+       monatlich     → alle 12 Monate
+       quartalsweise → die 4 gespeicherten Monate (je 1 pro Quartal)
+       jährlich      → der 1 gespeicherte Monat
+
+  2. Basis-Datum je Monat (zeitpunkt_im_monat):
+       anfang → 4. des Monats
+       mitte  → 15. des Monats
+       ende   → 26. des Monats
+
+  3. Aktiv-Zeitraum-Prüfung gegen Basis-Datum (VOR Zahlungsziel)
+
+  4. Zahlungsdatum = Basis-Datum + zahlungsziel_tage Tage
+     (Samstag → +2, Sonntag → +1 auf nächsten Montag)
+
+  5. ISO-KW des Zahlungsdatums → kw_year + kw_number
+
+  6. Liegt KW im angefragten Planungszeitraum → bruttobetrag akkumulieren
+```
+
+Jahresfenster: vonJahr-1 bis bisJahr+1 um Zahlungsziel-Überhänge über Jahreswechsel zu erfassen.
+
+---
+
+### Neue und geänderte Dateien (Übersicht)
+
+**Neu:**
+
+| Datei | Aufgabe |
+|---|---|
+| `src/app/dashboard/kurzfristige-planung/finanzierungsausgaben/page.tsx` | Seiten-Container (Header + Tabelle + Toast) |
+| `src/hooks/use-finanzierungsausgaben.ts` | Datenladen, State-Management, upsert/reset-Logik |
+| `src/components/finanzierungsausgaben-tabelle.tsx` | Vollständige Tabellenkomponente |
+| `src/app/api/finanzierungs-planung/route.ts` | GET / PUT / DELETE |
+| `src/app/api/finanzierungs-planung/ist-tatsaechlich/route.ts` | GET: reale Ausgaben je KW |
+| `src/app/api/finanzierungs-planung/berechnet/route.ts` | GET: auto-berechnete Werte + Persistenz |
+
+**Geändert:**
+
+| Datei | Änderung |
+|---|---|
+| `src/components/nav-sheet.tsx` | Neuer Nav-Eintrag „Finanzierungsausgaben" |
+| `src/app/dashboard/kurzfristige-planung/page.tsx` | Neue Kachel „Finanzierungsausgaben" |
+
+**DB-Migrationen:**
+1. Neue Tabelle `finanzierungs_planung` mit Unique Constraint + RLS
+2. Erweiterung `finanzierungs_einstellungen` um `zahlungsziel_tage`, `aktiv_von`, `aktiv_bis` (falls nicht bereits vorhanden)
+
+---
+
+### Wiederverwendung bestehender Muster
+
+| Muster | Quelle |
+|---|---|
+| Doppelspalten-Header Vergangenheit (colspan=2) | `umsatzausgaben-tabelle.tsx` / `operative-ausgaben-tabelle.tsx` |
+| Grau/Blau-Indikatorpunkte | `operative-ausgaben-tabelle.tsx` |
+| Betragsselektion-Panel | `absatzplanung-tabelle.tsx` / `umsatzausgaben-tabelle.tsx` |
+| Einzelzelle-Reset-Button | `absatzplanung-tabelle.tsx` / `operative-ausgaben-tabelle.tsx` |
+| Reset AlertDialog | `operative-ausgaben-tabelle.tsx` |
+| Notizen-Integration | alle Planungsseiten (PROJ-53) |
+| ISO-Wochen-Helpers | `umsatzausgaben-planung/ist-tatsaechlich/route.ts` |
+| Berechnungslogik (Zeitpunkt, Zahlungsziel, Weekend-Skip) | `operative-planung/berechnet/route.ts` |
+| Ist-Plan-Persistenz-Mechanismus | `operative-planung/berechnet/route.ts` |
+
+---
+
+### Tech-Entscheidungen
+
+| Entscheidung | Gewählt | Warum |
+|---|---|---|
+| Alle 5 Requests parallel | Ja | Auto-Werte werden direkt persistiert → kein Timing-Problem |
+| Persistenz der Auto-Werte | `ist_berechnet = true` in `finanzierungs_planung` | Sichert Ist-Plan-Werte für vergangene KWs ohne gesonderten Freeze-Prozess |
+| Neue DB-Tabelle statt Erweiterung bestehender | `finanzierungs_planung` neu | Klare Trennung der Planungsdaten je Feature; identisch mit Muster operative_planung |
+| Keine neuen Packages | Keine | date-fns, shadcn/ui — alles vorhanden |
+| Neue URL (kein Supersede) | `/finanzierungsausgaben` (neue Route) | Finanzierungsausgaben ersetzt keine bestehende Seite; PROJ-58 bleibt unter eigenem Pfad |
+
+---
+
+### Implementierungsreihenfolge
+
+```
+1. DB: finanzierungs_planung erstellen + finanzierungs_einstellungen erweitern
+   ↓
+2. Backend: GET + PUT + DELETE /api/finanzierungs-planung
+   ↓
+3. Backend: GET /api/finanzierungs-planung/ist-tatsaechlich  (parallel mit 4)
+4. Backend: GET /api/finanzierungs-planung/berechnet         (parallel mit 3)
+   ↓
+5. Frontend: use-finanzierungsausgaben Hook
+   ↓
+6. Frontend: finanzierungsausgaben-tabelle Komponente
+   ↓
+7. Frontend: page.tsx + nav-sheet + dashboard-page
+```
 
 ## QA Test Results
 _To be added by /qa_
