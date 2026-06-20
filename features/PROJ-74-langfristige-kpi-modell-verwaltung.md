@@ -213,6 +213,22 @@ Die Seite und die Verdrahtung sind gebaut; die eigentliche Datenhaltung/API folg
 
 Neue Tabelle empfohlen: `langfristige_kpi_kategorien` mit `plan_version_id` → `langfristige_planversionen` (`ON DELETE CASCADE`), `user_id`, `art`, `parent_id` (self-FK, `ON DELETE CASCADE`), `name`, `level`, `sort_order`; RLS analog zu `langfristige_planversionen`. Eingaben serverseitig mit Zod validieren; `parent_id` muss zur selben Version & `art` gehören.
 
+### Backend (Tabelle + versionsgebundene API), 2026-06-20
+Datenhaltung und API sind implementiert; die Frontend-Anbindung erfolgte bereits im Frontend-Schritt (ruft exakt diese Endpunkte/Datensatzform), daher keine weiteren Frontend-Änderungen nötig.
+
+**Datenbank (Supabase-Projekt „Controlling-App", Migration `create_langfristige_kpi_kategorien`):**
+- Neue Tabelle `langfristige_kpi_kategorien`: `id`, `user_id` → `auth.users` (ON DELETE CASCADE), `plan_version_id` → `langfristige_planversionen` (ON DELETE CASCADE → kaskadierende Löschung pro Planversion), `art` (CHECK ∈ {lp_sales_plattform, lp_produkt, lp_marketingkanal, lp_investition}), `parent_id` (self-FK ON DELETE CASCADE → Untergruppen werden mitgelöscht), `name` (CHECK 1–100 Zeichen getrimmt), `level` (CHECK ∈ {1,2}), `sort_order`, `created_at`, `updated_at`.
+- RLS aktiviert, 4 Policies (SELECT/INSERT/UPDATE/DELETE) mit `auth.uid() = user_id` (strenger als das bestehende `USING(true)`-Muster älterer Tabellen).
+- Indizes: `(plan_version_id, art, sort_order)`, `(parent_id)`, `(user_id)`.
+- `get_advisors` (security): keine neue Warnung für die Tabelle.
+
+**API-Routen (versions- & nutzergesichert; fremde/unbekannte `versionId` → 404, kein Fremdzugriff):**
+- `src/app/api/langfristige-planung/[versionId]/kpi-kategorien/route.ts` — `GET` (Liste je `art`, nach `sort_order`) + `POST` (anlegen). Validierung: flache Arten nur Ebene 1 ohne Eltern; Ebene/Eltern-Konsistenz; Eltern muss zur selben Version & Art gehören und Ebene 1 sein; Duplikat-Name auf gleicher Ebene → 409.
+- `src/app/api/langfristige-planung/[versionId]/kpi-kategorien/[id]/route.ts` — `PATCH` (umbenennen/sortieren/umhängen; lädt Bestand für Art-Bezug, validiert Eltern beim Umhängen, verhindert Selbst-Elternschaft) + `DELETE` (Existenz-/Eigentumsprüfung → 404, sonst Löschung inkl. Untergruppen via Cascade).
+- Alle Routen: `requireAuth` (401), Zod-Validierung, Queries zusätzlich nach `user_id` + `plan_version_id` gefiltert (Defense-in-Depth zur RLS), Fehler als `{ error: string }`.
+
+**Tests:** `…/kpi-kategorien/route.test.ts` (GET/POST) + `…/[id]/route.test.ts` (PATCH/DELETE) — **23/23 grün** (Happy Path, 400/401/404/409, Eltern-/Ebenen-Validierung). KPI-Gesamtsuite (global + neu) **108/108 grün** → additive Änderungen (CategoryType, `addPlaceholder`) regressionsfrei. Typecheck ohne neue Fehler.
+
 ## QA Test Results
 _To be added by /qa_
 
