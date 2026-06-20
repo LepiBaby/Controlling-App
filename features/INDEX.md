@@ -95,8 +95,8 @@
 | PROJ-71 | Steuerausgaben — Kurzfristige Planung | Approved | [PROJ-71-steuerausgaben.md](PROJ-71-steuerausgaben.md) | 2026-06-18 |
 | PROJ-72 | Liquiditätsauswertung — Kurzfristige Planung | Approved | [PROJ-72-liquiditaetsauswertung.md](PROJ-72-liquiditaetsauswertung.md) | 2026-06-20 |
 | PROJ-73 | Langfristige Planung — Planversionen & Navigation (Foundation) | In Progress | [PROJ-73-langfristige-planung-planversionen.md](PROJ-73-langfristige-planung-planversionen.md) | 2026-06-20 |
-| PROJ-74 | KPI-Modell Verwaltung — Langfristige Planung | In Progress | [PROJ-74-langfristige-kpi-modell-verwaltung.md](PROJ-74-langfristige-kpi-modell-verwaltung.md) | 2026-06-20 |
-| PROJ-75 | Grundeinstellungen — Langfristige Planung | In Progress | [PROJ-75-langfristige-grundeinstellungen.md](PROJ-75-langfristige-grundeinstellungen.md) | 2026-06-20 |
+| PROJ-74 | KPI-Modell Verwaltung — Langfristige Planung | Approved | [PROJ-74-langfristige-kpi-modell-verwaltung.md](PROJ-74-langfristige-kpi-modell-verwaltung.md) | 2026-06-20 |
+| PROJ-75 | Grundeinstellungen — Langfristige Planung | Approved | [PROJ-75-langfristige-grundeinstellungen.md](PROJ-75-langfristige-grundeinstellungen.md) | 2026-06-20 |
 
 <!-- Add features above this line -->
 

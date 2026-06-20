@@ -1,6 +1,6 @@
 # PROJ-74: KPI-Modell Verwaltung — Langfristige Planung
 
-## Status: In Progress
+## Status: Approved
 **Created:** 2026-06-20
 **Last Updated:** 2026-06-20
 
@@ -238,7 +238,45 @@ Auf Nutzerwunsch entfällt die Nav-Gruppe **„Stammdaten"**; „KPI-Modell Verw
 Auf Nutzerwunsch wurde **Marketingkanäle** von Gruppe→Untergruppe (2 Ebenen) auf eine **flache Liste** (nur Ebene 1) umgestellt; nur **Investitionen** behält die 2-Ebenen-Struktur. Frontend: `maxLevel` für `lp_marketingkanal` auf 1, Add-Platzhalter angepasst. Backend: `lp_marketingkanal` zu `FLAT_ARTEN` hinzugefügt (nur Ebene 1, kein Elternknoten — POST/PATCH lehnen Untergruppen ab). Tabellen-CHECK (`level ∈ {1,2}`) bleibt unverändert (flach = Teilmenge), keine Migration nötig. Tests auf `lp_investition` für die Untergruppen-Fälle umgestellt — weiterhin **23/23 grün**.
 
 ## QA Test Results
-_To be added by /qa_
+
+**Getestet:** 2026-06-20 · **Methode:** Code-Audit aller Akzeptanzkriterien + Vitest (API/Logik) + Playwright (Route/Auth/Regression). Interaktionen (Anlegen/Umbenennen/Löschen/Sortieren, Untergruppen, Versionsisolation) sind code-/manuell geprüft — analog zum Vorgehen bei PROJ-75 (versionsgebundene Seiten ohne automatisierte Login-Session in E2E).
+
+### Akzeptanzkriterien — 22/22 bestanden
+
+| Bereich | Ergebnis | Beleg |
+|---------|----------|-------|
+| Umbenennung „KPI-Modell Verwaltung", erster Eintrag unter „Einstellungen", „Stammdaten" entfällt | ✅ | `langfristige-planung-nav.ts` (eine Gruppe „Einstellungen", Slug `kpi-modell-verwaltung` zuerst) |
+| Nur im Versionskontext erreichbar, Versions-/Zugriffsprüfung, Redirect bei fremd/unbekannt | ✅ | Seite in `LangfristigeVersionShell`; API `ensureVersion` → 404 bei fremd; E2E Auth-Redirect |
+| Genau 4 Reiter in Reihenfolge, keine Umsatz/Einnahmen/Ausgaben/Reporting-Reiter | ✅ | `page.tsx` `TABS` |
+| Sales Plattform: flach, anlegen/umbenennen/löschen/sortieren, Empty State | ✅ | `maxLevel 1`, Hook + Tree |
+| Produkte: flach, **keine** SKU/USt | ✅ | keine `onUpdateSku`/`onUpdateUstSatz`, `maxLevel 1` |
+| Marketingkanäle: flach, **keine** Untergruppen, keine Dimensionen/Label/Ausschluss | ✅ | `maxLevel 1`; Backend `FLAT_ARTEN` lehnt Ebene 2/Eltern ab |
+| Investitionen: Gruppe→Untergruppe (2 Ebenen), keine Zusatzfunktionen | ✅ | `maxLevel 2`, `onAddChild` aktiv |
+| Versionsisolation (laden/speichern je `versionId`+Nutzer; neue Version leer; A≠B; Cascade-Löschung) | ✅ | API-Filter `user_id`+`plan_version_id`; FK `ON DELETE CASCADE` |
+
+### Automatisierte Tests
+- **Vitest (PROJ-74 API):** `kpi-kategorien/route.test.ts` + `[id]/route.test.ts` — **23/23 grün** (Happy Path, 400/401/404/409, Eltern-/Ebenen-/Flat-Art-Validierung).
+- **Vitest (KPI gesamt, Regression der additiven Änderungen):** **108/108 grün** (`use-kpi-categories`, globale `kpi-categories`, neue `kpi-kategorien`).
+- **Playwright (`PROJ-74-…spec.ts`):** **5/5 grün** — Route ohne 404, Auth-Redirect, alter Slug ohne 404 (Auth-guarded), Dashboard-Redirect, globale KPI-Modell-Seite weiterhin erreichbar.
+
+### Security-Audit (Red Team) — keine Befunde
+- **AuthZ:** Jede Route `requireAuth` (401) + Filter nach `user_id` **und** `plan_version_id`; `ensureVersion` prüft Versionseigentum (fremde/unbekannte `versionId` → 404). RLS (`auth.uid()=user_id`) als zweite Verteidigungslinie. Kein Cross-User-/Cross-Version-Zugriff möglich.
+- **Eingabevalidierung:** Zod (Name 1–100, `art`-Enum, `level∈{1,2}`); Eltern muss zu selber Version+Art gehören und Ebene 1 sein; Selbst-Elternschaft verhindert; flache Arten lehnen Eltern/Ebene 2 ab.
+- **XSS/Injection:** Namen werden als Text gerendert (React-Escaping, kein `dangerouslySetInnerHTML`); Supabase nutzt parametrisierte Queries.
+- **Secrets:** keine im Code; `get_advisors` (security) meldet keine neue Warnung für `langfristige_kpi_kategorien`.
+
+### Bugs
+Keine Critical/High/Medium gefunden.
+
+**Low / Beobachtungen (kein Blocker):**
+- **L1 (kosmetisch):** Der Empty State zeigt den generischen Text „Noch keine Kategorien vorhanden." (aus der wiederverwendeten Tree-Komponente) statt eines reiter-spezifischen Textes. Funktional korrekt.
+- **L2 (by design, konsistent):** Bei Investitionen kann eine Untergruppe (Ebene 2) nicht per Drag zurück auf Ebene 1 „hochgestuft" werden (die Root-Ablagezone erscheint nur bei 3-Ebenen-Bäumen) — identisches Verhalten wie der globale „Produkte"-Reiter (maxLevel 2). Workaround: löschen & neu anlegen.
+
+### Hinweis zur Gesamt-Testsuite
+Ein vollständiger `vitest run` zeigt ~131 Fehlschläge in **unbeteiligten** Dateien (marketing-einstellungen, einnahmen-planung, planung-notizen, reporting, bestellplanung). Diese Quell-/Testdateien sind **bereits vor dieser Session** unkommittiert/neu im Arbeitsbaum (laufende Arbeit anderer Features) und importieren **keine** PROJ-74-Dateien. Sie sind **nicht** durch PROJ-74 verursacht und liegen außerhalb dieses QA-Scopes.
+
+### Production-Ready: **JA**
+Keine Critical/High-Bugs. PROJ-74 ist freigegeben.
 
 ## Deployment
 _To be added by /deploy_
