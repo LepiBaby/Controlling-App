@@ -1,6 +1,6 @@
 # PROJ-74: KPI-Modell Verwaltung — Langfristige Planung
 
-## Status: Architected
+## Status: In Progress
 **Created:** 2026-06-20
 **Last Updated:** 2026-06-20
 
@@ -186,6 +186,32 @@ Jeder Zugriff prüft serverseitig, dass die Planversion dem eingeloggten Nutzer 
 4. Navigations-Eintrag umbenennen (Slug/Label/Beschreibung „KPI-Modell Verwaltung").
 
 > Hinweis: Da UI und Versions-Gerüst bereits existieren, liegt der eigentliche Aufwand in Schritt 1–2 (Datenhaltung/Endpunkte); Schritt 3–4 sind überwiegend Verdrahtung.
+
+## Implementation Notes
+
+### Frontend (UI + versionsgebundener Daten-Hook), 2026-06-20
+Die Seite und die Verdrahtung sind gebaut; die eigentliche Datenhaltung/API folgt mit `/backend`. Bis dahin zeigt jeder Reiter sauber den Lade-Fehlerzustand (kein Absturz); das Versions-Gerüst selbst lädt korrekt über die bestehende PROJ-73-API.
+
+**Maximale Wiederverwendung:** Die globale KPI-Baum-/Zeilen-UI wurde **unverändert** wiederverwendet. Die „abgespeckten" Reiter entstehen allein dadurch, dass die optionalen Funktions-Callbacks (SKU, USt, Dimensionen, Anzeigebezeichnungen, Rentabilitäts-Ausschluss) **nicht** mitgegeben werden, und durch die Ebenentiefe (`maxLevel` 1 bzw. 2).
+
+**Neue Dateien:**
+- `src/hooks/use-langfristige-kpi-kategorien.ts` — versionsbewusste Variante von `useKpiCategories`. Lädt/ändert gegen `/api/langfristige-planung/[versionId]/kpi-kategorien`, bildet die API-Datensätze auf die gemeinsame `KpiCategory`-Form ab (ungenutzte Felder defaulten) und bietet nur die Struktur-Operationen (anlegen, umbenennen, löschen, hoch/runter, umsortieren, umhängen). Wiederverwendet die reinen Helfer `buildTree`/`removeWithDescendants`/`countDescendants` aus dem Basis-Hook.
+- `src/app/dashboard/langfristige-planung/[versionId]/kpi-modell-verwaltung/page.tsx` — vier Reiter (Sales Plattform, Produkte, Marketingkanäle, Investitionen), eingebettet ins `LangfristigeVersionShell`. Sales Plattform/Produkte = flach (`maxLevel 1`), Marketingkanäle/Investitionen = Gruppe→Untergruppe (`maxLevel 2`). Lösch-Bestätigung via `AlertDialog` (zählt betroffene Untergruppen).
+
+**Geänderte Dateien:**
+- `src/hooks/use-kpi-categories.ts` — `CategoryType`-Union **additiv** um die vier Langfristig-Arten (`lp_sales_plattform`, `lp_produkt`, `lp_marketingkanal`, `lp_investition`) erweitert, damit die versionsgebundenen Datensätze dieselbe `KpiCategory`-Form teilen. Globaler Hook/globale Seite verwenden diese Werte nie; der einzige typbasierte Zweig in der Zeile (`type === 'produkte'`) bleibt korrekt (keine SKU-UI für die neuen Arten).
+- `src/components/kpi-category-tree.tsx` — optionaler Prop `addPlaceholder` (Default = bisheriger Text, globale Seite unverändert), damit die flachen Reiter passende Platzhalter zeigen („Neue Sales Plattform…", „Neue Gruppe…").
+- `src/lib/langfristige-planung-nav.ts` — Stammdaten-Eintrag von Slug `plattformen-produkte` / „Plattformen & Produkte" auf `kpi-modell-verwaltung` / **„KPI-Modell Verwaltung"** umbenannt (Label, Slug, Beschreibung). Menü, Breadcrumb und Übersichtskarte ziehen automatisch nach.
+
+**Qualität:** `tsc --noEmit` ohne neue Fehler (verbleibende Fehler liegen ausschließlich in vorbestehenden Testdateien); `next lint` sauber für die geänderten/neuen Dateien.
+
+**Erwartete API (für `/backend`):** versions- & nutzergesichert; bei fremder/unbekannter `versionId` kein Zugriff. Datensatzform: `{ id, plan_version_id, art, parent_id, name, level, sort_order }` mit `art ∈ { lp_sales_plattform, lp_produkt, lp_marketingkanal, lp_investition }`.
+- `GET /api/langfristige-planung/[versionId]/kpi-kategorien?art=<art>` → `Record[]` (flach, beliebige Sortierung — Baum wird clientseitig gebaut)
+- `POST /api/langfristige-planung/[versionId]/kpi-kategorien` `{ art, name, parent_id, level, sort_order }` → `Record` (400 bei leerem Namen, Fehlertext in `{ error }`)
+- `PATCH /api/langfristige-planung/[versionId]/kpi-kategorien/[id]` `{ name? | sort_order? | parent_id? | level? }` → `Record`
+- `DELETE /api/langfristige-planung/[versionId]/kpi-kategorien/[id]` → `{ success: true }` (löscht Untergruppen kaskadierend)
+
+Neue Tabelle empfohlen: `langfristige_kpi_kategorien` mit `plan_version_id` → `langfristige_planversionen` (`ON DELETE CASCADE`), `user_id`, `art`, `parent_id` (self-FK, `ON DELETE CASCADE`), `name`, `level`, `sort_order`; RLS analog zu `langfristige_planversionen`. Eingaben serverseitig mit Zod validieren; `parent_id` muss zur selben Version & `art` gehören.
 
 ## QA Test Results
 _To be added by /qa_

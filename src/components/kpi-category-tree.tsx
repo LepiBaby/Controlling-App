@@ -28,6 +28,7 @@ interface KpiCategoryTreeProps {
   loading: boolean
   error: string | null
   maxLevel?: 1 | 2 | 3
+  addPlaceholder?: string
   onRename: (id: string, name: string) => Promise<void>
   onUpdateSku?: (id: string, name: string, skuCode: string) => Promise<void>
   onDelete: (category: KpiCategory) => void
@@ -84,6 +85,7 @@ export function KpiCategoryTree({
   loading,
   error,
   maxLevel = 3,
+  addPlaceholder = 'Neue Hauptkategorie hinzufügen...',
   onRename,
   onUpdateSku,
   onDelete,
@@ -245,7 +247,7 @@ export function KpiCategoryTree({
           )}
 
           <KpiAddCategoryForm
-            placeholder="Neue Hauptkategorie hinzufügen..."
+            placeholder={addPlaceholder}
             onAdd={onAddCategory}
           />
         </div>

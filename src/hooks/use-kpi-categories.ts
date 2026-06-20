@@ -2,7 +2,12 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 
-export type CategoryType = 'umsatz' | 'einnahmen' | 'ausgaben_kosten' | 'sales_plattformen' | 'produkte'
+export type CategoryType =
+  | 'umsatz' | 'einnahmen' | 'ausgaben_kosten' | 'sales_plattformen' | 'produkte'
+  // Langfristige Planung (PROJ-74): versionsgebundene KPI-Arten. Werden vom globalen
+  // Hook/der globalen Seite nie verwendet, teilen sich aber die KpiCategory-Form,
+  // damit Baum-/Zeilen-Komponente unverändert wiederverwendet werden können.
+  | 'lp_sales_plattform' | 'lp_produkt' | 'lp_marketingkanal' | 'lp_investition'
 
 export interface KpiCategory {
   id: string
