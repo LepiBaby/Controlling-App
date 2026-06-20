@@ -40,7 +40,7 @@ Marketingkanäle und Investitionen sind **neue** Kategoriearten, die nur in der 
 ## Acceptance Criteria
 
 ### Seite & Navigation
-- [ ] Der Stammdaten-Eintrag aus PROJ-73, der bisher „Plattformen & Produkte" hieß, heißt jetzt **„KPI-Modell Verwaltung"** (Seitentitel, Nav-Eintrag, Breadcrumb, Übersichtskarte).
+- [ ] Der frühere „Plattformen & Produkte"-Eintrag (aus PROJ-73) heißt jetzt **„KPI-Modell Verwaltung"** (Seitentitel, Nav-Eintrag, Breadcrumb, Übersichtskarte) und steht als **erster Eintrag unter der Gruppe „Einstellungen"**. Die bisherige Gruppe „Stammdaten" entfällt.
 - [ ] Die Seite ist nur innerhalb eines Versionskontexts erreichbar (`/dashboard/langfristige-planung/[versionId]/...`) und respektiert die Zugriffs-/Versionsprüfung aus PROJ-73 (fremde/unbekannte `versionId` → Redirect zum Dashboard, kein Fremdzugriff).
 - [ ] Die Seite zeigt genau vier Reiter in dieser Reihenfolge: **Sales Plattform**, **Produkte**, **Marketingkanäle**, **Investitionen**. Es gibt **keine** Reiter Umsatz, Einnahmen, Ausgaben & Kosten oder Reporting-Modell.
 
@@ -124,8 +124,9 @@ KPI-Modell Verwaltung  (innerhalb einer geöffneten Planversion)
 - Jeder Reiter nutzt **dieselbe** bestehende Baum-/Listen-Komponente, nur mit unterschiedlicher Ebenentiefe (1 für Sales Plattform/Produkte/Marketingkanäle, 2 für Investitionen) und ohne die Zusatzfunktionen.
 - Die Seite wird in das bestehende Versions-Gerüst der Langfristigen Planung eingebettet (es übernimmt Laden/Prüfen der Version, Header, Seitenmenü, Redirect bei fremder/unbekannter Version).
 
-### B) Navigations-Anpassung (Umbenennung)
-- Der bestehende Stammdaten-Menüeintrag „Plattformen & Produkte" (aus PROJ-73) wird zu **„KPI-Modell Verwaltung"** umbenannt — Beschriftung, Beschreibungstext und die interne Seiten-Adresse (Slug) werden angepasst, damit Menü, Breadcrumb und Übersichtskarte konsistent sind. Dies ist eine reine Umbenennung an einer zentralen Stelle (die Navigations-Konfiguration), keine Strukturänderung.
+### B) Navigations-Anpassung (Umbenennung + Platzierung)
+- Der bestehende Menüeintrag „Plattformen & Produkte" (aus PROJ-73) wird zu **„KPI-Modell Verwaltung"** umbenannt — Beschriftung, Beschreibungstext und die interne Seiten-Adresse (Slug) werden angepasst, damit Menü, Breadcrumb und Übersichtskarte konsistent sind.
+- Die bisherige Gruppe **„Stammdaten" entfällt**; der Eintrag steht jetzt als **erster Eintrag unter „Einstellungen"**. Alles an einer zentralen Stelle (die Navigations-Konfiguration), keine weitere Strukturänderung.
 
 ### C) Datenmodell (in Klartext)
 **Eine neue Tabelle „Langfristige KPI-Kategorien" (pro Planversion):**
@@ -229,6 +230,9 @@ Datenhaltung und API sind implementiert; die Frontend-Anbindung erfolgte bereits
 - Alle Routen: `requireAuth` (401), Zod-Validierung, Queries zusätzlich nach `user_id` + `plan_version_id` gefiltert (Defense-in-Depth zur RLS), Fehler als `{ error: string }`.
 
 **Tests:** `…/kpi-kategorien/route.test.ts` (GET/POST) + `…/[id]/route.test.ts` (PATCH/DELETE) — **23/23 grün** (Happy Path, 400/401/404/409, Eltern-/Ebenen-Validierung). KPI-Gesamtsuite (global + neu) **108/108 grün** → additive Änderungen (CategoryType, `addPlaceholder`) regressionsfrei. Typecheck ohne neue Fehler.
+
+### Änderung: Platzierung unter „Einstellungen", 2026-06-20
+Auf Nutzerwunsch entfällt die Nav-Gruppe **„Stammdaten"**; „KPI-Modell Verwaltung" ist jetzt der **erste Eintrag unter „Einstellungen"**. Nur die zentrale Nav-Konfiguration (`src/lib/langfristige-planung-nav.ts`) wurde angepasst; NavSheet und Versions-Übersicht ziehen automatisch nach (sie rendern die Gruppen generisch).
 
 ### Änderung: Marketingkanäle ohne Untergruppen, 2026-06-20
 Auf Nutzerwunsch wurde **Marketingkanäle** von Gruppe→Untergruppe (2 Ebenen) auf eine **flache Liste** (nur Ebene 1) umgestellt; nur **Investitionen** behält die 2-Ebenen-Struktur. Frontend: `maxLevel` für `lp_marketingkanal` auf 1, Add-Platzhalter angepasst. Backend: `lp_marketingkanal` zu `FLAT_ARTEN` hinzugefügt (nur Ebene 1, kein Elternknoten — POST/PATCH lehnen Untergruppen ab). Tabellen-CHECK (`level ∈ {1,2}`) bleibt unverändert (flach = Teilmenge), keine Migration nötig. Tests auf `lp_investition` für die Untergruppen-Fälle umgestellt — weiterhin **23/23 grün**.

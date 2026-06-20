@@ -19,18 +19,13 @@ export interface VersionsNavGruppe {
 // wird mit der jeweiligen versionId zusammengesetzt (siehe buildVersionsHref).
 export const VERSIONS_NAV_GRUPPEN: VersionsNavGruppe[] = [
   {
-    label: 'Stammdaten',
+    label: 'Einstellungen',
     items: [
       {
         slug: 'kpi-modell-verwaltung',
         label: 'KPI-Modell Verwaltung',
         description: 'Sales Plattform, Produkte, Marketingkanäle und Investitionen dieser Planversion pflegen',
       },
-    ],
-  },
-  {
-    label: 'Einstellungen',
-    items: [
       {
         slug: 'grundeinstellungen',
         label: 'Grundeinstellungen',
