@@ -7,8 +7,8 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 
 const VALID_ARTEN = ['lp_sales_plattform', 'lp_produkt', 'lp_marketingkanal', 'lp_investition'] as const
 type Art = (typeof VALID_ARTEN)[number]
-// Flache Arten: nur Ebene 1, kein Elternknoten. Die übrigen erlauben Gruppe (1) → Untergruppe (2).
-const FLAT_ARTEN: Art[] = ['lp_sales_plattform', 'lp_produkt']
+// Flache Arten: nur Ebene 1, kein Elternknoten. Nur Investitionen erlauben Gruppe (1) → Untergruppe (2).
+const FLAT_ARTEN: Art[] = ['lp_sales_plattform', 'lp_produkt', 'lp_marketingkanal']
 
 const createSchema = z.object({
   art: z.enum(VALID_ARTEN),

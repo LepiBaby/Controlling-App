@@ -60,7 +60,7 @@ describe('PATCH /api/langfristige-planung/[versionId]/kpi-kategorien/[id]', () =
 
   it('reparents with valid parent (200)', async () => {
     mockFrom.mockReturnValueOnce(chain({ data: { id: VERSION_ID }, error: null })) // ensureVersion
-    mockFrom.mockReturnValueOnce(chain({ data: { id: ID, art: 'lp_marketingkanal', level: 1 }, error: null })) // existing
+    mockFrom.mockReturnValueOnce(chain({ data: { id: ID, art: 'lp_investition', level: 1 }, error: null })) // existing
     mockFrom.mockReturnValueOnce(chain({ data: { id: PARENT_ID, level: 1 }, error: null })) // parent check
     mockFrom.mockReturnValueOnce(chain({ data: { id: ID, level: 2 }, error: null })) // update
     const res = await PATCH(patchReq({ parent_id: PARENT_ID, level: 2 }), ctx(VERSION_ID, ID))

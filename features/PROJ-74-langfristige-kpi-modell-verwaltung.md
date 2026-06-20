@@ -23,8 +23,8 @@ Stattdessen hat die Seite vier Reiter, alle **pro Planversion** isoliert (anfang
 |--------|----------|--------------------------|
 | **Sales Plattform** | flache Liste (Name) | identisch zur globalen Darstellung |
 | **Produkte** | flache Liste (Name) | **keine** SKUs, **keine** USt-Sätze |
-| **Marketingkanäle** | Gruppe → Untergruppe (2 Ebenen) | wie Ausgaben & Kosten, aber **ohne** Dimensionen, Anzeigebezeichnung und „Rentabilitätsreport ausschließen" |
-| **Investitionen** | Gruppe → Untergruppe (2 Ebenen) | wie Marketingkanäle |
+| **Marketingkanäle** | flache Liste (Name) | **keine** Untergruppen; **ohne** Dimensionen, Anzeigebezeichnung und „Rentabilitätsreport ausschließen" |
+| **Investitionen** | Gruppe → Untergruppe (2 Ebenen) | wie Ausgaben & Kosten, aber **ohne** Dimensionen, Anzeigebezeichnung und „Rentabilitätsreport ausschließen" |
 
 Marketingkanäle und Investitionen sind **neue** Kategoriearten, die nur in der Langfristigen Planung existieren und je Planversion gepflegt werden.
 
@@ -32,7 +32,7 @@ Marketingkanäle und Investitionen sind **neue** Kategoriearten, die nur in der 
 - Als Controller möchte ich innerhalb einer Planversion eine Seite „KPI-Modell Verwaltung" öffnen, damit ich alle Stammkategorien dieser Version an einer Stelle pflegen kann.
 - Als Controller möchte ich pro Planversion eine eigene Liste von Sales Plattformen anlegen, umbenennen, löschen und sortieren, damit ich die Vertriebskanäle dieses Szenarios abbilden kann.
 - Als Controller möchte ich pro Planversion eine eigene flache Produktliste pflegen (nur Namen, ohne SKUs und USt-Sätze), damit ich die Produkte des Szenarios planen kann, ohne Detaildaten pflegen zu müssen.
-- Als Controller möchte ich pro Planversion Marketingkanäle in Gruppen und Untergruppen strukturieren, damit ich Marketingausgaben später differenziert planen kann.
+- Als Controller möchte ich pro Planversion eine flache Liste von Marketingkanälen pflegen (ohne Untergruppen), damit ich Marketingausgaben später je Kanal planen kann.
 - Als Controller möchte ich pro Planversion Investitionen in Gruppen und Untergruppen strukturieren, damit ich Investitionsvorhaben des Szenarios abbilden kann.
 - Als Controller möchte ich, dass die KPI-Modell-Verwaltung jeder Planversion komplett eigene, anfangs leere Daten hat, damit sich Szenarien nicht gegenseitig beeinflussen.
 - Als Controller möchte ich die Bedienung (Hinzufügen, Inline-Umbenennen, Löschen, Sortieren) genauso erleben wie in der globalen KPI-Modell-Verwaltung, damit ich mich nicht umgewöhnen muss.
@@ -57,17 +57,18 @@ Marketingkanäle und Investitionen sind **neue** Kategoriearten, die nur in der 
 - [ ] Neues Produkt anlegen (nur Name), Inline umbenennen, löschen, per Drag-and-Drop sortieren.
 - [ ] Empty State, wenn noch kein Produkt vorhanden ist.
 
-### Reiter „Marketingkanäle" (Gruppe → Untergruppe, pro Version)
+### Reiter „Marketingkanäle" (flache Liste, pro Version)
+- [ ] Zeigt eine flache Liste der Marketingkanäle der aktuellen Planversion (nur Name).
+- [ ] **Keine** Untergruppen-Ebene: es gibt keine Möglichkeit, Unterkategorien anzulegen (nur Ebene 1).
+- [ ] Neuen Marketingkanal anlegen (nur Name), Inline umbenennen, löschen, per Drag-and-Drop sortieren.
+- [ ] Es gibt **keine** Dimensionen-Konfiguration, **keine** Anzeigebezeichnung und **keine** Option „Rentabilitätsreport ausschließen".
+- [ ] Empty State, wenn noch kein Marketingkanal vorhanden ist.
+
+### Reiter „Investitionen" (Gruppe → Untergruppe, pro Version)
 - [ ] Unterstützt genau **zwei** Ebenen: Gruppe (Ebene 1) und Untergruppe (Ebene 2). Keine dritte Ebene.
 - [ ] Gruppen und Untergruppen können angelegt, inline umbenannt, gelöscht und sortiert werden (wie bei Ausgaben & Kosten).
 - [ ] Eine Untergruppe gehört genau einer Gruppe; Sortierung erfolgt innerhalb der jeweiligen Ebene/Eltern.
-- [ ] Es gibt **keine** Dimensionen-Konfiguration (kein Sales-Plattform-/Produkt-Pflicht-Toggle).
-- [ ] Es gibt **keine** Anzeigebezeichnung (kein Kosten-/Ausgaben-Label).
-- [ ] Es gibt **keine** Option „Rentabilitätsreport ausschließen".
-- [ ] Empty State, wenn noch keine Gruppe vorhanden ist.
-
-### Reiter „Investitionen" (Gruppe → Untergruppe, pro Version)
-- [ ] Identische Struktur und Bedienung wie „Marketingkanäle" (2 Ebenen, kein Dimensionen-/Anzeigebezeichnung-/Ausschluss-Feature).
+- [ ] Es gibt **keine** Dimensionen-Konfiguration, **keine** Anzeigebezeichnung und **keine** Option „Rentabilitätsreport ausschließen".
 - [ ] Daten sind von den Marketingkanälen und allen anderen Reitern getrennt.
 - [ ] Empty State, wenn noch keine Gruppe vorhanden ist.
 
@@ -80,15 +81,15 @@ Marketingkanäle und Investitionen sind **neue** Kategoriearten, die nur in der 
 ## Edge Cases
 - **Doppelter Name auf derselben Ebene/im selben Elternknoten:** Verständliche Behandlung (entweder zugelassen wie in der globalen Verwaltung oder mit Hinweis abgelehnt — konsistent zur globalen KPI-Modell-Verwaltung umsetzen).
 - **Leerer oder nur aus Leerzeichen bestehender Name:** Wird beim Anlegen/Umbenennen abgelehnt.
-- **Löschen einer Gruppe mit Untergruppen (Marketingkanäle/Investitionen):** Klares Verhalten — Untergruppen werden mitgelöscht (mit Bestätigung), keine verwaisten Untergruppen.
+- **Löschen einer Gruppe mit Untergruppen (Investitionen):** Klares Verhalten — Untergruppen werden mitgelöscht (mit Bestätigung), keine verwaisten Untergruppen.
 - **Löschen einer Plattform/eines Produkts/einer Gruppe, die später in Planungsdaten referenziert wird:** In dieser Spec entstehen noch keine referenzierenden Planungsdaten; das Verhalten bei späterer Referenzierung wird in den jeweiligen Folge-Specs definiert.
 - **Sehr lange Namen:** Werden auf eine sinnvolle Maximallänge begrenzt (Vorschlag: 100 Zeichen, analog globaler Verwaltung); Anzeige bricht das Layout nicht (Ellipsis).
 - **Aufruf der Seite ohne gültigen Versionskontext / mit fremder `versionId`:** Redirect zum Dashboard (Verhalten aus PROJ-73), kein Absturz, kein Fremdzugriff.
-- **Drag-and-Drop über Ebenengrenzen hinweg (Marketingkanäle/Investitionen):** Eine Untergruppe kann ggf. in eine andere Gruppe verschoben werden (wie global); eine Gruppe darf nicht unter eine Untergruppe rutschen.
+- **Drag-and-Drop über Ebenengrenzen hinweg (nur Investitionen):** Eine Untergruppe kann ggf. in eine andere Gruppe verschoben werden (wie global); eine Gruppe darf nicht unter eine Untergruppe rutschen. Marketingkanäle sind flach — nur Umsortieren, kein Umhängen.
 - **Parallele Bearbeitung in mehreren Tabs/Versionen:** Funktioniert unabhängig, da der Kontext aus der URL (`versionId`) stammt.
 
 ## Technical Requirements (optional)
-- **Backend nötig:** versionsspezifische Datenhaltung für Sales Plattformen, Produkte, Marketingkanäle (Gruppe/Untergruppe) und Investitionen (Gruppe/Untergruppe) — jeweils mit `plan_version_id`-Bezug (Foreign Key `ON DELETE CASCADE`) und an den Nutzer gebunden.
+- **Backend nötig:** versionsspezifische Datenhaltung für Sales Plattformen, Produkte, Marketingkanäle (flach) und Investitionen (Gruppe/Untergruppe) — jeweils mit `plan_version_id`-Bezug (Foreign Key `ON DELETE CASCADE`) und an den Nutzer gebunden.
 - **RLS:** Row Level Security auf allen neuen Tabellen; Zugriff nur auf eigene Daten; Versionszugehörigkeit serverseitig prüfen.
 - **Validierung:** alle Eingaben (Name, IDs, Ebene/Eltern, Sortierung) serverseitig mit Zod validieren.
 - **shadcn/ui first:** Tabs, Card, Button, Input, Dialog/AlertDialog wiederverwenden; bestehende KPI-Kategorie-Komponenten (Tree/Row) als Vorlage nutzen, keine Eigenbauten.
@@ -117,10 +118,10 @@ KPI-Modell Verwaltung  (innerhalb einer geöffneten Planversion)
 +-- Reiter-Leiste (Tabs)
     +-- Reiter "Sales Plattform"   -> Liste (1 Ebene)         [+ hinzufügen, umbenennen, löschen, sortieren]
     +-- Reiter "Produkte"          -> Liste (1 Ebene, nur Name) [+ hinzufügen, umbenennen, löschen, sortieren]
-    +-- Reiter "Marketingkanäle"   -> Baum (2 Ebenen: Gruppe > Untergruppe)
+    +-- Reiter "Marketingkanäle"   -> Liste (1 Ebene, nur Name) [+ hinzufügen, umbenennen, löschen, sortieren]
     +-- Reiter "Investitionen"     -> Baum (2 Ebenen: Gruppe > Untergruppe)
 ```
-- Jeder Reiter nutzt **dieselbe** bestehende Baum-/Listen-Komponente, nur mit unterschiedlicher Ebenentiefe (1 bzw. 2) und ohne die Zusatzfunktionen.
+- Jeder Reiter nutzt **dieselbe** bestehende Baum-/Listen-Komponente, nur mit unterschiedlicher Ebenentiefe (1 für Sales Plattform/Produkte/Marketingkanäle, 2 für Investitionen) und ohne die Zusatzfunktionen.
 - Die Seite wird in das bestehende Versions-Gerüst der Langfristigen Planung eingebettet (es übernimmt Laden/Prüfen der Version, Header, Seitenmenü, Redirect bei fremder/unbekannter Version).
 
 ### B) Navigations-Anpassung (Umbenennung)
@@ -134,21 +135,21 @@ Je Eintrag:
 - Besitzer (Nutzer)            -> Zugriffsschutz
 - Zugehörigkeit zu genau EINER Planversion  -> Isolation
 - Art: "Sales Plattform" | "Produkt" | "Marketingkanal" | "Investition"
-- Übergeordneter Eintrag (leer = oberste Ebene)  -> nur für Marketing/Investition genutzt
+- Übergeordneter Eintrag (leer = oberste Ebene)  -> nur für Investition genutzt
 - Ebene (1 oder 2)
 - Name
 - Sortierreihenfolge
 ```
 - **Bewusst NICHT enthalten:** SKU-Code, USt-Satz, Dimensionen-Schalter, Anzeigebezeichnungen, „Rentabilitätsreport ausschließen". Diese Felder existieren nur im globalen Modell und werden hier nicht gebraucht.
-- Sales Plattform und Produkt benutzen nur Ebene 1 (flache Liste, kein übergeordneter Eintrag).
-- Marketingkanal und Investition benutzen Ebene 1 (Gruppe) und Ebene 2 (Untergruppe).
+- Sales Plattform, Produkt und Marketingkanal benutzen nur Ebene 1 (flache Liste, kein übergeordneter Eintrag).
+- Investition benutzt Ebene 1 (Gruppe) und Ebene 2 (Untergruppe).
 
 **Isolations- & Löschregeln:**
 ```
 - Jeder Eintrag hängt an genau einer Planversion und einem Nutzer.
 - Löscht man eine Planversion (PROJ-73), werden alle zugehörigen Einträge automatisch
   mitgelöscht (kaskadierend) — keine verwaisten Datensätze.
-- Löscht man eine Gruppe (Marketing/Investition), werden ihre Untergruppen mitgelöscht.
+- Löscht man eine Gruppe (Investition), werden ihre Untergruppen mitgelöscht.
 - Daten verschiedener Versionen sind vollständig getrennt.
 ```
 
@@ -196,7 +197,7 @@ Die Seite und die Verdrahtung sind gebaut; die eigentliche Datenhaltung/API folg
 
 **Neue Dateien:**
 - `src/hooks/use-langfristige-kpi-kategorien.ts` — versionsbewusste Variante von `useKpiCategories`. Lädt/ändert gegen `/api/langfristige-planung/[versionId]/kpi-kategorien`, bildet die API-Datensätze auf die gemeinsame `KpiCategory`-Form ab (ungenutzte Felder defaulten) und bietet nur die Struktur-Operationen (anlegen, umbenennen, löschen, hoch/runter, umsortieren, umhängen). Wiederverwendet die reinen Helfer `buildTree`/`removeWithDescendants`/`countDescendants` aus dem Basis-Hook.
-- `src/app/dashboard/langfristige-planung/[versionId]/kpi-modell-verwaltung/page.tsx` — vier Reiter (Sales Plattform, Produkte, Marketingkanäle, Investitionen), eingebettet ins `LangfristigeVersionShell`. Sales Plattform/Produkte = flach (`maxLevel 1`), Marketingkanäle/Investitionen = Gruppe→Untergruppe (`maxLevel 2`). Lösch-Bestätigung via `AlertDialog` (zählt betroffene Untergruppen).
+- `src/app/dashboard/langfristige-planung/[versionId]/kpi-modell-verwaltung/page.tsx` — vier Reiter (Sales Plattform, Produkte, Marketingkanäle, Investitionen), eingebettet ins `LangfristigeVersionShell`. Sales Plattform/Produkte/Marketingkanäle = flach (`maxLevel 1`), Investitionen = Gruppe→Untergruppe (`maxLevel 2`). Lösch-Bestätigung via `AlertDialog` (zählt betroffene Untergruppen).
 
 **Geänderte Dateien:**
 - `src/hooks/use-kpi-categories.ts` — `CategoryType`-Union **additiv** um die vier Langfristig-Arten (`lp_sales_plattform`, `lp_produkt`, `lp_marketingkanal`, `lp_investition`) erweitert, damit die versionsgebundenen Datensätze dieselbe `KpiCategory`-Form teilen. Globaler Hook/globale Seite verwenden diese Werte nie; der einzige typbasierte Zweig in der Zeile (`type === 'produkte'`) bleibt korrekt (keine SKU-UI für die neuen Arten).
@@ -228,6 +229,9 @@ Datenhaltung und API sind implementiert; die Frontend-Anbindung erfolgte bereits
 - Alle Routen: `requireAuth` (401), Zod-Validierung, Queries zusätzlich nach `user_id` + `plan_version_id` gefiltert (Defense-in-Depth zur RLS), Fehler als `{ error: string }`.
 
 **Tests:** `…/kpi-kategorien/route.test.ts` (GET/POST) + `…/[id]/route.test.ts` (PATCH/DELETE) — **23/23 grün** (Happy Path, 400/401/404/409, Eltern-/Ebenen-Validierung). KPI-Gesamtsuite (global + neu) **108/108 grün** → additive Änderungen (CategoryType, `addPlaceholder`) regressionsfrei. Typecheck ohne neue Fehler.
+
+### Änderung: Marketingkanäle ohne Untergruppen, 2026-06-20
+Auf Nutzerwunsch wurde **Marketingkanäle** von Gruppe→Untergruppe (2 Ebenen) auf eine **flache Liste** (nur Ebene 1) umgestellt; nur **Investitionen** behält die 2-Ebenen-Struktur. Frontend: `maxLevel` für `lp_marketingkanal` auf 1, Add-Platzhalter angepasst. Backend: `lp_marketingkanal` zu `FLAT_ARTEN` hinzugefügt (nur Ebene 1, kein Elternknoten — POST/PATCH lehnen Untergruppen ab). Tabellen-CHECK (`level ∈ {1,2}`) bleibt unverändert (flach = Teilmenge), keine Migration nötig. Tests auf `lp_investition` für die Untergruppen-Fälle umgestellt — weiterhin **23/23 grün**.
 
 ## QA Test Results
 _To be added by /qa_

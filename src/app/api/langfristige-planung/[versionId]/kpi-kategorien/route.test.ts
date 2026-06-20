@@ -105,7 +105,7 @@ describe('POST /api/langfristige-planung/[versionId]/kpi-kategorien', () => {
     mockFrom.mockReturnValueOnce(chain({ data: { id: PARENT_ID, level: 1 }, error: null })) // parent check
     mockFrom.mockReturnValueOnce(chain({ data: [], error: null })) // dup check
     mockFrom.mockReturnValueOnce(chain({ data: { id: 'new' }, error: null })) // insert
-    const res = await post({ art: 'lp_marketingkanal', name: 'Google Ads', parent_id: PARENT_ID, level: 2 })
+    const res = await post({ art: 'lp_investition', name: 'Maschine A', parent_id: PARENT_ID, level: 2 })
     expect(res.status).toBe(201)
   })
 

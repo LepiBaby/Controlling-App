@@ -24,14 +24,14 @@ import type { KpiCategory } from '@/hooks/use-kpi-categories'
 const TABS: { art: LangfristigeArt; label: string; maxLevel: 1 | 2 }[] = [
   { art: 'lp_sales_plattform', label: 'Sales Plattform', maxLevel: 1 },
   { art: 'lp_produkt', label: 'Produkte', maxLevel: 1 },
-  { art: 'lp_marketingkanal', label: 'Marketingkanäle', maxLevel: 2 },
+  { art: 'lp_marketingkanal', label: 'Marketingkanäle', maxLevel: 1 },
   { art: 'lp_investition', label: 'Investitionen', maxLevel: 2 },
 ]
 
 const ADD_PLACEHOLDER: Record<LangfristigeArt, string> = {
   lp_sales_plattform: 'Neue Sales Plattform hinzufügen...',
   lp_produkt: 'Neues Produkt hinzufügen...',
-  lp_marketingkanal: 'Neue Gruppe hinzufügen...',
+  lp_marketingkanal: 'Neuen Marketingkanal hinzufügen...',
   lp_investition: 'Neue Gruppe hinzufügen...',
 }
 
