@@ -9,6 +9,7 @@ const putSchema = z.object({
   datum: z.string().regex(DATE_RE).optional(),
   nettobetrag: z.number().min(0).optional(),
   begruendung: z.string().nullable().optional(),
+  ist_automatisch: z.boolean().optional(),
 })
 
 export async function PUT(
@@ -43,6 +44,7 @@ export async function PUT(
   if (d.datum !== undefined) update.datum = d.datum
   if (d.nettobetrag !== undefined) update.nettobetrag = d.nettobetrag
   if ('begruendung' in d) update.begruendung = d.begruendung ?? null
+  if (d.ist_automatisch !== undefined) update.ist_automatisch = d.ist_automatisch
 
   if (Object.keys(update).length === 0) {
     return NextResponse.json({ error: 'Keine Felder zum Aktualisieren' }, { status: 400 })

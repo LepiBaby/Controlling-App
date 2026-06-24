@@ -3,8 +3,10 @@
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react'
 import {
   ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown,
-  RotateCcw, StickyNote,
+  Plus, RotateCcw, StickyNote,
 } from 'lucide-react'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -37,16 +39,16 @@ function formatNum(v: number): string {
 
 const MONTH_LABELS = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez']
 
-function mondayOfISOWeek(year: number, week: number): Date {
+function thursdayOfISOWeek(year: number, week: number): Date {
   const jan4 = new Date(Date.UTC(year, 0, 4))
   const dow = jan4.getUTCDay() || 7
   const monday1 = new Date(jan4.getTime() - (dow - 1) * 86_400_000)
-  return new Date(monday1.getTime() + (week - 1) * 7 * 86_400_000)
+  return new Date(monday1.getTime() + (week - 1) * 7 * 86_400_000 + 3 * 86_400_000)
 }
 
 // ─── Row types ────────────────────────────────────────────────────────────────
 
-type RowKind = 'total' | 'category-header' | 'subgroup-header' | 'leaf'
+type RowKind = 'total' | 'category-header' | 'subgroup-header' | 'leaf' | 'add-product'
 
 interface FlatRow {
   id: string
@@ -66,15 +68,16 @@ interface FlatRow {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function UmsatzausgabenTabelle() {
+export function UmsatzausgabenTabelle({ referenceDate }: { referenceDate?: Date } = {}) {
   const {
     vergangenheitswochen,
     zukunftswochen,
     kategorien,
     produkte,
-    katIdsWithProducts,
     values,
     berechneteWerte,
+    istTatsaechlichMap,
+    unassignedMarketingL2Ids,
     loading,
     error,
     getManuellerWert,
@@ -83,7 +86,7 @@ export function UmsatzausgabenTabelle() {
     getBerechneterWert,
     upsertZelle,
     resetAll,
-  } = useUmsatzausgaben()
+  } = useUmsatzausgaben(referenceDate)
 
   const { toast } = useToast()
   const { notizen, upsertNotiz, deleteNotiz, resetNotizen } = usePlanungNotizen('umsatzausgaben')
@@ -110,6 +113,10 @@ export function UmsatzausgabenTabelle() {
   const [resetDialogOpen, setResetDialogOpen] = useState(false)
   const [resetting, setResetting] = useState(false)
   const [resettingToAuto, setResettingToAuto] = useState(false)
+
+  // Manually added products per L2 category (session-only; persists via saved values on reload)
+  const [manuallyAddedProducts, setManuallyAddedProducts] = useState<Map<string, Set<string>>>(new Map())
+  const [addProductL2Id, setAddProductL2Id] = useState<string | null>(null)
 
   function setEditingCell(key: string | null) {
     editingCellRef.current = key
@@ -149,17 +156,61 @@ export function UmsatzausgabenTabelle() {
     return map
   }, [kategorien])
 
+  // For each L2 category: which product IDs have any data (berechnet, manual, or ist-tatsächlich)
+  const produktsByL2 = useMemo(() => {
+    const map = new Map<string, Set<string>>()
+    function addProd(katId: string, prodId: string) {
+      if (!map.has(katId)) map.set(katId, new Set())
+      map.get(katId)!.add(prodId)
+    }
+    for (const key of berechneteWerte.keys()) {
+      const parts = key.split(':'); const katId = parts[0]; const prodId = parts[1]
+      if (prodId) addProd(katId, prodId)
+    }
+    for (const key of values.keys()) {
+      const parts = key.split(':'); const katId = parts[0]; const prodId = parts[1]
+      if (prodId) addProd(katId, prodId)
+    }
+    for (const key of istTatsaechlichMap.keys()) {
+      const parts = key.split(':'); const katId = parts[0]; const prodId = parts[1]
+      if (prodId) addProd(katId, prodId)
+    }
+    return map
+  }, [berechneteWerte, values, istTatsaechlichMap])
+
+  // L2 IDs that appear in berechnet data — only Produktausgaben L2s are in bestellungskosten
+  const berechneteL2Ids = useMemo(() => {
+    const ids = new Set<string>()
+    for (const key of berechneteWerte.keys()) ids.add(key.split(':')[0])
+    return ids
+  }, [berechneteWerte])
+
+  // Vertrieb + Marketing: always show by name
+  // Produktausgaben: show any L1 whose L2 children appear in berechnet data
+  // (backend only generates berechnet data for the 3 relevant groups, so this is a safe filter)
+  const visibleL1Kategorien = useMemo(() => {
+    return l1Kategorien.filter(l1 => {
+      const n = l1.name.toLowerCase()
+      if (n.includes('vertrieb') || n.includes('marketing')) return true
+      const l2s = childrenByParent.get(l1.id) ?? []
+      return l2s.some(l2 => berechneteL2Ids.has(l2.id))
+    })
+  }, [l1Kategorien, childrenByParent, berechneteL2Ids])
+
   const allExpandableIds = useMemo(() => {
     const ids = new Set<string>()
-    for (const l1 of l1Kategorien) {
+    for (const l1 of visibleL1Kategorien) {
       const l2s = childrenByParent.get(l1.id) ?? []
       if (l2s.length > 0) ids.add(l1.id)
       for (const l2 of l2s) {
-        if (katIdsWithProducts.has(l2.id) && produkte.length > 0) ids.add(l2.id)
+        const l2ProdIds = produktsByL2.get(l2.id)
+        const manualIds = manuallyAddedProducts.get(l2.id)
+        const hasAny = (l2ProdIds && l2ProdIds.size > 0) || (manualIds && manualIds.size > 0)
+        if (hasAny && produkte.length > 0) ids.add(l2.id)
       }
     }
     return ids
-  }, [l1Kategorien, childrenByParent, katIdsWithProducts, produkte])
+  }, [visibleL1Kategorien, childrenByParent, produktsByL2, produkte, manuallyAddedProducts])
 
   const allExpanded = allExpandableIds.size > 0 && [...allExpandableIds].every(id => expandedIds.has(id))
 
@@ -176,16 +227,28 @@ export function UmsatzausgabenTabelle() {
     const allLeafPairs: Array<{ l2KatId: string; produktId: string | null }> = []
     const allL2Ids: string[] = []
 
-    for (const l1 of l1Kategorien) {
-      const l2s = childrenByParent.get(l1.id) ?? []
+    for (const l1 of visibleL1Kategorien) {
+      const allL2s = childrenByParent.get(l1.id) ?? []
+      // For marketing: only show L2 subgroups not assigned to any sales platform
+      const isMarketing = l1.name.toLowerCase().includes('marketing')
+      const l2s = isMarketing && unassignedMarketingL2Ids !== null
+        ? allL2s.filter(l2 => unassignedMarketingL2Ids.has(l2.id))
+        : allL2s
       const l1Expanded = expandedIds.has(l1.id)
       const l1L2Ids = l2s.map(l2 => l2.id)
       const l1ChildLeafs: Array<{ l2KatId: string; produktId: string | null }> = []
 
       for (const l2 of l2s) {
-        const hasProducts = katIdsWithProducts.has(l2.id) && produkte.length > 0
+        // Show products with existing data + manually added ones for this session
+        const l2ProdIds = produktsByL2.get(l2.id)
+        const l2ManualIds = manuallyAddedProducts.get(l2.id) ?? new Set<string>()
+        const combinedProdIds = new Set([...(l2ProdIds ?? []), ...l2ManualIds])
+        const l2Produkte = combinedProdIds.size > 0
+          ? produkte.filter(p => combinedProdIds.has(p.id))
+          : []
+        const hasProducts = l2Produkte.length > 0
         if (hasProducts) {
-          const pairs = produkte.map(p => ({ l2KatId: l2.id, produktId: p.id }))
+          const pairs = l2Produkte.map(p => ({ l2KatId: l2.id, produktId: p.id }))
           l1ChildLeafs.push(...pairs)
           allLeafPairs.push(...pairs)
         } else {
@@ -212,10 +275,16 @@ export function UmsatzausgabenTabelle() {
 
         if (l1Expanded) {
           for (const l2 of l2s) {
-            const hasProducts = katIdsWithProducts.has(l2.id) && produkte.length > 0
+            const l2ProdIds = produktsByL2.get(l2.id)
+            const l2ManualIds = manuallyAddedProducts.get(l2.id) ?? new Set<string>()
+            const combinedProdIds = new Set([...(l2ProdIds ?? []), ...l2ManualIds])
+            const l2Produkte = combinedProdIds.size > 0
+              ? produkte.filter(p => combinedProdIds.has(p.id))
+              : []
+            const hasProducts = l2Produkte.length > 0
             const l2Expanded = hasProducts && expandedIds.has(l2.id)
             const l2ChildLeafs = hasProducts
-              ? produkte.map(p => ({ l2KatId: l2.id, produktId: p.id }))
+              ? l2Produkte.map(p => ({ l2KatId: l2.id, produktId: p.id }))
               : undefined
 
             rows.push({
@@ -234,7 +303,7 @@ export function UmsatzausgabenTabelle() {
             })
 
             if (hasProducts && l2Expanded) {
-              for (const prod of produkte) {
+              for (const prod of l2Produkte) {
                 rows.push({
                   id: `leaf-${l2.id}-${prod.id}`,
                   kind: 'leaf',
@@ -249,6 +318,19 @@ export function UmsatzausgabenTabelle() {
                   expanded: false,
                 })
               }
+              // "Produkt hinzufügen" button row at the bottom of each expanded L2 group
+              rows.push({
+                id: `add-product-${l2.id}`,
+                kind: 'add-product',
+                label: '',
+                indent: 2,
+                l1KategorieId: l1.id,
+                l2KategorieId: l2.id,
+                isEditable: false,
+                canHaveAutoWert: false,
+                expandable: false,
+                expanded: false,
+              })
             }
           }
         }
@@ -271,7 +353,7 @@ export function UmsatzausgabenTabelle() {
     rows.push({
       id: 'total',
       kind: 'total',
-      label: 'Ausgaben (Gesamt)',
+      label: 'Umsatzausgaben (Gesamt)',
       indent: 0,
       isEditable: false,
       canHaveAutoWert: false,
@@ -282,7 +364,7 @@ export function UmsatzausgabenTabelle() {
     })
 
     return rows
-  }, [l1Kategorien, childrenByParent, expandedIds, katIdsWithProducts, produkte])
+  }, [visibleL1Kategorien, childrenByParent, expandedIds, produktsByL2, produkte, unassignedMarketingL2Ids, manuallyAddedProducts])
 
   // ─── Value aggregation helpers ────────────────────────────────────────────
 
@@ -307,17 +389,18 @@ export function UmsatzausgabenTabelle() {
   }
 
   function getIstTatsaechlichForRow(row: FlatRow, kw: PlanungsWoche): number | null {
-    if (row.kind === 'leaf') return null
-    if (row.kind === 'subgroup-header' && row.l2KategorieId) {
-      return getIstTatsaechlich(row.l2KategorieId, kw)
+    if (row.kind === 'leaf') {
+      return getIstTatsaechlich(row.l2KategorieId!, row.produktId ?? null, kw)
     }
-    if (row.childL2Ids && row.childL2Ids.length > 0) {
-      let total = 0, hasAny = false
-      for (const l2Id of row.childL2Ids) {
-        const v = getIstTatsaechlich(l2Id, kw)
-        if (v !== null) { total += v; hasAny = true }
-      }
+    if (row.childLeafs && row.childLeafs.length > 0) {
+      const { total, hasAny } = sumChildLeafs(
+        row.childLeafs, kw,
+        (l2Id, pId) => getIstTatsaechlich(l2Id, pId, kw),
+      )
       return hasAny ? total : null
+    }
+    if (row.kind === 'subgroup-header' && row.l2KategorieId) {
+      return getIstTatsaechlich(row.l2KategorieId, null, kw)
     }
     return null
   }
@@ -346,9 +429,9 @@ export function UmsatzausgabenTabelle() {
     if (!row.isEditable) {
       if (row.childLeafs && row.childLeafs.length > 0) {
         const { total, hasAny } = sumChildLeafs(row.childLeafs, kw, getLeafSoll)
-        return { display: hasAny ? formatNum(total) : '', rawNum: hasAny ? total : null, indicator: null, isEditable: false }
+        return { display: hasAny ? formatNum(total) : '—', rawNum: hasAny ? total : null, indicator: null, isEditable: false }
       }
-      return { display: '', rawNum: null, indicator: null, isEditable: false }
+      return { display: '—', rawNum: null, indicator: null, isEditable: false }
     }
 
     const manVal = getManuellerWert(row.l2KategorieId!, row.produktId ?? null, kw)
@@ -379,12 +462,10 @@ export function UmsatzausgabenTabelle() {
       if (parts.length !== 4) continue
       const prodId = parts[1] || null
       if (!prodId) continue
-      const year = Number(parts[2])
-      const week = Number(parts[3])
-      if (berechneteWerte.has(wertKey(parts[0], prodId, year, week))) return true
+      return true
     }
     return false
-  }, [selectedCells, values, berechneteWerte])
+  }, [selectedCells, values])
 
   async function handleResetToAuto() {
     setResettingToAuto(true)
@@ -396,9 +477,7 @@ export function UmsatzausgabenTabelle() {
         if (parts.length !== 4) return false
         const prodId = parts[1] || null
         if (!prodId) return false
-        const year = Number(parts[2])
-        const week = Number(parts[3])
-        return berechneteWerte.has(wertKey(parts[0], prodId, year, week))
+        return true
       })
       await Promise.all(toReset.map(key => {
         const parts = key.split(':')
@@ -410,6 +489,20 @@ export function UmsatzausgabenTabelle() {
     } finally {
       setResettingToAuto(false)
     }
+  }
+
+  // ─── Add product to L2 group ─────────────────────────────────────────────
+
+  function handleAddProduct(l2KatId: string, produktId: string) {
+    setManuallyAddedProducts(prev => {
+      const next = new Map(prev)
+      const ids = new Set(next.get(l2KatId) ?? [])
+      ids.add(produktId)
+      next.set(l2KatId, ids)
+      return next
+    })
+    setExpandedIds(prev => new Set([...prev, l2KatId]))
+    setAddProductL2Id(null)
   }
 
   // ─── Selection handlers ───────────────────────────────────────────────────
@@ -534,7 +627,7 @@ export function UmsatzausgabenTabelle() {
   const monthGroups = useMemo(() => {
     const groups: Array<{ label: string; colSpan: number; isPast: boolean }> = []
     const addWeek = (year: number, week: number, isPast: boolean, cols: number) => {
-      const d = mondayOfISOWeek(year, week)
+      const d = thursdayOfISOWeek(year, week)
       const label = `${MONTH_LABELS[d.getUTCMonth()]} ${d.getUTCFullYear()}`
       if (groups.length > 0 && groups[groups.length - 1].label === label) {
         groups[groups.length - 1].colSpan += cols
@@ -559,7 +652,7 @@ export function UmsatzausgabenTabelle() {
 
   if (error) return <p className="text-sm text-destructive">{error}</p>
 
-  if (l1Kategorien.length === 0) {
+  if (visibleL1Kategorien.length === 0) {
     return (
       <div className="rounded-md border p-8 text-center text-muted-foreground text-sm space-y-2">
         <p>Keine Ausgaben-Kategorien im KPI-Modell vorhanden.</p>
@@ -580,11 +673,18 @@ export function UmsatzausgabenTabelle() {
 
         {/* Toolbar */}
         <div className="flex items-center justify-between gap-2">
+          <span className="text-sm text-muted-foreground">
+            {vergangenheitswochen.length > 0
+              ? `${vergangenheitswochen[0].label} – ${zukunftswochen[zukunftswochen.length - 1]?.label ?? ''}`
+              : zukunftswochen.length > 0
+                ? `${zukunftswochen[0].label} – ${zukunftswochen[zukunftswochen.length - 1].label}`
+                : ''}
+          </span>
           <div className="flex items-center gap-2">
             {allExpandableIds.size > 0 && (
               <Button
-                variant="outline" size="sm"
-                className="gap-1.5 text-xs"
+                variant="ghost" size="sm"
+                className="gap-1.5 text-xs text-muted-foreground"
                 onClick={() => setExpandedIds(allExpanded ? new Set() : new Set(allExpandableIds))}
               >
                 {allExpanded
@@ -593,15 +693,15 @@ export function UmsatzausgabenTabelle() {
                 }
               </Button>
             )}
+            <Button
+              variant="ghost" size="sm"
+              className="gap-1.5 text-xs text-muted-foreground"
+              onClick={() => setResetDialogOpen(true)}
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Zurücksetzen
+            </Button>
           </div>
-          <Button
-            variant="ghost" size="sm"
-            className="gap-1.5 text-xs text-muted-foreground"
-            onClick={() => setResetDialogOpen(true)}
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-            Zurücksetzen
-          </Button>
         </div>
 
         {/* Table */}
@@ -634,7 +734,7 @@ export function UmsatzausgabenTabelle() {
                     <th className="min-w-[110px] px-1.5 py-2 text-right font-medium text-xs text-muted-foreground border-l bg-amber-50/50 dark:bg-amber-950/20">
                       {kw.label}
                       <span className="block text-[10px] font-normal text-amber-700 dark:text-amber-400">
-                        tatsächlich
+                        Ist-Tatsächlich
                       </span>
                     </th>
                     <th className="min-w-[110px] px-1.5 py-2 text-right font-medium text-xs text-muted-foreground border-l bg-amber-50/10 dark:bg-amber-950/10">
@@ -664,6 +764,66 @@ export function UmsatzausgabenTabelle() {
 
             <tbody>
               {flatRows.map(row => {
+                // ─── Add-product row ───────────────────────────────────────
+                if (row.kind === 'add-product') {
+                  const l2Id = row.l2KategorieId!
+                  const existingProdIds = new Set([
+                    ...(produktsByL2.get(l2Id) ?? []),
+                    ...(manuallyAddedProducts.get(l2Id) ?? []),
+                  ])
+                  const availableProds = produkte.filter(p => !existingProdIds.has(p.id))
+                  if (availableProds.length === 0) return null
+                  return (
+                    <tr key={row.id} className="border-b bg-white dark:bg-background">
+                      <td
+                        className="sticky left-0 z-10 px-3 py-1 bg-white dark:bg-background"
+                        style={{ paddingLeft: `${12 + 2 * 16}px` }}
+                      >
+                        <Popover
+                          open={addProductL2Id === l2Id}
+                          onOpenChange={open => setAddProductL2Id(open ? l2Id : null)}
+                        >
+                          <PopoverTrigger asChild>
+                            <button
+                              type="button"
+                              data-betrag-selektion="true"
+                              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                              <Plus className="h-3 w-3" />
+                              Produkt hinzufügen
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent
+                            className="p-0 w-56"
+                            align="start"
+                            data-betrag-selektion="true"
+                          >
+                            <Command>
+                              <CommandInput placeholder="Produkt suchen…" className="h-8 text-xs" />
+                              <CommandList>
+                                <CommandEmpty className="py-3 text-center text-xs text-muted-foreground">
+                                  Kein Produkt gefunden.
+                                </CommandEmpty>
+                                {availableProds.map(p => (
+                                  <CommandItem
+                                    key={p.id}
+                                    value={p.name}
+                                    className="text-xs"
+                                    onSelect={() => handleAddProduct(l2Id, p.id)}
+                                  >
+                                    {p.name}
+                                  </CommandItem>
+                                ))}
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                      </td>
+                      <td colSpan={vergangenheitswochen.length * 2 + zukunftswochen.length} />
+                    </tr>
+                  )
+                }
+
                 const isTotal = row.kind === 'total'
                 const isL1Header = row.kind === 'category-header'
                 const isL2Header = row.kind === 'subgroup-header'
@@ -671,16 +831,12 @@ export function UmsatzausgabenTabelle() {
 
                 const rowBg = isTotal ? 'bg-muted/60'
                   : isL1Header ? 'bg-muted/30'
-                  : isL2Header ? 'bg-muted/15'
                   : 'bg-white dark:bg-background'
 
                 const stickyBg = isTotal || isL1Header ? 'bg-muted'
-                  : isL2Header ? 'bg-muted/40'
                   : 'bg-white dark:bg-background'
 
-                const labelFont = isTotal || isL1Header ? 'font-semibold text-sm'
-                  : isL2Header && !row.isEditable ? 'font-medium text-sm'
-                  : 'text-sm'
+                const labelFont = isTotal ? 'font-semibold text-sm' : 'text-sm'
 
                 return (
                   <tr
@@ -739,7 +895,7 @@ export function UmsatzausgabenTabelle() {
                             onMouseDown={istT !== null ? e => handleNonEditableMouseDown(e, istTKey, istT) : undefined}
                             onMouseEnter={() => istT !== null && handleNonEditableMouseEnter(istTKey, istT)}
                           >
-                            <span className={isTotal || isL1Header ? 'font-semibold' : isL2Header && !row.isEditable ? 'font-medium' : ''}>
+                            <span className={['text-amber-700 dark:text-amber-400', isTotal ? 'font-semibold' : ''].join(' ')}>
                               {istT !== null ? formatNum(istT) : ''}
                             </span>
                           </td>
@@ -754,7 +910,7 @@ export function UmsatzausgabenTabelle() {
                             onMouseDown={istP !== null ? e => handleNonEditableMouseDown(e, istPKey, istP) : undefined}
                             onMouseEnter={() => istP !== null && handleNonEditableMouseEnter(istPKey, istP)}
                           >
-                            <span className={isTotal || isL1Header ? 'font-semibold' : isL2Header && !row.isEditable ? 'font-medium' : ''}>
+                            <span className={['text-muted-foreground', isTotal ? 'font-semibold' : ''].join(' ')}>
                               {istP !== null ? formatNum(istP) : ''}
                             </span>
                           </td>
@@ -845,10 +1001,10 @@ export function UmsatzausgabenTabelle() {
                                 ].join(' ')} />
                               )}
                               <span className={[
-                                isTotal || isL1Header ? 'font-semibold' : isL2Header && !row.isEditable ? 'font-medium' : '',
-                                rawNum === null && !isEditable ? 'text-muted-foreground' : '',
+                                isTotal ? 'font-semibold' : '',
+                                display === '—' ? 'text-muted-foreground/40' : '',
                               ].join(' ')}>
-                                {display || (isEditable ? '' : '')}
+                                {display}
                               </span>
                             </div>
                           )}

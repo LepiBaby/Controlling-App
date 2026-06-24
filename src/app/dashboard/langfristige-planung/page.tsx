@@ -1,6 +1,8 @@
 import { NavSheet } from '@/components/nav-sheet'
 import { BereichsKartenSwitcher } from '@/components/bereichs-karten-switcher'
 import { LogoutButton } from '@/components/logout-button'
+import { PlanversionenVerwaltung } from '@/components/planversionen-verwaltung'
+import { Toaster } from '@/components/ui/toaster'
 
 export default function LangfristigePlanungPage() {
   return (
@@ -9,7 +11,7 @@ export default function LangfristigePlanungPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <NavSheet />
-            <h1 className="text-lg font-semibold">Controlling App</h1>
+            <h1 className="text-lg font-semibold">Langfristige Planung</h1>
           </div>
           <div className="flex items-center gap-4">
             <LogoutButton />
@@ -20,12 +22,10 @@ export default function LangfristigePlanungPage() {
       <main className="flex-1 p-6">
         <div className="mx-auto max-w-7xl space-y-8">
           <BereichsKartenSwitcher />
-          <div className="flex flex-col items-center justify-center py-24 text-center">
-            <p className="text-lg font-medium text-muted-foreground">Langfristige Planung</p>
-            <p className="mt-2 text-sm text-muted-foreground">Dieser Bereich wird in Kürze verfügbar sein.</p>
-          </div>
+          <PlanversionenVerwaltung />
         </div>
       </main>
+      <Toaster />
     </div>
   )
 }

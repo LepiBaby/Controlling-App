@@ -1,6 +1,6 @@
 # PROJ-70: Finanzierungsausgaben — Kurzfristige Planung
 
-## Status: Planned
+## Status: Approved
 **Created:** 2026-06-18
 **Last Updated:** 2026-06-18
 
@@ -534,8 +534,85 @@ Jahresfenster: vonJahr-1 bis bisJahr+1 um Zahlungsziel-Überhänge über Jahresw
 7. Frontend: page.tsx + nav-sheet + dashboard-page
 ```
 
+## Implementation Notes
+
+### Backend (abgeschlossen)
+- DB-Migration: `finanzierungs_planung` Tabelle mit Unique Constraint + RLS erstellt
+- `finanzierungs_einstellungen` benötigte keine Migration — `zahlungsziel_tage`, `aktiv_von`, `aktiv_bis` waren bereits vorhanden
+- Kein `untergruppe_id` in `finanzierungs_einstellungen` → `berechnet`-Route nutzt direkt `kategorie_id`
+- Ist-Plan-Persistenz-Mechanismus vollständig übernommen aus PROJ-68 (identische Logik)
+- 42/42 Tests grün
+
+### Frontend (abgeschlossen)
+- `src/hooks/use-finanzierungsausgaben.ts` — Datenladefluss mit parallelen 5 Requests
+- `src/components/finanzierungsausgaben-tabelle.tsx` — vollständige Tabelle (Ist-Tatsächlich/Ist-Plan Doppelspalten, Grau/Blau-Indikatoren, Notizen, Betragsselektion, Reset-to-Auto, Global Reset)
+- `src/app/dashboard/kurzfristige-planung/finanzierungsausgaben/page.tsx` — Seitencontainer
+- `src/components/nav-sheet.tsx` — neuer Eintrag nach „Produktinvestitionsausgaben"
+- `src/app/dashboard/kurzfristige-planung/page.tsx` — neue Kachel nach „Produktinvestitionsausgaben"
+- Build erfolgreich, keine TypeScript-Fehler
+
 ## QA Test Results
-_To be added by /qa_
+
+**QA-Datum:** 2026-06-18
+**Tester:** QA Engineer (automatisiert + Code-Review)
+**Ergebnis:** ✅ APPROVED — produktionsbereit
+
+### Testergebnisse
+
+| # | Acceptance Criterion | Status |
+|---|---|---|
+| 1 | Navigation: Eintrag „Finanzierungsausgaben" nach „Produktinvestitionsausgaben" | ✅ PASS |
+| 2 | Dashboard-Kachel im Abschnitt „Auswertungen" nach „Produktinvestitionsausgaben" | ✅ PASS |
+| 3 | Auth-Guard: Unauthenticated → Redirect zu `/login` (Seite + alle 3 API-Routen) | ✅ PASS |
+| 4 | Doppelspalten im Vergangenheitsbereich (Ist-Tatsächlich + Ist-Plan je KW) | ✅ PASS |
+| 5 | Einzelspalte im Planungszeitraum (Soll) mit Trennlinie | ✅ PASS |
+| 6 | ISO-8601-Wochenberechnung inkl. Jahreswechsel | ✅ PASS |
+| 7 | Horizontales Scrollen; Zeilenbeschriftung sticky | ✅ PASS |
+| 8 | Gesamt-Zeile „Finanzierungsausgaben (Gesamt)" ganz unten | ✅ PASS |
+| 9 | L1-Gruppen einklappbar, Standard ausgeklappt | ✅ PASS |
+| 10 | Alle-Ein-/Ausklappen-Button (Toggle-Mechanismus wie Operative Ausgaben) | ✅ PASS |
+| 11 | Ist-Tatsächlich aus `ausgaben_kosten_transaktionen`, nicht editierbar | ✅ PASS |
+| 12 | Ist-Plan aus `finanzierungs_planung`, nicht editierbar, leer wenn kein Plan | ✅ PASS |
+| 13 | Persistenz-Mechanismus: berechnet-Route speichert `ist_berechnet=true` | ✅ PASS |
+| 14 | Manuelle Overrides (`ist_berechnet=false`) werden nicht überschrieben | ✅ PASS |
+| 15 | Grauer Indikatorpunkt = auto, blauer = manuell | ✅ PASS |
+| 16 | Inline-Editing, Speicherung onBlur, Optimistisches Update + Rollback | ✅ PASS |
+| 17 | Auto-Berechnung aus `finanzierungs_einstellungen`: monatlich/quartalsweise/jährlich | ✅ PASS |
+| 18 | Zahlungsziel-Versatz + Wochenende-Skip (Samstag+2, Sonntag+1) | ✅ PASS |
+| 19 | Aktiv-Zeitraum-Prüfung gegen Basis-Datum (nicht Zahlungsdatum) | ✅ PASS |
+| 20 | Notizen auf Soll-Zellen, Kontext `finanzierungs-ausgaben` | ✅ PASS |
+| 21 | Betragsselektion: Mehrfachauswahl + Summe rechts unten | ✅ PASS |
+| 22 | Einzelzelle-Reset „Auf automatisch zurücksetzen" | ✅ PASS |
+| 23 | Global Reset: Bestätigungsdialog, löscht manuelle Soll + Notizen, nicht Ist-Werte | ✅ PASS |
+| 24 | Leerer Zustand wenn kein „Finanzierung"-Knoten im KPI-Modell | ✅ PASS |
+
+### Automatisierte Tests
+
+- **Unit-Tests (Vitest):** 42/42 ✅ (`src/app/api/finanzierungs-planung/**`)
+- **E2E-Tests (Playwright):** 20/20 ✅ (Chromium + Mobile Safari, `tests/PROJ-70-finanzierungsausgaben.spec.ts`)
+
+### Gefundene Bugs
+
+**Keine Critical- oder High-Bugs.**
+
+| ID | Severity | Beschreibung |
+|---|---|---|
+| BUG-70-1 | Low | Einklappen-Buttons: Spec sieht zwei separate Buttons vor, Implementierung nutzt einen Toggle (wechselt zwischen „Alle ausklappen" / „Alle einklappen"). Verhält sich identisch zu Operative Ausgaben (PROJ-68) und entspricht dem expliziten Nutzerwunsch. Kein Handlungsbedarf. |
+| BUG-70-2 | Low | Leerer-Zustand-Text weicht leicht von Spec-Wording ab: Implementierung zeigt „Keine Kategorien unterhalb des ‚Finanzierung'-Knotens vorhanden." statt des Spec-Textes. Funktional korrekt. |
+
+### Sicherheits-Audit
+
+- ✅ Alle API-Routen mit `requireAuth()` gesichert
+- ✅ RLS auf `finanzierungs_planung` aktiv (nur eigene Daten sichtbar)
+- ✅ Zod-Validation auf PUT-Endpunkt (UUID, Ranges, Typ)
+- ✅ Kein XSS-Risiko: alle Werte numerisch, keine Freitext-Direktausgabe außer Notizen (über bestehenden sicheren Notiz-Mechanismus)
+- ✅ Unauthenticated Requests auf alle Routen → Redirect zu `/login`
+
+### Regressions-Check
+
+- ✅ PROJ-68 (Operative Ausgaben) weiterhin erreichbar und geschützt
+- ✅ PROJ-69 (Produktinvestitionsausgaben) weiterhin erreichbar und geschützt
+- ✅ Login-Seite rendert korrekt
 
 ## Deployment
 _To be added by /deploy_

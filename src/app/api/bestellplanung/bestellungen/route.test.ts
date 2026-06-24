@@ -147,10 +147,21 @@ describe('POST /api/bestellplanung/bestellungen', () => {
     mockFrom
       .mockReturnValueOnce(ch({ data: newBestellung, error: null })) // bestellungen insert
       .mockReturnValueOnce(OK_NULL) // bestellungen_produkte insert
-      .mockReturnValueOnce(EMPTY) // enrich: bestellungen_produkte select
-      .mockReturnValueOnce(EMPTY) // enrich: bestellungen_sku_mengen select
-      .mockReturnValueOnce(EMPTY) // enrich: bestellungen_konsolidierungen select
-      .mockReturnValueOnce(EMPTY) // kpi_categories names
+      // generiereUndSpeichereBestellkosten:
+      .mockReturnValueOnce(OK_NULL) // bestellungen_kosten DELETE auto
+      .mockReturnValueOnce(EMPTY)   // bestellungen_kosten SELECT manuell (slot protection)
+      .mockReturnValueOnce(EMPTY)   // produktinformationen_produktkosten
+      .mockReturnValueOnce(EMPTY)   // produktinformationen_zahlungskonditionen
+      .mockReturnValueOnce(OK_NULL) // produktinformationen_kosten_global (maybeSingle)
+      .mockReturnValueOnce(EMPTY)   // kpi_categories level 1,2
+      .mockReturnValueOnce(EMPTY)   // bestellungen_sku_mengen
+      .mockReturnValueOnce(EMPTY)   // bestellungen_produkte
+      .mockReturnValueOnce(EMPTY)   // kpi_categories sku parents
+      // enrichBestellungen:
+      .mockReturnValueOnce(EMPTY)   // bestellungen_produkte select
+      .mockReturnValueOnce(EMPTY)   // bestellungen_sku_mengen select
+      .mockReturnValueOnce(EMPTY)   // bestellungen_konsolidierungen select
+      .mockReturnValueOnce(EMPTY)   // kpi_categories names
 
     const res = await POST(req('http://localhost/api/bestellplanung/bestellungen', {
       method: 'POST',
@@ -174,12 +185,23 @@ describe('POST /api/bestellplanung/bestellungen', () => {
       abgeschlossen_am: null, notizen: null, created_at: '2026-06-01T00:00:00Z', updated_at: '2026-06-01T00:00:00Z',
     }
     mockFrom
-      .mockReturnValueOnce(ch({ data: newBestellung, error: null }))
-      .mockReturnValueOnce(OK_NULL)
-      .mockReturnValueOnce(EMPTY)
-      .mockReturnValueOnce(EMPTY)
-      .mockReturnValueOnce(EMPTY)
-      .mockReturnValueOnce(EMPTY)
+      .mockReturnValueOnce(ch({ data: newBestellung, error: null })) // bestellungen insert
+      .mockReturnValueOnce(OK_NULL)  // bestellungen_produkte insert
+      // generiereUndSpeichereBestellkosten:
+      .mockReturnValueOnce(OK_NULL)  // bestellungen_kosten DELETE auto
+      .mockReturnValueOnce(EMPTY)    // bestellungen_kosten SELECT manuell (slot protection)
+      .mockReturnValueOnce(EMPTY)    // produktinformationen_produktkosten
+      .mockReturnValueOnce(EMPTY)    // produktinformationen_zahlungskonditionen
+      .mockReturnValueOnce(OK_NULL)  // produktinformationen_kosten_global (maybeSingle)
+      .mockReturnValueOnce(EMPTY)    // kpi_categories level 1,2
+      .mockReturnValueOnce(EMPTY)    // bestellungen_sku_mengen
+      .mockReturnValueOnce(EMPTY)    // bestellungen_produkte
+      .mockReturnValueOnce(EMPTY)    // kpi_categories sku parents
+      // enrichBestellungen:
+      .mockReturnValueOnce(EMPTY)    // bestellungen_produkte select
+      .mockReturnValueOnce(EMPTY)    // bestellungen_sku_mengen select
+      .mockReturnValueOnce(EMPTY)    // bestellungen_konsolidierungen select
+      .mockReturnValueOnce(EMPTY)    // kpi_categories names
 
     const res = await POST(req('http://localhost/api/bestellplanung/bestellungen', {
       method: 'POST',

@@ -21,6 +21,7 @@ import {
 import type { PlanungsWoche } from '@/hooks/use-absatzplanung'
 
 export type BulkEditMethode =
+  | 'set-fixed'
   | 'pct-increase'
   | 'pct-decrease'
   | 'fixed-increase'
@@ -31,17 +32,19 @@ export type BulkEditMethode =
   | 'weekly-fixed-decrease'
 
 const METHODE_LABELS: Record<BulkEditMethode, string> = {
-  'pct-increase': 'Alle um X % erhöhen',
-  'pct-decrease': 'Alle um X % senken',
-  'fixed-increase': 'Alle um festen Betrag erhöhen',
-  'fixed-decrease': 'Alle um festen Betrag senken',
-  'weekly-pct-increase': 'Woche für Woche um X % steigen',
-  'weekly-pct-decrease': 'Woche für Woche um X % sinken',
-  'weekly-fixed-increase': 'Woche für Woche um festen Betrag steigen',
-  'weekly-fixed-decrease': 'Woche für Woche um festen Betrag sinken',
+  'set-fixed': 'Einheitlich auf Betrag setzen',
+  'pct-increase': 'Einheitlich um % erhöhen',
+  'pct-decrease': 'Einheitlich um % senken',
+  'fixed-increase': 'Einheitlich um Betrag erhöhen',
+  'fixed-decrease': 'Einheitlich um Betrag senken',
+  'weekly-pct-increase': 'Wöchentlich um % steigen (kumulativ)',
+  'weekly-pct-decrease': 'Wöchentlich um % sinken (kumulativ)',
+  'weekly-fixed-increase': 'Wöchentlich um Betrag steigen (kumulativ)',
+  'weekly-fixed-decrease': 'Wöchentlich um Betrag sinken (kumulativ)',
 }
 
 export interface BulkEditCell {
+  skuId?: string      // set for absatz cells (SKU-level)
   produktId: string
   plattformId: string
   kw: PlanungsWoche
@@ -49,63 +52,58 @@ export interface BulkEditCell {
   field: 'absatz' | 'vk'
 }
 
+export interface BulkEditResult {
+  skuId?: string
+  produktId: string
+  plattformId: string
+  kw: PlanungsWoche
+  newValue: number
+}
+
 interface Props {
   open: boolean
   onClose: () => void
   cells: BulkEditCell[] // ordered by kw
   cellType: 'absatz' | 'vk'
-  onApply: (
-    results: Array<{ produktId: string; plattformId: string; kw: PlanungsWoche; newValue: number }>,
-  ) => void
+  onApply: (results: BulkEditResult[]) => void
 }
 
 function applyMethode(
   cells: BulkEditCell[],
   methode: BulkEditMethode,
   wert: number,
-): Array<{ produktId: string; plattformId: string; kw: PlanungsWoche; newValue: number }> {
+): BulkEditResult[] {
   // Sort cells by year+week for progressive methods
   const sorted = [...cells].sort(
     (a, b) => a.kw.year * 100 + a.kw.week - (b.kw.year * 100 + b.kw.week),
   )
 
-  // Group by (produktId, plattformId) for progressive methods
+  // Group by (skuId or produktId, plattformId) for progressive methods
   const groups = new Map<string, BulkEditCell[]>()
   for (const c of sorted) {
-    const gk = `${c.produktId}:${c.plattformId}`
+    const gk = `${c.skuId ?? c.produktId}:${c.plattformId}`
     if (!groups.has(gk)) groups.set(gk, [])
     groups.get(gk)!.push(c)
   }
 
-  const result: Array<{
-    produktId: string
-    plattformId: string
-    kw: PlanungsWoche
-    newValue: number
-  }> = []
+  const result: BulkEditResult[] = []
 
   const clamp = (v: number) => Math.max(0, v)
   const round = (v: number) => Math.round(v * 100) / 100
 
-  if (methode === 'pct-increase' || methode === 'pct-decrease') {
+  if (methode === 'set-fixed') {
+    for (const c of cells) {
+      result.push({ skuId: c.skuId, produktId: c.produktId, plattformId: c.plattformId, kw: c.kw, newValue: clamp(round(wert)) })
+    }
+  } else if (methode === 'pct-increase' || methode === 'pct-decrease') {
     const factor = methode === 'pct-increase' ? 1 + wert / 100 : 1 - wert / 100
     for (const c of cells) {
-      result.push({
-        produktId: c.produktId,
-        plattformId: c.plattformId,
-        kw: c.kw,
-        newValue: clamp(round(c.currentValue * factor)),
-      })
+      result.push({ skuId: c.skuId, produktId: c.produktId, plattformId: c.plattformId, kw: c.kw, newValue: clamp(round(c.currentValue * factor)) })
     }
   } else if (methode === 'fixed-increase' || methode === 'fixed-decrease') {
     const delta = methode === 'fixed-increase' ? wert : -wert
     for (const c of cells) {
-      result.push({
-        produktId: c.produktId,
-        plattformId: c.plattformId,
-        kw: c.kw,
-        newValue: clamp(round(c.currentValue + delta)),
-      })
+      result.push({ skuId: c.skuId, produktId: c.produktId, plattformId: c.plattformId, kw: c.kw, newValue: clamp(round(c.currentValue + delta)) })
     }
   } else {
     // Progressive methods: process group by group
@@ -125,7 +123,7 @@ function applyMethode(
         } else {
           newVal = clamp(round(prev - wert))
         }
-        result.push({ produktId: c.produktId, plattformId: c.plattformId, kw: c.kw, newValue: newVal })
+        result.push({ skuId: c.skuId, produktId: c.produktId, plattformId: c.plattformId, kw: c.kw, newValue: newVal })
         prev = newVal
       }
     }

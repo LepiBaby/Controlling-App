@@ -1,18 +1,16 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { produktinformationenBasis } from '@/lib/produktinformationen-api'
 
 export interface KostenGlobal {
   shipping_kosten_20dc: number | null
-  shipping_kosten_40dc: number | null
   shipping_kosten_40hq: number | null
   shipping_zahlungsziel_tage: number | null
   inspektion_kosten_20dc: number | null
-  inspektion_kosten_40dc: number | null
   inspektion_kosten_40hq: number | null
   inspektion_zahlungsziel_tage: number | null
   einlagerung_kosten_20dc: number | null
-  einlagerung_kosten_40dc: number | null
   einlagerung_kosten_40hq: number | null
   einlagerung_zahlungsziel_tage: number | null
   zoll_zahlungsziel_tage: number | null
@@ -22,26 +20,25 @@ export interface Produktkosten {
   id?: string
   produkt_id: string
   warenkosten: number | null
-  zollsatz_prozent: number | null
+  zollsatz_pct: number | null
 }
 
 const DEFAULT_KOSTEN_GLOBAL: KostenGlobal = {
   shipping_kosten_20dc: null,
-  shipping_kosten_40dc: null,
   shipping_kosten_40hq: null,
   shipping_zahlungsziel_tage: null,
   inspektion_kosten_20dc: null,
-  inspektion_kosten_40dc: null,
   inspektion_kosten_40hq: null,
   inspektion_zahlungsziel_tage: null,
   einlagerung_kosten_20dc: null,
-  einlagerung_kosten_40dc: null,
   einlagerung_kosten_40hq: null,
   einlagerung_zahlungsziel_tage: null,
   zoll_zahlungsziel_tage: null,
 }
 
-export function useProduktinformationenProduktkosten() {
+// versionId optional (PROJ-77): ohne → global; mit → versionsgebunden.
+export function useProduktinformationenProduktkosten(versionId?: string) {
+  const basis = produktinformationenBasis(versionId)
   const [kostenGlobal, setKostenGlobal] = useState<KostenGlobal>(DEFAULT_KOSTEN_GLOBAL)
   const [produktkosten, setProduktkosten] = useState<Produktkosten[]>([])
   const [loading, setLoading] = useState(true)
@@ -51,11 +48,11 @@ export function useProduktinformationenProduktkosten() {
     setLoading(true)
     setError(null)
     Promise.all([
-      fetch('/api/produktinformationen/kosten-global').then(r => {
+      fetch(`${basis}/kosten-global`).then(r => {
         if (!r.ok) throw new Error('API-Fehler')
         return r.json()
       }),
-      fetch('/api/produktinformationen/produktkosten').then(r => {
+      fetch(`${basis}/produktkosten`).then(r => {
         if (!r.ok) throw new Error('API-Fehler')
         return r.json()
       }),
@@ -69,14 +66,14 @@ export function useProduktinformationenProduktkosten() {
         setError('Fehler beim Laden der Produktkostendaten.')
         setLoading(false)
       })
-  }, [])
+  }, [basis])
 
   const getProduktkosten = useCallback(
     (produktId: string): Produktkosten =>
       produktkosten.find(p => p.produkt_id === produktId) ?? {
         produkt_id: produktId,
         warenkosten: null,
-        zollsatz_prozent: null,
+        zollsatz_pct: null,
       },
     [produktkosten],
   )
@@ -86,7 +83,7 @@ export function useProduktinformationenProduktkosten() {
       const prev = { ...kostenGlobal }
       setKostenGlobal(curr => ({ ...curr, ...patch }))
 
-      const res = await fetch('/api/produktinformationen/kosten-global', {
+      const res = await fetch(`${basis}/kosten-global`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...kostenGlobal, ...patch }),
@@ -97,7 +94,7 @@ export function useProduktinformationenProduktkosten() {
         throw new Error('Speichern fehlgeschlagen')
       }
     },
-    [kostenGlobal],
+    [kostenGlobal, basis],
   )
 
   const upsertProduktkosten = useCallback(
@@ -110,7 +107,7 @@ export function useProduktinformationenProduktkosten() {
         return [...curr, patch]
       })
 
-      const res = await fetch('/api/produktinformationen/produktkosten', {
+      const res = await fetch(`${basis}/produktkosten`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patch),
@@ -124,7 +121,7 @@ export function useProduktinformationenProduktkosten() {
         throw new Error('Speichern fehlgeschlagen')
       }
     },
-    [produktkosten],
+    [produktkosten, basis],
   )
 
   return {

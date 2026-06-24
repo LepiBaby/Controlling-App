@@ -2,7 +2,11 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/supabase-server'
 
-const SELECT_COLS = 'id, plan_version_id, art, parent_id, name, level, sort_order'
+// Auth-geschützte, pro-Planversion dynamische Route — nie statisch generieren.
+// Überspringt den in Next 16 instabilen Static-Path-Pass (Worker-Crash).
+export const dynamic = 'force-dynamic'
+
+const SELECT_COLS = 'id, plan_version_id, art, parent_id, name, level, sort_order, is_system'
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 const patchSchema = z.object({
@@ -59,13 +63,21 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   // Bestehenden Eintrag (versions- & nutzergebunden) laden — liefert auch die Art
   const { data: existing, error: findErr } = await supabase
     .from('langfristige_kpi_kategorien')
-    .select('id, art, level')
+    .select('id, art, level, is_system')
     .eq('user_id', user!.id)
     .eq('plan_version_id', versionId)
     .eq('id', id)
     .maybeSingle()
   if (findErr) return NextResponse.json({ error: findErr.message }, { status: 500 })
   if (!existing) return NextResponse.json({ error: 'Eintrag nicht gefunden' }, { status: 404 })
+
+  // Feste Produktinvestitions-Übergruppen und ihre gespiegelten Gruppen sind read-only.
+  if (existing.is_system) {
+    return NextResponse.json(
+      { error: 'Feste Produktinvestitions-Gruppen können nicht bearbeitet werden.' },
+      { status: 403 },
+    )
+  }
 
   // Beim Umhängen: Ebene/Eltern müssen konsistent sein
   if (patch.parent_id !== undefined || patch.level !== undefined) {
@@ -83,7 +95,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       }
       const { data: parent, error: parentErr } = await supabase
         .from('langfristige_kpi_kategorien')
-        .select('id, level')
+        .select('id, level, is_system')
         .eq('user_id', user!.id)
         .eq('plan_version_id', versionId)
         .eq('art', existing.art)
@@ -92,6 +104,13 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       if (parentErr) return NextResponse.json({ error: parentErr.message }, { status: 500 })
       if (!parent || parent.level !== 1) {
         return NextResponse.json({ error: 'Ungültige übergeordnete Gruppe.' }, { status: 400 })
+      }
+      // Nicht unter eine feste Produktinvestitions-Übergruppe umhängen.
+      if (parent.is_system) {
+        return NextResponse.json(
+          { error: 'Einträge können nicht unter eine feste Produktinvestitions-Übergruppe verschoben werden.' },
+          { status: 403 },
+        )
       }
     }
   }
@@ -130,13 +149,21 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
   // Existenz + Eigentum prüfen, damit fremde/unbekannte IDs sauber 404 liefern
   const { data: existing, error: findErr } = await supabase
     .from('langfristige_kpi_kategorien')
-    .select('id')
+    .select('id, is_system')
     .eq('user_id', user!.id)
     .eq('plan_version_id', versionId)
     .eq('id', id)
     .maybeSingle()
   if (findErr) return NextResponse.json({ error: findErr.message }, { status: 500 })
   if (!existing) return NextResponse.json({ error: 'Eintrag nicht gefunden' }, { status: 404 })
+
+  // Feste Produktinvestitions-Gruppen sind read-only und können nicht gelöscht werden.
+  if (existing.is_system) {
+    return NextResponse.json(
+      { error: 'Feste Produktinvestitions-Gruppen können nicht gelöscht werden.' },
+      { status: 403 },
+    )
+  }
 
   // Untergruppen werden über die self-FK (ON DELETE CASCADE) automatisch mitgelöscht
   const { error: dbErr } = await supabase

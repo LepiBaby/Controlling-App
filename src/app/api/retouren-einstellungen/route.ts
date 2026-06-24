@@ -8,10 +8,11 @@ const putSchema = z.object({
   sales_plattform_id: z.string().uuid(),
   produkt_id: z.string().uuid(),
   berechnungsart: z
-    .enum(['keine', 'mittelwert_14', 'mittelwert_30', 'mittelwert_60', 'mittelwert_90'])
+    .enum(['keine', 'mittelwert_7', 'mittelwert_14', 'mittelwert_30', 'mittelwert_60', 'mittelwert_90'])
     .optional(),
   rueckversandkosten_euro_netto: z.number().min(0).nullable().optional(),
   retourenhandling_kosten_euro_netto: z.number().min(0).nullable().optional(),
+  erstattung_verkaufsgebuehr_prozent: z.number().min(0).max(100).nullable().optional(),
 })
 
 export async function GET(request: Request) {
@@ -32,7 +33,7 @@ export async function GET(request: Request) {
   const { data, error: dbErr } = await supabase
     .from('retouren_einstellungen')
     .select(
-      'id, sales_plattform_id, produkt_id, berechnungsart, rueckversandkosten_euro_netto, retourenhandling_kosten_euro_netto'
+      'id, sales_plattform_id, produkt_id, berechnungsart, rueckversandkosten_euro_netto, retourenhandling_kosten_euro_netto, erstattung_verkaufsgebuehr_prozent'
     )
     .eq('user_id', user!.id)
     .eq('sales_plattform_id', plattformId)
@@ -61,6 +62,7 @@ export async function PUT(request: Request) {
     berechnungsart = 'keine',
     rueckversandkosten_euro_netto = null,
     retourenhandling_kosten_euro_netto = null,
+    erstattung_verkaufsgebuehr_prozent = null,
   } = parsed.data
 
   const { data, error: dbErr } = await supabase
@@ -72,13 +74,14 @@ export async function PUT(request: Request) {
         berechnungsart,
         rueckversandkosten_euro_netto: rueckversandkosten_euro_netto ?? null,
         retourenhandling_kosten_euro_netto: retourenhandling_kosten_euro_netto ?? null,
+        erstattung_verkaufsgebuehr_prozent: erstattung_verkaufsgebuehr_prozent ?? null,
         user_id: user!.id,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'sales_plattform_id,produkt_id,user_id' }
     )
     .select(
-      'id, sales_plattform_id, produkt_id, berechnungsart, rueckversandkosten_euro_netto, retourenhandling_kosten_euro_netto'
+      'id, sales_plattform_id, produkt_id, berechnungsart, rueckversandkosten_euro_netto, retourenhandling_kosten_euro_netto, erstattung_verkaufsgebuehr_prozent'
     )
     .single()
 

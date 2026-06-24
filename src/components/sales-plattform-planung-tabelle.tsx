@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useRef, useMemo, useCallback } from 'react'
-import { ChevronDown, ChevronRight, RefreshCw, RotateCcw, StickyNote, AlertTriangle } from 'lucide-react'
+import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, RotateCcw, StickyNote, AlertTriangle } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -26,13 +27,12 @@ import {
   useSalesPlattformPlanung,
   sppKey,
   KATEGORIE_LABELS,
-  SALES_KATEGORIEN,
+  KATEGORIE_VORZEICHEN,
 } from '@/hooks/use-sales-plattform-planung'
 import type { SalesKategorie } from '@/hooks/use-sales-plattform-planung'
 import type { PlanungsWoche } from '@/hooks/use-absatzplanung'
 import { usePlanungNotizen } from '@/hooks/use-planung-notizen'
 import { PlanungNotizFormular } from '@/components/planung-notiz-formular'
-import { HistorischRefreshDialog } from '@/components/historisch-refresh-dialog'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -41,16 +41,16 @@ function formatEur(v: number | null): string {
   return v.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-function mondayOfISOWeek(year: number, week: number): Date {
+function thursdayOfISOWeek(year: number, week: number): Date {
   const jan4 = new Date(Date.UTC(year, 0, 4))
   const dow = jan4.getUTCDay() || 7
   const monday1 = new Date(jan4.getTime() - (dow - 1) * 86_400_000)
-  return new Date(monday1.getTime() + (week - 1) * 7 * 86_400_000)
+  return new Date(monday1.getTime() + (week - 1) * 7 * 86_400_000 + 3 * 86_400_000)
 }
 
 // ─── Row types ────────────────────────────────────────────────────────────────
 
-type RowKind = 'kategorie-header' | 'plattform-zeile' | 'produkt-zeile' | 'rabatte-row' | 'summe-zeile'
+type RowKind = 'kategorie-header' | 'plattform-zeile' | 'produkt-zeile' | 'summe-zeile'
 
 interface FlatRow {
   id: string
@@ -74,16 +74,19 @@ export function SalesPlattformPlanungTabelle() {
     produkte,
     showRetouren,
     showMarketing,
+    activePlatformIds,
+    activePairs,
+    marketingUntergruppen,
+    marketingKatPlattformMap,
+    activeMarketingPairs,
     loading,
     error,
-    isRefreshing,
     getProduktWert,
     getPlatformWert,
     getKategorieWert,
     getSumme,
     upsertWert,
     resetAll,
-    refreshHistorisch,
   } = useSalesPlattformPlanung()
 
   const { toast } = useToast()
@@ -98,6 +101,7 @@ export function SalesPlattformPlanungTabelle() {
   // ─── Selection & editing ─────────────────────────────────────────────────
 
   const [selectedCells, setSelectedCells] = useState<Map<string, number>>(new Map())
+  const [selectedCellsIsManual, setSelectedCellsIsManual] = useState<Map<string, boolean>>(new Map())
   const [editingCell, setEditingCell] = useState<string | null>(null)
   const [editingValue, setEditingValue] = useState('')
   const editingCellRef = useRef<string | null>(null)
@@ -108,7 +112,7 @@ export function SalesPlattformPlanungTabelle() {
 
   const [resetDialogOpen, setResetDialogOpen] = useState(false)
   const [resetting, setResetting] = useState(false)
-  const [refreshDialogOpen, setRefreshDialogOpen] = useState(false)
+  const [resettingToAuto, setResettingToAuto] = useState(false)
   const [notizFormularOpen, setNotizFormularOpen] = useState(false)
   const notizCellKeyRef = useRef<string>('')
   const notizCellLabelRef = useRef<string>('')
@@ -127,6 +131,13 @@ export function SalesPlattformPlanungTabelle() {
     return s
   }, [selectedCells])
 
+  const hasManualCellsSelected = useMemo(() => {
+    for (const [key, manual] of selectedCellsIsManual) {
+      if (manual && key.startsWith('spp:')) return true
+    }
+    return false
+  }, [selectedCellsIsManual])
+
   // ─── Month groups ─────────────────────────────────────────────────────────
 
   const monthGroups = useMemo(() => {
@@ -136,7 +147,7 @@ export function SalesPlattformPlanungTabelle() {
     ]
     const groups: Array<{ label: string; count: number; isPast: boolean }> = []
     for (const kw of alleWochen) {
-      const d = mondayOfISOWeek(kw.year, kw.week)
+      const d = thursdayOfISOWeek(kw.year, kw.week)
       const month = d.getUTCMonth()
       const year = d.getUTCFullYear()
       const isPast = vergangenheitSet.has(`${kw.year}:${kw.week}`)
@@ -155,17 +166,14 @@ export function SalesPlattformPlanungTabelle() {
   const flatRows = useMemo((): FlatRow[] => {
     const rows: FlatRow[] = []
 
-    const visibleKategorien: SalesKategorie[] = ['bruttoumsatz', 'rueckerstattungen', 'verkaufsgebuehr']
+    const activePlattformen = plattformen.filter(p => activePlatformIds.has(p.id))
+
+    const visibleKategorien: SalesKategorie[] = ['bruttoumsatz', 'rabatte', 'rueckerstattungen', 'verkaufsgebuehr']
     if (showRetouren) visibleKategorien.push('retouren')
     if (showMarketing) visibleKategorien.push('marketing')
 
     for (const kat of visibleKategorien) {
       const isExpanded = expandedKategorien.has(kat)
-
-      if (kat === 'rueckerstattungen') {
-        // Rabatte bleibt immer leer — no expand needed, shown as flat row with label "Rabatte" in between
-        // Actually per spec: Rabatte is shown separately as a static empty row
-      }
 
       rows.push({
         id: `kat-${kat}`,
@@ -173,50 +181,68 @@ export function SalesPlattformPlanungTabelle() {
         label: KATEGORIE_LABELS[kat],
         indent: 0,
         kategorie: kat,
-        expandable: kat !== 'rueckerstattungen',
+        expandable: true,
         expanded: isExpanded,
       })
 
-      // Add "Rabatte" row after Bruttoumsatz (always empty, not expandable)
-      if (kat === 'bruttoumsatz') {
-        rows.push({
-          id: 'rabatte',
-          kind: 'rabatte-row',
-          label: 'Rabatte',
-          indent: 0,
-        })
-      }
-
-      if (kat === 'rueckerstattungen') continue
-
-      if (!isExpanded) continue
-
-      for (const plt of plattformen) {
-        const platKey = `${kat}:${plt.id}`
-        const isPlatExpanded = expandedPlatforms.has(platKey)
-        rows.push({
-          id: `plt-${kat}-${plt.id}`,
-          kind: 'plattform-zeile',
-          label: plt.name,
-          indent: 1,
-          kategorie: kat,
-          plattformId: plt.id,
-          expandable: true,
-          expanded: isPlatExpanded,
-        })
-
-        if (!isPlatExpanded) continue
-
-        for (const prd of produkte) {
-          rows.push({
-            id: `prd-${kat}-${plt.id}-${prd.id}`,
-            kind: 'produkt-zeile',
-            label: prd.name,
-            indent: 2,
-            kategorie: kat,
-            plattformId: plt.id,
-            produktId: prd.id,
-          })
+      if (isExpanded) {
+        if (kat === 'marketing') {
+          // Marketing: show sub-categories (Untergruppen) → products, NOT platforms
+          for (const ug of marketingUntergruppen) {
+            const ugKey = `${kat}:${ug.id}`
+            const isUgExpanded = expandedPlatforms.has(ugKey)
+            rows.push({
+              id: `plt-${kat}-${ug.id}`,
+              kind: 'plattform-zeile',
+              label: ug.name,
+              indent: 1,
+              kategorie: kat,
+              plattformId: ug.id,
+              expandable: true,
+              expanded: isUgExpanded,
+            })
+            if (isUgExpanded) {
+              for (const prd of produkte.filter(p => activeMarketingPairs.has(`${p.id}:${ug.id}`))) {
+                rows.push({
+                  id: `prd-${kat}-${ug.id}-${prd.id}`,
+                  kind: 'produkt-zeile',
+                  label: prd.name,
+                  indent: 2,
+                  kategorie: kat,
+                  plattformId: ug.id,
+                  produktId: prd.id,
+                })
+              }
+            }
+          }
+        } else {
+          for (const plt of activePlattformen) {
+            const platKey = `${kat}:${plt.id}`
+            const isPlatExpanded = expandedPlatforms.has(platKey)
+            rows.push({
+              id: `plt-${kat}-${plt.id}`,
+              kind: 'plattform-zeile',
+              label: plt.name,
+              indent: 1,
+              kategorie: kat,
+              plattformId: plt.id,
+              expandable: true,
+              expanded: isPlatExpanded,
+            })
+            if (isPlatExpanded) {
+              for (const prd of produkte.filter(p => activePairs.has(`${plt.id}:${p.id}`))) {
+                rows.push({
+                  id: `prd-${kat}-${plt.id}-${prd.id}`,
+                  kind: 'produkt-zeile',
+                  label: prd.name,
+                  indent: 2,
+                  kategorie: kat,
+                  plattformId: plt.id,
+                  produktId: prd.id,
+                })
+              }
+            }
+          }
         }
       }
     }
@@ -230,53 +256,45 @@ export function SalesPlattformPlanungTabelle() {
     })
 
     return rows
-  }, [expandedKategorien, expandedPlatforms, plattformen, produkte, showRetouren, showMarketing])
+  }, [expandedKategorien, expandedPlatforms, plattformen, produkte, showRetouren, showMarketing, activePlatformIds, activePairs, marketingUntergruppen, activeMarketingPairs])
 
   // ─── Cell value computation ───────────────────────────────────────────────
 
   function getRowValue(
     row: FlatRow,
     kw: PlanungsWoche,
-  ): { display: string; rawNum: number | null; isManual: boolean; isEditable: boolean } {
-    const past = vergangenheitSet.has(`${kw.year}:${kw.week}`)
+  ): { display: string; rawNum: number | null; effectiveNum: number | null; isManual: boolean; isEditable: boolean } {
+    const sign: 1 | -1 = row.kategorie ? KATEGORIE_VORZEICHEN[row.kategorie] : 1
 
     if (row.kind === 'summe-zeile') {
       const val = getSumme(kw)
-      return { display: formatEur(val), rawNum: val, isManual: false, isEditable: false }
-    }
-
-    if (row.kind === 'rabatte-row') {
-      return { display: '', rawNum: null, isManual: false, isEditable: false }
+      return { display: formatEur(val), rawNum: val, effectiveNum: val, isManual: false, isEditable: false }
     }
 
     if (row.kind === 'kategorie-header') {
       const kat = row.kategorie!
-      if (kat === 'rueckerstattungen') {
-        const { value, isManual } = getKategorieWert(kat, kw)
-        return { display: formatEur(value), rawNum: value, isManual, isEditable: false }
-      }
       const { value, isManual } = getKategorieWert(kat, kw)
-      return { display: formatEur(value), rawNum: value, isManual, isEditable: false }
+      const effectiveNum = value !== null ? value * sign : null
+      return { display: formatEur(effectiveNum), rawNum: value, effectiveNum, isManual, isEditable: false }
     }
 
     if (row.kind === 'plattform-zeile') {
       const kat = row.kategorie!
       const { value, isManual } = getPlatformWert(kat, row.plattformId!, kw)
-      return { display: formatEur(value), rawNum: value, isManual, isEditable: false }
+      const effectiveNum = value !== null ? value * sign : null
+      return { display: formatEur(effectiveNum), rawNum: value, effectiveNum, isManual, isEditable: false }
     }
 
     if (row.kind === 'produkt-zeile') {
       const kat = row.kategorie!
-      const editable = kat !== 'rueckerstattungen'
-      if (!editable) {
-        const { value, isManual } = getProduktWert(kat, row.produktId!, row.plattformId!, kw)
-        return { display: formatEur(value), rawNum: value, isManual, isEditable: false }
-      }
+      const isPast = vergangenheitSet.has(`${kw.year}:${kw.week}`)
+      const editable = kat !== 'rabatte' && !isPast
       const { value, isManual } = getProduktWert(kat, row.produktId!, row.plattformId!, kw)
-      return { display: formatEur(value), rawNum: value, isManual, isEditable: true }
+      const effectiveNum = value !== null ? value * sign : null
+      return { display: formatEur(effectiveNum), rawNum: value, effectiveNum, isManual, isEditable: editable }
     }
 
-    return { display: '', rawNum: null, isManual: false, isEditable: false }
+    return { display: '', rawNum: null, effectiveNum: null, isManual: false, isEditable: false }
   }
 
   // ─── Toggle helpers ───────────────────────────────────────────────────────
@@ -297,6 +315,21 @@ export function SalesPlattformPlanungTabelle() {
       else next.add(platKey)
       return next
     })
+  }
+
+  // ─── All expand/collapse ──────────────────────────────────────────────────
+
+  const allVisibleKategorien = useMemo((): SalesKategorie[] => {
+    const kats: SalesKategorie[] = ['bruttoumsatz', 'rabatte', 'rueckerstattungen', 'verkaufsgebuehr']
+    if (showRetouren) kats.push('retouren')
+    if (showMarketing) kats.push('marketing')
+    return kats
+  }, [showRetouren, showMarketing])
+
+  const allExpanded = allVisibleKategorien.length > 0 && allVisibleKategorien.every(kat => expandedKategorien.has(kat))
+
+  function toggleAll() {
+    setExpandedKategorien(allExpanded ? new Set() : new Set(allVisibleKategorien))
   }
 
   // ─── Selection handlers ───────────────────────────────────────────────────
@@ -320,31 +353,41 @@ export function SalesPlattformPlanungTabelle() {
     setSelectedCells(prev => prev.has(key) ? prev : new Map([...prev, [key, value]]))
   }
 
-  function handleEditableCellMouseDown(e: React.MouseEvent, editKey: string, rawNum: number | null) {
-    if (!(e.ctrlKey || e.metaKey)) return
-    e.preventDefault()
-    e.stopPropagation()
-    if (rawNum === null) return
-    isDragging.current = true
-    setSelectedCells(prev => {
-      if (prev.has(editKey)) { const n = new Map(prev); n.delete(editKey); return n }
-      return new Map([...prev, [editKey, rawNum]])
-    })
+  function handleEditableCellMouseDown(e: React.MouseEvent, editKey: string, rawNum: number | null, isManual: boolean) {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault()
+      e.stopPropagation()
+      if (rawNum === null) return
+      isDragging.current = true
+      setSelectedCells(prev => {
+        if (prev.has(editKey)) { const n = new Map(prev); n.delete(editKey); return n }
+        return new Map([...prev, [editKey, rawNum]])
+      })
+      setSelectedCellsIsManual(prev => {
+        if (prev.has(editKey)) { const n = new Map(prev); n.delete(editKey); return n }
+        return new Map([...prev, [editKey, isManual]])
+      })
+    } else {
+      // Start drag without Ctrl so hovering over cells selects them
+      isDragging.current = true
+    }
   }
 
   function handleEditableCellClick(e: React.MouseEvent, editKey: string, display: string) {
     if (e.ctrlKey || e.metaKey) return
     e.stopPropagation()
     setSelectedCells(new Map())
+    setSelectedCellsIsManual(new Map())
     const origVal = display === '' ? '' : display.replace(/\./g, '').replace(',', '.')
     editingOriginalValue.current = origVal
     setEditingCellSync(editKey)
     setEditingValue(origVal)
   }
 
-  function handleEditableCellMouseEnter(editKey: string, rawNum: number | null) {
+  function handleEditableCellMouseEnter(editKey: string, rawNum: number | null, isManual: boolean) {
     if (!isDragging.current || rawNum === null) return
     setSelectedCells(prev => prev.has(editKey) ? prev : new Map([...prev, [editKey, rawNum]]))
+    setSelectedCellsIsManual(prev => prev.has(editKey) ? prev : new Map([...prev, [editKey, isManual]]))
   }
 
   // ─── Inline edit blur ─────────────────────────────────────────────────────
@@ -368,6 +411,12 @@ export function SalesPlattformPlanungTabelle() {
       (parsedNew === null && parsedOrig === null) ||
       (parsedNew !== null && parsedOrig !== null && Math.abs(parsedNew - parsedOrig) < 0.005)
     if (unchanged) return
+
+    // Convert from display-space (signed) back to storage-space (raw):
+    // rawNum = effectiveNum * sign  (since sign is ±1 and effectiveNum = rawNum * sign)
+    if (parsedNew !== null && row.kategorie) {
+      parsedNew = parsedNew * KATEGORIE_VORZEICHEN[row.kategorie]
+    }
 
     try {
       await upsertWert(row.kategorie!, row.produktId!, row.plattformId!, kw, parsedNew)
@@ -404,6 +453,7 @@ export function SalesPlattformPlanungTabelle() {
     try {
       await Promise.all([resetAll(), resetNotizen()])
       setSelectedCells(new Map())
+      setSelectedCellsIsManual(new Map())
       toast({
         title: 'Sales Plattform Planung zurückgesetzt',
         description: 'Alle manuellen Werte und Notizen wurden entfernt.',
@@ -416,18 +466,37 @@ export function SalesPlattformPlanungTabelle() {
     }
   }
 
-  // ─── Refresh ─────────────────────────────────────────────────────────────
+  // ─── Reset einzelner Zellen auf Automatisch ───────────────────────────────
 
-  async function handleRefreshConfirm(selectedProduktIds: string[]) {
-    setRefreshDialogOpen(false)
+  async function handleResetToAuto() {
+    const cells: Array<{ kategorie: SalesKategorie; produktId: string; plattformId: string; kw: PlanungsWoche }> = []
+    for (const [key, manual] of selectedCellsIsManual) {
+      if (!manual || !key.startsWith('spp:')) continue
+      const parts = key.split(':')
+      // spp:${kategorie}:${produktId}:${plattformId}:${year}:${week}
+      const kategorie = parts[1] as SalesKategorie
+      const produktId = parts[2]
+      const plattformId = parts[3]
+      const kwYear = parseInt(parts[4])
+      const kwWeek = parseInt(parts[5])
+      const kw = alleWochen.find(w => w.year === kwYear && w.week === kwWeek)
+      if (kw) cells.push({ kategorie, produktId, plattformId, kw })
+    }
+    if (cells.length === 0) return
+
+    setResettingToAuto(true)
     try {
-      await refreshHistorisch(selectedProduktIds)
+      await Promise.all(cells.map(c => upsertWert(c.kategorie, c.produktId, c.plattformId, c.kw, null)))
+      setSelectedCells(new Map())
+      setSelectedCellsIsManual(new Map())
       toast({
-        title: 'Historische Werte aktualisiert',
-        description: 'Sales-Daten wurden auf den aktuellen Stand gebracht.',
+        title: `${cells.length} Feld${cells.length !== 1 ? 'er' : ''} zurückgesetzt`,
+        description: 'Werte werden wieder automatisch berechnet.',
       })
     } catch {
-      toast({ title: 'Fehler', description: 'Aktualisierung fehlgeschlagen.', variant: 'destructive' })
+      toast({ title: 'Fehler', description: 'Zurücksetzen fehlgeschlagen.', variant: 'destructive' })
+    } finally {
+      setResettingToAuto(false)
     }
   }
 
@@ -445,9 +514,9 @@ export function SalesPlattformPlanungTabelle() {
         <Alert>
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
-            Die angezeigten Werte sind Rentabilitätswerte. Sie zeigen wann Umsätze und Kosten
-            wirtschaftlich entstehen — nicht wann die Zahlungen liquiditätstechnisch tatsächlich
-            anfallen.
+            Die angezeigten Werte sind Rentabilitätswerte — nicht wann Zahlungen liquiditätstechnisch
+            anfallen. Verkaufsgebühr, Retourenkosten und Marketingkosten werden als Bruttowerte
+            (inkl. USt gemäß Steuereinstellungen) ausgewiesen.
           </AlertDescription>
         </Alert>
         <div className="space-y-2">
@@ -467,9 +536,9 @@ export function SalesPlattformPlanungTabelle() {
         <Alert>
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
-            Die angezeigten Werte sind Rentabilitätswerte. Sie zeigen wann Umsätze und Kosten
-            wirtschaftlich entstehen — nicht wann die Zahlungen liquiditätstechnisch tatsächlich
-            anfallen.
+            Die angezeigten Werte sind Rentabilitätswerte — nicht wann Zahlungen liquiditätstechnisch
+            anfallen. Verkaufsgebühr, Retourenkosten und Marketingkosten werden als Bruttowerte
+            (inkl. USt gemäß Steuereinstellungen) ausgewiesen.
           </AlertDescription>
         </Alert>
         <div className="rounded-md border p-8 text-center text-muted-foreground text-sm">
@@ -492,9 +561,9 @@ export function SalesPlattformPlanungTabelle() {
         <Alert>
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
-            Die angezeigten Werte sind <strong>Rentabilitätswerte</strong>. Sie zeigen wann
-            Umsätze und Kosten wirtschaftlich entstehen — nicht wann die Zahlungen
-            liquiditätstechnisch tatsächlich anfallen.
+            Die angezeigten Werte sind Rentabilitätswerte — nicht wann Zahlungen liquiditätstechnisch
+            anfallen. Verkaufsgebühr, Retourenkosten und Marketingkosten werden als Bruttowerte
+            (inkl. USt gemäß Steuereinstellungen) ausgewiesen.
           </AlertDescription>
         </Alert>
 
@@ -509,19 +578,22 @@ export function SalesPlattformPlanungTabelle() {
           </div>
           <div className="flex items-center gap-2">
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
-              onClick={() => setRefreshDialogOpen(true)}
-              disabled={isRefreshing || resetting}
+              className="gap-1.5 text-xs text-muted-foreground"
+              onClick={toggleAll}
             >
-              <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-              {isRefreshing ? 'Wird aktualisiert…' : 'Historische Werte aktualisieren'}
+              {allExpanded
+                ? <ChevronsDownUp className="h-3.5 w-3.5" />
+                : <ChevronsUpDown className="h-3.5 w-3.5" />
+              }
+              {allExpanded ? 'Alle einklappen' : 'Alle ausklappen'}
             </Button>
             <Button
               variant="outline"
               size="sm"
               onClick={() => setResetDialogOpen(true)}
-              disabled={resetting || isRefreshing}
+              disabled={resetting}
             >
               <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
               Zurücksetzen
@@ -535,7 +607,7 @@ export function SalesPlattformPlanungTabelle() {
             <thead>
               {/* Month grouping row */}
               <tr className="border-b bg-muted/20">
-                <th className="sticky left-0 z-20 bg-muted/20 min-w-[240px] max-w-[300px] px-3 py-1" />
+                <th className="sticky left-0 z-20 bg-muted min-w-[240px] max-w-[300px] px-3 py-1" />
                 {monthGroups.map((g, i) => (
                   <th
                     key={g.label + i}
@@ -551,25 +623,34 @@ export function SalesPlattformPlanungTabelle() {
               </tr>
               {/* KW header row */}
               <tr className="border-b bg-muted/40">
-                <th className="sticky left-0 z-20 bg-muted/40 min-w-[240px] max-w-[300px] px-3 py-2.5 text-left font-medium text-muted-foreground">
+                <th className="sticky left-0 z-20 bg-muted min-w-[240px] max-w-[300px] px-3 py-2.5 text-left font-medium text-muted-foreground">
                   Kategorie
                 </th>
-                {alleWochen.map(kw => {
+                {alleWochen.map((kw, idx) => {
                   const past = vergangenheitSet.has(`${kw.year}:${kw.week}`)
+                  const prevKw = idx > 0 ? alleWochen[idx - 1] : null
+                  const isFirstPlan = !past && (prevKw === null || vergangenheitSet.has(`${prevKw.year}:${prevKw.week}`))
                   return (
                     <th
                       key={`${kw.year}-${kw.week}`}
                       className={[
-                        'min-w-[100px] px-2 py-2.5 text-right font-medium text-xs border-l',
+                        'min-w-[100px] px-2 py-2.5 text-right font-medium text-xs',
+                        isFirstPlan
+                          ? 'border-l-2 border-l-primary/70'
+                          : 'border-l',
                         past
                           ? 'bg-muted/40 text-muted-foreground'
                           : 'text-muted-foreground',
                       ].join(' ')}
                     >
                       {kw.label}
-                      {past && (
+                      {past ? (
                         <span className="block text-[10px] font-normal text-muted-foreground/70">
                           Ist
+                        </span>
+                      ) : (
+                        <span className="block text-[10px] font-normal text-muted-foreground/70">
+                          Plan
                         </span>
                       )}
                     </th>
@@ -581,15 +662,12 @@ export function SalesPlattformPlanungTabelle() {
               {flatRows.map(row => {
                 const isKatHeader = row.kind === 'kategorie-header'
                 const isSumme = row.kind === 'summe-zeile'
-                const isRabatte = row.kind === 'rabatte-row'
                 const isPlatform = row.kind === 'plattform-zeile'
 
                 const rowBg = isSumme
                   ? 'bg-muted/60'
                   : isKatHeader
                   ? 'bg-muted/30'
-                  : isPlatform
-                  ? 'bg-muted/20'
                   : 'bg-white dark:bg-background'
 
                 return (
@@ -605,11 +683,9 @@ export function SalesPlattformPlanungTabelle() {
                       className={[
                         'sticky left-0 z-10 px-3 py-1.5 whitespace-nowrap',
                         isSumme
-                          ? 'bg-muted/60'
+                          ? 'bg-muted'
                           : isKatHeader
-                          ? 'bg-muted/30'
-                          : isPlatform
-                          ? 'bg-muted/20'
+                          ? 'bg-muted'
                           : 'bg-white dark:bg-background',
                       ].join(' ')}
                       style={{ paddingLeft: `${12 + row.indent * 16}px` }}
@@ -629,17 +705,18 @@ export function SalesPlattformPlanungTabelle() {
                             <ChevronRight className="h-3.5 w-3.5 shrink-0" />
                           )}
                           {row.label}
+                          {row.kategorie === 'marketing' && row.plattformId && (
+                            (marketingKatPlattformMap.get(row.plattformId) ?? []).map(name => (
+                              <Badge key={name} variant="secondary" className="text-[10px] px-1.5 py-0 h-4 font-normal">
+                                {name}
+                              </Badge>
+                            ))
+                          )}
                         </button>
                       ) : (
                         <span
                           className={
-                            isSumme
-                              ? 'text-sm font-semibold'
-                              : isKatHeader
-                              ? 'text-sm font-semibold'
-                              : isPlatform
-                              ? 'text-sm font-medium text-muted-foreground'
-                              : isRabatte
+                            isSumme || isKatHeader
                               ? 'text-sm font-semibold'
                               : 'text-sm text-muted-foreground'
                           }
@@ -650,9 +727,11 @@ export function SalesPlattformPlanungTabelle() {
                     </td>
 
                     {/* Value cells */}
-                    {alleWochen.map(kw => {
-                      const { display, rawNum, isManual, isEditable } = getRowValue(row, kw)
+                    {alleWochen.map((kw, wochIdx) => {
+                      const { display, rawNum, effectiveNum, isManual, isEditable } = getRowValue(row, kw)
                       const past = vergangenheitSet.has(`${kw.year}:${kw.week}`)
+                      const prevKw = wochIdx > 0 ? alleWochen[wochIdx - 1] : null
+                      const isFirstPlan = !past && (prevKw === null || vergangenheitSet.has(`${prevKw.year}:${prevKw.week}`))
 
                       let editKey: string | null = null
                       if (isEditable && row.produktId && row.kategorie) {
@@ -666,14 +745,25 @@ export function SalesPlattformPlanungTabelle() {
                         rawNum !== null &&
                         selectedCells.has(`ro:${row.id}:${kw.year}:${kw.week}`)
 
+                      const valueColor =
+                        effectiveNum === null || effectiveNum === 0
+                          ? ''
+                          : effectiveNum > 0
+                          ? 'text-green-600 dark:text-green-400'
+                          : 'text-red-600 dark:text-red-400'
+
                       return (
                         <td
                           key={`${kw.year}-${kw.week}`}
                           className={[
-                            'relative px-2 py-1.5 text-right text-xs tabular-nums select-none border-l',
-                            past ? 'bg-muted/10' : '',
-                            isSelected || isReadOnlySelected ? 'bg-blue-100 dark:bg-blue-900/30' : '',
-                            isEditable ? 'cursor-pointer text-foreground' : 'text-muted-foreground',
+                            'relative px-2 py-1.5 text-right text-xs tabular-nums select-none',
+                            isFirstPlan ? 'border-l-2 border-l-primary/70' : 'border-l',
+                            isSelected || isReadOnlySelected
+                              ? 'bg-blue-100 dark:bg-blue-900/30'
+                              : past
+                              ? 'bg-muted/10'
+                              : '',
+                            isEditable ? 'cursor-pointer' : '',
                           ].join(' ')}
                           onClick={
                             isEditable && editKey !== null && !isCurrentlyEditing
@@ -682,16 +772,16 @@ export function SalesPlattformPlanungTabelle() {
                           }
                           onMouseDown={
                             isEditable && editKey !== null
-                              ? e => handleEditableCellMouseDown(e, editKey!, rawNum)
-                              : rawNum !== null
-                              ? e => handleNonEditableMouseDown(e, `ro:${row.id}:${kw.year}:${kw.week}`, rawNum)
+                              ? e => handleEditableCellMouseDown(e, editKey!, effectiveNum, isManual)
+                              : effectiveNum !== null
+                              ? e => handleNonEditableMouseDown(e, `ro:${row.id}:${kw.year}:${kw.week}`, effectiveNum)
                               : undefined
                           }
                           onMouseEnter={
                             isEditable && editKey !== null
-                              ? () => handleEditableCellMouseEnter(editKey!, rawNum)
-                              : rawNum !== null
-                              ? () => handleNonEditableMouseEnter(`ro:${row.id}:${kw.year}:${kw.week}`, rawNum)
+                              ? () => handleEditableCellMouseEnter(editKey!, effectiveNum, isManual)
+                              : effectiveNum !== null
+                              ? () => handleNonEditableMouseEnter(`ro:${row.id}:${kw.year}:${kw.week}`, effectiveNum)
                               : undefined
                           }
                         >
@@ -747,7 +837,7 @@ export function SalesPlattformPlanungTabelle() {
                                   title={isManual ? 'Manuell eingegeben' : 'Automatisch berechnet'}
                                 />
                               )}
-                              <span>{display}</span>
+                              <span className={valueColor}>{display}</span>
                             </div>
                           )}
                         </td>
@@ -790,6 +880,21 @@ export function SalesPlattformPlanungTabelle() {
                 )
               })()}
 
+            {/* Auf Automatisch zurücksetzen — nur wenn manuelle Zellen ausgewählt */}
+            {hasManualCellsSelected && (
+              <div className="rounded-lg border bg-background shadow-lg text-sm">
+                <button
+                  type="button"
+                  disabled={resettingToAuto}
+                  className="flex items-center gap-2 px-4 py-2.5 w-full hover:bg-muted/50 rounded-lg transition-colors disabled:opacity-50"
+                  onClick={handleResetToAuto}
+                >
+                  <RotateCcw className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  <span>{resettingToAuto ? 'Wird zurückgesetzt…' : 'Auf Automatisch zurücksetzen'}</span>
+                </button>
+              </div>
+            )}
+
             {/* Betragsselektion */}
             <div className="flex items-center gap-3 rounded-lg border bg-background px-4 py-2.5 shadow-lg text-sm">
               <span className="text-muted-foreground">
@@ -805,7 +910,7 @@ export function SalesPlattformPlanungTabelle() {
               </span>
               <button
                 className="ml-1 text-muted-foreground hover:text-foreground"
-                onClick={() => setSelectedCells(new Map())}
+                onClick={() => { setSelectedCells(new Map()); setSelectedCellsIsManual(new Map()) }}
                 aria-label="Auswahl aufheben"
               >
                 ✕
@@ -826,14 +931,6 @@ export function SalesPlattformPlanungTabelle() {
           onDelete={() => deleteNotiz(notizCellKeyRef.current)}
         />
 
-        {/* Historisch refresh dialog */}
-        <HistorischRefreshDialog
-          open={refreshDialogOpen}
-          onOpenChange={setRefreshDialogOpen}
-          produkte={produkte.map(p => ({ id: p.id, name: p.name }))}
-          onConfirm={handleRefreshConfirm}
-          isLoading={isRefreshing}
-        />
 
         {/* Reset confirm dialog */}
         <AlertDialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>

@@ -3,6 +3,7 @@
 import { NavSheet } from '@/components/nav-sheet'
 import { LogoutButton } from '@/components/logout-button'
 import { BestellplanungTabelle } from '@/components/bestellplanung-tabelle'
+import { LagerbestandsDiagramm } from '@/components/lagerbestandsdiagramm'
 import { Toaster } from '@/components/ui/toaster'
 
 export default function BestellplanungPage() {
@@ -22,6 +23,7 @@ export default function BestellplanungPage() {
 
       <main className="flex-1 p-6">
         <div className="mx-auto max-w-full">
+          <LagerbestandsDiagramm />
           <BestellplanungTabelle />
         </div>
       </main>

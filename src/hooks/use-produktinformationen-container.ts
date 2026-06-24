@@ -1,11 +1,11 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { produktinformationenBasis } from '@/lib/produktinformationen-api'
 
 export interface ContainerGlobal {
-  volumen_20dc_m3: number | null
-  volumen_40dc_m3: number | null
-  volumen_40hq_m3: number | null
+  volumen_20dc: number | null
+  volumen_40hq: number | null
 }
 
 export interface Containerkapazitaet {
@@ -36,13 +36,41 @@ export function berechneMaxKapazitaet(
   return Math.floor(containerCm3 / stueckvolumenCm3)
 }
 
-const DEFAULT_CONTAINER_GLOBAL: ContainerGlobal = {
-  volumen_20dc_m3: null,
-  volumen_40dc_m3: null,
-  volumen_40hq_m3: null,
+export function perContainerMengen(
+  total: number,
+  anz40hq: number,
+  anz20dc: number,
+  max40hq: number | null,
+  max20dc: number | null,
+): { hqAmounts: number[]; dcAmounts: number[] } {
+  let remaining = total
+  const hqAmounts: number[] = []
+  if (max40hq != null && max40hq > 0) {
+    for (let i = 0; i < anz40hq; i++) {
+      const amount = Math.min(max40hq, remaining)
+      hqAmounts.push(amount)
+      remaining = Math.max(0, remaining - amount)
+    }
+  }
+  const dcAmounts: number[] = []
+  if (max20dc != null && max20dc > 0) {
+    for (let i = 0; i < anz20dc; i++) {
+      const amount = Math.min(max20dc, remaining)
+      dcAmounts.push(amount)
+      remaining = Math.max(0, remaining - amount)
+    }
+  }
+  return { hqAmounts, dcAmounts }
 }
 
-export function useProduktinformationenContainer() {
+const DEFAULT_CONTAINER_GLOBAL: ContainerGlobal = {
+  volumen_20dc: null,
+  volumen_40hq: null,
+}
+
+// versionId optional (PROJ-77): ohne → global; mit → versionsgebunden.
+export function useProduktinformationenContainer(versionId?: string) {
+  const basis = produktinformationenBasis(versionId)
   const [containerGlobal, setContainerGlobal] = useState<ContainerGlobal>(DEFAULT_CONTAINER_GLOBAL)
   const [kapazitaeten, setKapazitaeten] = useState<Containerkapazitaet[]>([])
   const [loading, setLoading] = useState(true)
@@ -52,11 +80,11 @@ export function useProduktinformationenContainer() {
     setLoading(true)
     setError(null)
     Promise.all([
-      fetch('/api/produktinformationen/container-global').then(r => {
+      fetch(`${basis}/container-global`).then(r => {
         if (!r.ok) throw new Error('API-Fehler')
         return r.json()
       }),
-      fetch('/api/produktinformationen/containerkapazitaet').then(r => {
+      fetch(`${basis}/containerkapazitaet`).then(r => {
         if (!r.ok) throw new Error('API-Fehler')
         return r.json()
       }),
@@ -70,7 +98,7 @@ export function useProduktinformationenContainer() {
         setError('Fehler beim Laden der Containerkapazitätsdaten.')
         setLoading(false)
       })
-  }, [])
+  }, [basis])
 
   const getKapazitaet = useCallback(
     (produktId: string): Containerkapazitaet =>
@@ -83,12 +111,24 @@ export function useProduktinformationenContainer() {
     [kapazitaeten],
   )
 
+  const getMaxKapazitaet = useCallback(
+    (produktId: string): { max_40hq: number | null; max_20dc: number | null } => {
+      const k = kapazitaeten.find(kk => kk.produkt_id === produktId) ?? { laenge_cm: null, breite_cm: null, hoehe_cm: null }
+      const stueck = berechneStueckvolumen(k.laenge_cm, k.breite_cm, k.hoehe_cm)
+      return {
+        max_40hq: berechneMaxKapazitaet(containerGlobal.volumen_40hq, stueck),
+        max_20dc: berechneMaxKapazitaet(containerGlobal.volumen_20dc, stueck),
+      }
+    },
+    [kapazitaeten, containerGlobal],
+  )
+
   const upsertContainerGlobal = useCallback(
     async (patch: Partial<ContainerGlobal>): Promise<void> => {
       const prev = { ...containerGlobal }
       setContainerGlobal(curr => ({ ...curr, ...patch }))
 
-      const res = await fetch('/api/produktinformationen/container-global', {
+      const res = await fetch(`${basis}/container-global`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...containerGlobal, ...patch }),
@@ -99,7 +139,7 @@ export function useProduktinformationenContainer() {
         throw new Error('Speichern fehlgeschlagen')
       }
     },
-    [containerGlobal],
+    [containerGlobal, basis],
   )
 
   const upsertKapazitaet = useCallback(
@@ -112,7 +152,7 @@ export function useProduktinformationenContainer() {
         return [...curr, patch]
       })
 
-      const res = await fetch('/api/produktinformationen/containerkapazitaet', {
+      const res = await fetch(`${basis}/containerkapazitaet`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patch),
@@ -126,7 +166,7 @@ export function useProduktinformationenContainer() {
         throw new Error('Speichern fehlgeschlagen')
       }
     },
-    [kapazitaeten],
+    [kapazitaeten, basis],
   )
 
   return {
@@ -135,6 +175,7 @@ export function useProduktinformationenContainer() {
     loading,
     error,
     getKapazitaet,
+    getMaxKapazitaet,
     upsertContainerGlobal,
     upsertKapazitaet,
   }

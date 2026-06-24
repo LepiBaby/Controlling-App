@@ -1,10 +1,12 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { produktinformationenBasis } from '@/lib/produktinformationen-api'
 
 export interface Lieferzeit {
   id?: string
   produkt_id: string
+  pufferzeit_tage: number | null
   produktionszeit_tage: number | null
   zwischenzeit_tage: number | null
   shipping_zeit_tage: number | null
@@ -13,6 +15,7 @@ export interface Lieferzeit {
 
 export function berechneGesamtzeit(lz: Lieferzeit): number | null {
   const values = [
+    lz.pufferzeit_tage,
     lz.produktionszeit_tage,
     lz.zwischenzeit_tage,
     lz.shipping_zeit_tage,
@@ -22,7 +25,9 @@ export function berechneGesamtzeit(lz: Lieferzeit): number | null {
   return values.reduce((sum, v) => sum + v, 0)
 }
 
-export function useProduktinformationenLieferzeit() {
+// versionId optional (PROJ-77): ohne → global; mit → versionsgebunden.
+export function useProduktinformationenLieferzeit(versionId?: string) {
+  const basis = produktinformationenBasis(versionId)
   const [lieferzeiten, setLieferzeiten] = useState<Lieferzeit[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -30,7 +35,7 @@ export function useProduktinformationenLieferzeit() {
   useEffect(() => {
     setLoading(true)
     setError(null)
-    fetch('/api/produktinformationen/lieferzeit')
+    fetch(`${basis}/lieferzeit`)
       .then(r => {
         if (!r.ok) throw new Error('API-Fehler')
         return r.json()
@@ -43,12 +48,13 @@ export function useProduktinformationenLieferzeit() {
         setError('Fehler beim Laden der Lieferzeitdaten.')
         setLoading(false)
       })
-  }, [])
+  }, [basis])
 
   const getLieferzeit = useCallback(
     (produktId: string): Lieferzeit =>
       lieferzeiten.find(l => l.produkt_id === produktId) ?? {
         produkt_id: produktId,
+        pufferzeit_tage: null,
         produktionszeit_tage: null,
         zwischenzeit_tage: null,
         shipping_zeit_tage: null,
@@ -67,7 +73,7 @@ export function useProduktinformationenLieferzeit() {
         return [...curr, patch]
       })
 
-      const res = await fetch('/api/produktinformationen/lieferzeit', {
+      const res = await fetch(`${basis}/lieferzeit`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patch),
@@ -81,7 +87,7 @@ export function useProduktinformationenLieferzeit() {
         throw new Error('Speichern fehlgeschlagen')
       }
     },
-    [lieferzeiten],
+    [lieferzeiten, basis],
   )
 
   return { lieferzeiten, loading, error, getLieferzeit, upsert }

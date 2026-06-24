@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { produktinformationenBasis } from '@/lib/produktinformationen-api'
 
 export type MoqEbene = 'produkt' | 'sku'
 
@@ -17,7 +18,10 @@ export interface MoqSkuEinstellung {
   moq: number | null
 }
 
-export function useProduktinformationenMoq() {
+// versionId optional (PROJ-77). withSku=false überspringt den SKU-Abruf — in der
+// Langfristigen Planung haben Produkte keine SKUs, MOQ wird nur auf Produktebene gepflegt.
+export function useProduktinformationenMoq(versionId?: string, withSku: boolean = true) {
+  const basis = produktinformationenBasis(versionId)
   const [moqEinstellungen, setMoqEinstellungen] = useState<MoqEinstellung[]>([])
   const [moqSkuEinstellungen, setMoqSkuEinstellungen] = useState<MoqSkuEinstellung[]>([])
   const [loading, setLoading] = useState(true)
@@ -26,21 +30,31 @@ export function useProduktinformationenMoq() {
   useEffect(() => {
     setLoading(true)
     setError(null)
-    fetch('/api/produktinformationen/moq')
-      .then(r => {
+    const requests: Promise<unknown>[] = [
+      fetch(`${basis}/moq`).then(r => {
         if (!r.ok) throw new Error('API-Fehler')
         return r.json()
-      })
-      .then((data: { produkt: MoqEinstellung[]; sku: MoqSkuEinstellung[] }) => {
-        setMoqEinstellungen(data.produkt ?? [])
-        setMoqSkuEinstellungen(data.sku ?? [])
+      }),
+    ]
+    if (withSku) {
+      requests.push(
+        fetch(`${basis}/moq-sku`).then(r => {
+          if (!r.ok) throw new Error('API-Fehler')
+          return r.json()
+        }),
+      )
+    }
+    Promise.all(requests)
+      .then(([moqData, moqSkuData]) => {
+        setMoqEinstellungen((moqData as MoqEinstellung[]) ?? [])
+        setMoqSkuEinstellungen((moqSkuData as MoqSkuEinstellung[]) ?? [])
         setLoading(false)
       })
       .catch(() => {
         setError('Fehler beim Laden der MOQ-Einstellungen.')
         setLoading(false)
       })
-  }, [])
+  }, [basis, withSku])
 
   const getMoqEinstellung = useCallback(
     (produktId: string): MoqEinstellung =>
@@ -71,7 +85,7 @@ export function useProduktinformationenMoq() {
         return [...curr, patch]
       })
 
-      const res = await fetch('/api/produktinformationen/moq', {
+      const res = await fetch(`${basis}/moq`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patch),
@@ -85,7 +99,7 @@ export function useProduktinformationenMoq() {
         throw new Error('Speichern fehlgeschlagen')
       }
     },
-    [moqEinstellungen],
+    [moqEinstellungen, basis],
   )
 
   const upsertMoqSku = useCallback(
@@ -98,7 +112,7 @@ export function useProduktinformationenMoq() {
         return [...curr, patch]
       })
 
-      const res = await fetch('/api/produktinformationen/moq-sku', {
+      const res = await fetch(`${basis}/moq-sku`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patch),
@@ -112,7 +126,7 @@ export function useProduktinformationenMoq() {
         throw new Error('Speichern fehlgeschlagen')
       }
     },
-    [moqSkuEinstellungen],
+    [moqSkuEinstellungen, basis],
   )
 
   return {

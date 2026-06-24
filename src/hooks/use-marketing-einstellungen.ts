@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 
 export type Berechnungsart =
+  | 'mittelwert_7'
   | 'mittelwert_14'
   | 'mittelwert_30'
   | 'mittelwert_60'
@@ -13,6 +14,7 @@ export type Berechnungsart =
   | 'keine'
 
 export const BERECHNUNGSARTEN: Berechnungsart[] = [
+  'mittelwert_7',
   'mittelwert_14',
   'mittelwert_30',
   'mittelwert_60',
@@ -24,6 +26,7 @@ export const BERECHNUNGSARTEN: Berechnungsart[] = [
 ]
 
 export const BERECHNUNGSART_LABELS: Record<Berechnungsart, string> = {
+  mittelwert_7: 'Mittelwert 7 Tage',
   mittelwert_14: 'Mittelwert 14 Tage',
   mittelwert_30: 'Mittelwert 30 Tage',
   mittelwert_60: 'Mittelwert 60 Tage',
@@ -40,7 +43,7 @@ export function isGewichtet(art: Berechnungsart): boolean {
 
 export interface MarketingEinstellung {
   id?: string
-  sales_plattform_id: string
+  kategorie_id: string
   produkt_id: string
   berechnungsart: Berechnungsart
   gewichtung_erstes_drittel: number | null
@@ -48,9 +51,9 @@ export interface MarketingEinstellung {
   gewichtung_drittes_drittel: number | null
 }
 
-function defaultEinstellung(plattformId: string, produktId: string): MarketingEinstellung {
+function defaultEinstellung(kategorieId: string, produktId: string): MarketingEinstellung {
   return {
-    sales_plattform_id: plattformId,
+    kategorie_id: kategorieId,
     produkt_id: produktId,
     berechnungsart: 'keine',
     gewichtung_erstes_drittel: null,
@@ -59,16 +62,16 @@ function defaultEinstellung(plattformId: string, produktId: string): MarketingEi
   }
 }
 
-export function useMarketingEinstellungen(plattformId: string | null) {
+export function useMarketingEinstellungen(kategorieId: string | null) {
   const [einstellungen, setEinstellungen] = useState<MarketingEinstellung[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!plattformId) return
+    if (!kategorieId) return
     setLoading(true)
     setError(null)
-    fetch(`/api/marketing-einstellungen?plattform_id=${plattformId}`)
+    fetch(`/api/marketing-einstellungen?kategorie_id=${kategorieId}`)
       .then(r => {
         if (!r.ok) throw new Error('API-Fehler')
         return r.json()
@@ -81,23 +84,23 @@ export function useMarketingEinstellungen(plattformId: string | null) {
         setError('Fehler beim Laden der Marketing-Einstellungen.')
         setLoading(false)
       })
-  }, [plattformId])
+  }, [kategorieId])
 
   const getEinstellung = useCallback(
     (produktId: string): MarketingEinstellung => {
-      if (!plattformId) return defaultEinstellung('', produktId)
+      if (!kategorieId) return defaultEinstellung('', produktId)
       return (
         einstellungen.find(e => e.produkt_id === produktId) ??
-        defaultEinstellung(plattformId, produktId)
+        defaultEinstellung(kategorieId, produktId)
       )
     },
-    [einstellungen, plattformId]
+    [einstellungen, kategorieId]
   )
 
   const upsert = useCallback(
     async (patch: Omit<MarketingEinstellung, 'id'>): Promise<void> => {
       const isSame = (e: MarketingEinstellung) =>
-        e.sales_plattform_id === patch.sales_plattform_id && e.produkt_id === patch.produkt_id
+        e.kategorie_id === patch.kategorie_id && e.produkt_id === patch.produkt_id
 
       const previous = einstellungen.find(isSame)
 

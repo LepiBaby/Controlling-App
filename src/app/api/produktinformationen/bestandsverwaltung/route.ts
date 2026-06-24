@@ -5,7 +5,7 @@ import { requireAuth } from '@/lib/supabase-server'
 const UpsertSchema = z.object({
   produkt_id: z.string().uuid(),
   sicherheitsbestand: z.number().int().min(0).nullable().optional(),
-  zielreichweite_monate: z.number().min(0).nullable().optional(),
+  zielreichweite_wochen: z.number().min(0).nullable().optional(),
 })
 
 export async function GET() {
@@ -14,7 +14,7 @@ export async function GET() {
 
   const { data, error: dbErr } = await supabase
     .from('produktinformationen_bestandsverwaltung')
-    .select('id, produkt_id, sicherheitsbestand, zielreichweite_monate')
+    .select('id, produkt_id, sicherheitsbestand, zielreichweite_wochen')
     .eq('user_id', user!.id)
     .limit(500)
 
@@ -40,12 +40,12 @@ export async function PUT(request: Request) {
         user_id: user!.id,
         produkt_id: parsed.data.produkt_id,
         sicherheitsbestand: parsed.data.sicherheitsbestand ?? null,
-        zielreichweite_monate: parsed.data.zielreichweite_monate ?? null,
+        zielreichweite_wochen: parsed.data.zielreichweite_wochen ?? null,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'user_id,produkt_id' }
     )
-    .select('id, produkt_id, sicherheitsbestand, zielreichweite_monate')
+    .select('id, produkt_id, sicherheitsbestand, zielreichweite_wochen')
     .single()
 
   if (dbErr || !data) {

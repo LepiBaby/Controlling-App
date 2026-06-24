@@ -139,4 +139,11 @@ describe('POST /api/langfristige-planung/[versionId]/kpi-kategorien', () => {
     const res = await post({ art: 'lp_produkt', name: 'X', parent_id: null, level: 1 })
     expect(res.status).toBe(401)
   })
+
+  it('returns 403 when adding an own entry under a fixed system group', async () => {
+    mockFrom.mockReturnValueOnce(chain({ data: { id: VERSION_ID }, error: null })) // ensureVersion
+    mockFrom.mockReturnValueOnce(chain({ data: { id: PARENT_ID, level: 1, is_system: true }, error: null })) // parent → system
+    const res = await post({ art: 'lp_investition', name: 'Eigene Gruppe', parent_id: PARENT_ID, level: 2 })
+    expect(res.status).toBe(403)
+  })
 })

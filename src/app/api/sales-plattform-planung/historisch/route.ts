@@ -83,6 +83,14 @@ export async function GET() {
     }
   }
 
+  // Rabatte: umsatz type, abzugsposten, name contains 'rabatt'
+  const rabatteIds = new Set<string>()
+  for (const k of kats) {
+    if (k.type === 'umsatz' && k.ist_abzugsposten && k.name.toLowerCase().includes('rabatt')) {
+      for (const id of getDescendants(k.id)) rabatteIds.add(id)
+    }
+  }
+
   // Rückerstattungen: umsatz type, abzugsposten, name contains 'rückerstattung'
   const rueckIds = new Set<string>()
   for (const k of kats) {
@@ -112,11 +120,25 @@ export async function GET() {
 
   // Marketing: ausgaben_kosten, name == 'marketing', level 1 (+ descendants)
   const marketingIds = new Set<string>()
+  const marketingLevel1Ids = new Set<string>()
   for (const k of kats) {
     if (k.type === 'ausgaben_kosten' && k.name.toLowerCase() === 'marketing' && k.level === 1) {
+      marketingLevel1Ids.add(k.id)
       for (const id of getDescendants(k.id)) marketingIds.add(id)
     }
   }
+
+  // Build map: any marketing-descendant ID → its level-2 Untergruppe ID (for grouping)
+  const marketingUntergruppIds = new Set<string>()
+  for (const k of kats) {
+    if (k.parent_id && marketingLevel1Ids.has(k.parent_id)) marketingUntergruppIds.add(k.id)
+  }
+  const toUntergruppe = new Map<string, string>()
+  for (const ugId of marketingUntergruppIds) {
+    for (const childId of getDescendants(ugId)) toUntergruppe.set(childId, ugId)
+  }
+  // Also map level-1 marketing itself → keep as-is (edge case: transaction tagged at level 1)
+  for (const id of marketingLevel1Ids) if (!toUntergruppe.has(id)) toUntergruppe.set(id, id)
 
   // 4. Load transactions in parallel
   const ausgKatIds = [...vkGebIds, ...retourenIds, ...marketingIds]
@@ -133,13 +155,12 @@ export async function GET() {
     ausgKatIds.length > 0
       ? supabase
           .from('ausgaben_kosten_transaktionen')
-          .select('produkt_id, sales_plattform_id, leistungsdatum, betrag_netto, kategorie_id')
+          .select('produkt_id, sales_plattform_id, leistungsdatum, betrag_brutto, kategorie_id, gruppe_id, relevanz')
           .gte('leistungsdatum', startStr)
           .lt('leistungsdatum', endStr)
           .not('produkt_id', 'is', null)
-          .not('sales_plattform_id', 'is', null)
-          .in('kategorie_id', ausgKatIds)
-          .eq('relevanz', 'rentabilitaet')
+          .or(`kategorie_id.in.(${ausgKatIds.join(',')}),gruppe_id.in.(${ausgKatIds.join(',')})`)
+          .in('relevanz', ['rentabilitaet', 'beides'])
           .limit(50000)
       : Promise.resolve({ data: [], error: null }),
   ])
@@ -158,25 +179,35 @@ export async function GET() {
   }
 
   type UmsatzRow = { produkt_id: string; sales_plattform_id: string; leistungsdatum: string; betrag: number; kategorie_id: string }
-  type AusgabenRow = { produkt_id: string; sales_plattform_id: string; leistungsdatum: string; betrag_netto: number; kategorie_id: string }
+  type AusgabenRow = { produkt_id: string; sales_plattform_id: string; leistungsdatum: string; betrag_brutto: number; kategorie_id: string; gruppe_id: string | null; relevanz: string }
 
   for (const row of (umsatzResult.data ?? []) as UmsatzRow[]) {
     if (!row.produkt_id || !row.sales_plattform_id) continue
     if (bruttoIds.has(row.kategorie_id)) {
       addValue('bruttoumsatz', row.produkt_id, row.sales_plattform_id, row.leistungsdatum, Number(row.betrag))
+    } else if (rabatteIds.has(row.kategorie_id)) {
+      addValue('rabatte', row.produkt_id, row.sales_plattform_id, row.leistungsdatum, Number(row.betrag))
     } else if (rueckIds.has(row.kategorie_id)) {
       addValue('rueckerstattungen', row.produkt_id, row.sales_plattform_id, row.leistungsdatum, Number(row.betrag))
     }
   }
 
   for (const row of (ausgabenResult.data ?? []) as AusgabenRow[]) {
-    if (!row.produkt_id || !row.sales_plattform_id) continue
-    if (vkGebIds.has(row.kategorie_id)) {
-      addValue('verkaufsgebuehr', row.produkt_id, row.sales_plattform_id, row.leistungsdatum, Number(row.betrag_netto))
-    } else if (retourenIds.has(row.kategorie_id)) {
-      addValue('retouren', row.produkt_id, row.sales_plattform_id, row.leistungsdatum, Number(row.betrag_netto))
-    } else if (marketingIds.has(row.kategorie_id)) {
-      addValue('marketing', row.produkt_id, row.sales_plattform_id, row.leistungsdatum, Number(row.betrag_netto))
+    if (!row.produkt_id) continue
+    const gruppeId = row.gruppe_id ?? ''
+    const isMkt = marketingIds.has(row.kategorie_id) || marketingIds.has(gruppeId)
+    if (!row.sales_plattform_id && !isMkt) continue
+    if (vkGebIds.has(row.kategorie_id) || vkGebIds.has(gruppeId)) {
+      addValue('verkaufsgebuehr', row.produkt_id, row.sales_plattform_id!, row.leistungsdatum, Number(row.betrag_brutto))
+    } else if (retourenIds.has(row.kategorie_id) || retourenIds.has(gruppeId)) {
+      if (row.relevanz === 'rentabilitaet') {
+        addValue('retouren', row.produkt_id, row.sales_plattform_id!, row.leistungsdatum, Number(row.betrag_brutto))
+      }
+    } else if (isMkt) {
+      // Group marketing by Untergruppe (level-2 category), not by sales platform
+      const rawId = marketingIds.has(gruppeId) ? gruppeId : row.kategorie_id
+      const mktKatId = toUntergruppe.get(rawId) ?? rawId
+      addValue('marketing', row.produkt_id, mktKatId, row.leistungsdatum, Number(row.betrag_brutto))
     }
   }
 

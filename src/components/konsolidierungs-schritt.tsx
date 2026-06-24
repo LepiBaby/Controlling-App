@@ -14,12 +14,25 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+export interface WizardKonsolidierungsSnapshot {
+  bestelldatum: string | null
+  produktionsstart_datum: string | null
+  produktionsende_datum: string | null
+  shippingdatum: string | null
+  ankunftsdatum: string | null
+  verfuegbarkeitsdatum: string | null
+  anzahl_40hq: number
+  anzahl_20dc: number
+  sku_mengen: Array<{ sku_id: string; menge_praktisch: number; begruendung_anpassung: string | null }>
+}
+
 /** Local state tracking a consolidation group applied in this wizard session */
 export interface WizardKonsolidierungsGruppe {
   temp_gruppe_id: string
   mitglieder_ids: string[]
   ergebnisse: KonsolidierungsBestellungErgebnis[]
   hinweis?: string
+  snapshots: Record<string, WizardKonsolidierungsSnapshot>
 }
 
 interface HerstellerGruppe {
@@ -61,8 +74,10 @@ function buildKarteData(
     herstellerId: stamm?.hersteller_id ?? null,
     herstellerName: stamm?.hersteller_name ?? null,
     bestelldatum: bestellung.bestelldatum,
+    produktionsstartDatum: ergebnis?.neues_produktionsstart_datum ?? bestellung.produktionsstart_datum ?? null,
     produktionsendeDatum: ergebnis?.neues_produktionsende_datum ?? bestellung.produktionsende_datum,
     shippingdatum: ergebnis?.neues_shippingdatum ?? bestellung.shippingdatum,
+    ankunftsdatum: ergebnis?.neues_ankunftsdatum ?? bestellung.ankunftsdatum ?? null,
     verfuegbarkeitsdatum: ergebnis?.neues_verfuegbarkeitsdatum ?? bestellung.verfuegbarkeitsdatum,
     gesamtmenge,
     anzahl_40hq: bestellung.anzahl_40hq,
@@ -107,8 +122,10 @@ function buildNeueKarteData(
     herstellerId: stamm?.hersteller_id ?? null,
     herstellerName: stamm?.hersteller_name ?? null,
     bestelldatum: ergebnis?.neues_bestelldatum ?? b.bestelldatum,
+    produktionsstartDatum: ergebnis?.neues_produktionsstart_datum ?? b.produktionsstart_datum ?? null,
     produktionsendeDatum: ergebnis?.neues_produktionsende_datum ?? b.produktionsende_datum,
     shippingdatum: ergebnis?.neues_shippingdatum ?? b.shippingdatum,
+    ankunftsdatum: ergebnis?.neues_ankunftsdatum ?? b.ankunftsdatum ?? null,
     verfuegbarkeitsdatum: ergebnis?.neues_verfuegbarkeitsdatum ?? b.verfuegbarkeitsdatum,
     gesamtmenge,
     anzahl_40hq: (b.container ?? []).filter(c => c === '40HQ').length,
@@ -142,6 +159,7 @@ interface KonsolidierungsSchrittProps {
   stammdaten: ProduktStammdaten[]
   containerGlobal: { volumen_20dc: number | null; volumen_40hq: number | null }
   onGruppenChange: (gruppen: WizardKonsolidierungsGruppe[]) => void
+  onBestehendeGruppenIds?: (ids: string[]) => void
 }
 
 export function KonsolidierungsSchritt({
@@ -150,6 +168,7 @@ export function KonsolidierungsSchritt({
   stammdaten,
   containerGlobal,
   onGruppenChange,
+  onBestehendeGruppenIds,
 }: KonsolidierungsSchrittProps) {
   const [existierendeBestellungen, setExistierendeBestellungen] = useState<Bestellung[]>([])
   const [ladeFehler, setLadeFehler] = useState<string | null>(null)
@@ -164,13 +183,21 @@ export function KonsolidierungsSchritt({
     fetch('/api/bestellplanung/bestellungen?status=plan')
       .then(r => r.json())
       .then((data: Bestellung[]) => {
-        setExistierendeBestellungen(data ?? [])
+        const bestellungen = data ?? []
+        setExistierendeBestellungen(bestellungen)
+        const gruppenIds = [...new Set(
+          bestellungen
+            .map(b => b.konsolidierungsgruppe_id)
+            .filter((id): id is string => id !== null && id !== undefined)
+        )]
+        onBestehendeGruppenIds?.(gruppenIds)
         setLadeBestellungen(false)
       })
       .catch(() => {
         setLadeFehler('Planbestellungen konnten nicht geladen werden.')
         setLadeBestellungen(false)
       })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const stammdatenById = useMemo(() => {
@@ -318,11 +345,52 @@ export function KonsolidierungsSchritt({
       containerGlobal.volumen_40hq ?? 0,
     )
 
+    // Capture pre-consolidation state for each member so the snapshot is correct
+    const snapshots: Record<string, WizardKonsolidierungsSnapshot> = {}
+    for (const k of selectedKarten) {
+      if (k.isTemp) {
+        const nb = neueBestellungen.find(b => b.temp_id === k.id)
+        snapshots[k.id] = {
+          bestelldatum: nb?.bestelldatum ?? null,
+          produktionsstart_datum: nb?.produktionsstart_datum ?? null,
+          produktionsende_datum: nb?.produktionsende_datum ?? null,
+          shippingdatum: nb?.shippingdatum ?? null,
+          ankunftsdatum: nb?.ankunftsdatum ?? null,
+          verfuegbarkeitsdatum: nb?.verfuegbarkeitsdatum ?? null,
+          anzahl_40hq: (nb?.container ?? []).filter(c => c === '40HQ').length,
+          anzahl_20dc: (nb?.container ?? []).filter(c => c === '20DC').length,
+          sku_mengen: nb?.sku_mengen.map(s => ({
+            sku_id: s.sku_id,
+            menge_praktisch: s.menge_praktisch,
+            begruendung_anpassung: s.begruendung_anpassung,
+          })) ?? [],
+        }
+      } else {
+        const b = k.bestellungData!
+        snapshots[k.id] = {
+          bestelldatum: b.bestelldatum,
+          produktionsstart_datum: b.produktionsstart_datum ?? null,
+          produktionsende_datum: b.produktionsende_datum,
+          shippingdatum: b.shippingdatum,
+          ankunftsdatum: b.ankunftsdatum ?? null,
+          verfuegbarkeitsdatum: b.verfuegbarkeitsdatum,
+          anzahl_40hq: b.anzahl_40hq,
+          anzahl_20dc: b.anzahl_20dc,
+          sku_mengen: b.sku_mengen.map(s => ({
+            sku_id: s.sku_id,
+            menge_praktisch: s.menge_praktisch,
+            begruendung_anpassung: s.begruendung_anpassung,
+          })),
+        }
+      }
+    }
+
     const neueGruppe: WizardKonsolidierungsGruppe = {
       temp_gruppe_id: crypto.randomUUID(),
       mitglieder_ids: ausgewaehlteListe,
       ergebnisse: ergebnis.bestellungen,
       hinweis: ergebnis.hinweis,
+      snapshots,
     }
 
     setGruppen(prev => {
@@ -334,6 +402,28 @@ export function KonsolidierungsSchritt({
     })
     setAusgewaehlt(new Set())
   }, [koennenKonsolidiert, alleKarten, ausgewaehlt, ausgewaehlteListe, stammdatenById, containerGlobal, onGruppenChange])
+
+  const handleMengeChange = useCallback((karteId: string, skuId: string, neueMenge: number) => {
+    setGruppen(prev => {
+      const updated = prev.map(g => {
+        if (!g.mitglieder_ids.includes(karteId)) return g
+        return {
+          ...g,
+          ergebnisse: g.ergebnisse.map(e => {
+            if (e.bestellung_id !== karteId) return e
+            return {
+              ...e,
+              neue_sku_mengen: e.neue_sku_mengen.map(s =>
+                s.sku_id === skuId ? { ...s, neue_menge_praktisch: neueMenge } : s
+              ),
+            }
+          }),
+        }
+      })
+      onGruppenChange(updated)
+      return updated
+    })
+  }, [onGruppenChange])
 
   const handleAufheben = useCallback(() => {
     setGruppen(prev => {
@@ -399,7 +489,7 @@ export function KonsolidierungsSchritt({
       </div>
 
       {/* Hersteller groups */}
-      <div className="space-y-5 max-h-[480px] overflow-y-auto pr-1">
+      <div className="space-y-5 pr-1">
         {herstellerGruppen.map((hg) => {
           // Find wizard-gruppen within this hersteller group
           const wizardGruppenInHersteller = gruppen.filter(wg =>
@@ -431,6 +521,7 @@ export function KonsolidierungsSchritt({
                       volumen_40hq_m3={containerGlobal.volumen_40hq}
                       isInGruppe={isInGruppe}
                       gruppefarbe={gruppefarbe}
+                      onMengeChange={karte.konsolidierungsErgebnis ? (skuId, menge) => handleMengeChange(karte.id, skuId, menge) : undefined}
                     />
                   )
                 })}

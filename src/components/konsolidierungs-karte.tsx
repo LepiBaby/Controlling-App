@@ -8,7 +8,8 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Progress } from '@/components/ui/progress'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import type { Bestellung } from '@/hooks/use-bestellungen'
+import { perContainerMengen } from '@/hooks/use-produktinformationen-container'
+import type { Bestellung, KonsolidierungsPartner } from '@/hooks/use-bestellungen'
 import type { NeuePlanbestellung } from '@/hooks/use-planbestelllauf'
 import type { KonsolidierungsBestellungErgebnis } from '@/lib/konsolidierungs-algorithmus'
 
@@ -23,15 +24,17 @@ export interface KarteData {
   herstellerId: string | null
   herstellerName: string | null
   bestelldatum: string | null
+  produktionsstartDatum: string | null
   produktionsendeDatum: string | null
   shippingdatum: string | null
+  ankunftsdatum: string | null
   verfuegbarkeitsdatum: string | null
   gesamtmenge: number
   anzahl_40hq: number
   anzahl_20dc: number
   container_anteil: Record<string, number> | null
   konsolidierungsgruppe_id: string | null
-  konsolidierungspartner: Array<{ bestellung_id: string; produkt_namen: string[] }>
+  konsolidierungspartner: KonsolidierungsPartner[]
   stueckvolumen_m3: number | null
   volumen_m3: number
   volumen_moq_m3: number
@@ -117,8 +120,8 @@ function ContainerBadge({ karte }: { karte: KarteData }) {
     const parts = Object.entries(anteil)
       .filter(([, v]) => v > 0)
       .map(([art, v]) => {
-        const rounded = Math.round(v * 10) / 10
-        return `${rounded % 1 === 0 ? rounded : rounded.toFixed(1)}× ${art}`
+        const rounded = Math.round(v * 100) / 100
+        return `${rounded % 1 === 0 ? rounded : rounded.toFixed(2)}× ${art}`
       })
       .join(' + ')
     if (parts) return <Badge variant="outline" className="text-xs font-mono shrink-0">{parts}</Badge>
@@ -133,7 +136,12 @@ function ContainerBadge({ karte }: { karte: KarteData }) {
 
 // ─── Inline detail content (matches AenderungItem layout exactly) ────────────
 
-function DetailInhalt({ karte }: { karte: KarteData }) {
+function DetailInhalt({ karte, volumen_20dc_m3, volumen_40hq_m3, onMengeChange }: {
+  karte: KarteData
+  volumen_20dc_m3: number | null
+  volumen_40hq_m3: number | null
+  onMengeChange?: (skuId: string, neueMenge: number) => void
+}) {
   const b = karte.bestellungData
   const n = karte.neueBestellungData
 
@@ -144,12 +152,12 @@ function DetailInhalt({ karte }: { karte: KarteData }) {
   const skuMengen = b?.sku_mengen ?? n?.sku_mengen ?? []
   const gesamtmenge = skuMengen.reduce((s, m) => s + m.menge_praktisch, 0)
 
-  const bestelldatum        = b?.bestelldatum ?? n?.bestelldatum
-  const produktionsstart    = b?.produktionsstart_datum ?? null
-  const produktionsende     = b?.produktionsende_datum ?? n?.produktionsende_datum
-  const shippingdatum       = b?.shippingdatum ?? n?.shippingdatum
-  const ankunftsdatum       = b?.ankunftsdatum ?? n?.ankunftsdatum
-  const verfuegbarkeitsdatum = b?.verfuegbarkeitsdatum ?? n?.verfuegbarkeitsdatum
+  const bestelldatum         = karte.bestelldatum
+  const produktionsstart     = karte.produktionsstartDatum
+  const produktionsende      = karte.produktionsendeDatum
+  const shippingdatum        = karte.shippingdatum
+  const ankunftsdatum        = karte.ankunftsdatum
+  const verfuegbarkeitsdatum = karte.verfuegbarkeitsdatum
 
   const hq = b?.anzahl_40hq ?? (n?.container?.filter(c => c === '40HQ').length ?? 0)
   const dc = b?.anzahl_20dc ?? (n?.container?.filter(c => c === '20DC').length ?? 0)
@@ -197,30 +205,61 @@ function DetailInhalt({ karte }: { karte: KarteData }) {
                   <th className="px-2 py-1.5 text-right font-medium text-muted-foreground">Theoretisch</th>
                   <th className="px-2 py-1.5 text-right font-medium text-muted-foreground">Nach MOQ</th>
                   <th className="px-2 py-1.5 text-right font-medium text-muted-foreground">Praktisch</th>
+                  {karte.konsolidierungsErgebnis && (
+                    <th className="px-2 py-1.5 text-right font-medium text-blue-600">Konsolidierung</th>
+                  )}
                   <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Begründung</th>
                 </tr>
               </thead>
               <tbody>
-                {skuMengen.map(s => (
-                  <tr key={s.sku_id} className={`border-b last:border-0 ${s.menge_praktisch === 0 ? 'opacity-50' : ''}`}>
-                    <td className="px-2 py-1.5">
-                      <div>{s.sku_name ?? s.sku_id}</div>
-                      {s.is_trigger && <div className="text-[10px] text-blue-500 leading-tight">Trigger-SKU</div>}
-                    </td>
-                    <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">
-                      {s.menge_theoretisch != null ? s.menge_theoretisch.toLocaleString('de-DE') : '—'}
-                    </td>
-                    <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">
-                      {s.menge_nach_moq != null ? s.menge_nach_moq.toLocaleString('de-DE') : '—'}
-                    </td>
-                    <td className="px-2 py-1.5 text-right tabular-nums font-medium">
-                      {s.menge_praktisch.toLocaleString('de-DE')}
-                    </td>
-                    <td className="px-2 py-1.5 text-muted-foreground max-w-[180px] truncate" title={s.begruendung_anpassung ?? undefined}>
-                      {s.begruendung_anpassung || '—'}
-                    </td>
-                  </tr>
-                ))}
+                {skuMengen.map(s => {
+                  const konsMenge = karte.konsolidierungsErgebnis?.neue_sku_mengen.find(e => e.sku_id === s.sku_id)?.neue_menge_praktisch
+                  return (
+                    <tr key={s.sku_id} className={`border-b last:border-0 ${s.menge_praktisch === 0 ? 'opacity-50' : ''}`}>
+                      <td className="px-2 py-1.5">
+                        <div>{s.sku_name ?? s.sku_id}</div>
+                        {s.is_trigger && <div className="text-[10px] text-blue-500 leading-tight">Trigger-SKU</div>}
+                      </td>
+                      <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">
+                        {s.menge_theoretisch != null ? s.menge_theoretisch.toLocaleString('de-DE') : '—'}
+                      </td>
+                      <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">
+                        {s.menge_nach_moq != null ? s.menge_nach_moq.toLocaleString('de-DE') : '—'}
+                      </td>
+                      <td className="px-2 py-1.5 text-right tabular-nums font-medium">
+                        {s.menge_praktisch.toLocaleString('de-DE')}
+                      </td>
+                      {karte.konsolidierungsErgebnis && (
+                        <td className="px-2 py-1.5 text-right">
+                          {onMengeChange && konsMenge != null ? (
+                            <input
+                              type="number"
+                              min={0}
+                              step={1}
+                              value={konsMenge}
+                              onChange={(e) => onMengeChange(s.sku_id, Math.max(0, parseInt(e.target.value, 10) || 0))}
+                              className="w-20 text-right tabular-nums font-semibold text-blue-600 bg-transparent border-b border-blue-200 focus:outline-none focus:border-blue-500 px-0.5"
+                            />
+                          ) : (
+                            <span className="tabular-nums font-semibold text-blue-600">
+                              {konsMenge != null ? konsMenge.toLocaleString('de-DE') : '—'}
+                            </span>
+                          )}
+                        </td>
+                      )}
+                      {(() => {
+                        const beg = karte.konsolidierungsErgebnis
+                          ? (karte.konsolidierungsErgebnis.neue_sku_mengen.find(e => e.sku_id === s.sku_id)?.begruendung_anpassung ?? s.begruendung_anpassung)
+                          : s.begruendung_anpassung
+                        return (
+                          <td className="px-2 py-1.5 text-muted-foreground max-w-[180px] truncate" title={beg ?? undefined}>
+                            {beg || '—'}
+                          </td>
+                        )
+                      })()}
+                    </tr>
+                  )
+                })}
               </tbody>
               <tfoot>
                 <tr className="border-t bg-muted/20">
@@ -228,6 +267,13 @@ function DetailInhalt({ karte }: { karte: KarteData }) {
                   <td className="px-2 py-1.5 text-right font-semibold tabular-nums">
                     {gesamtmenge.toLocaleString('de-DE')}
                   </td>
+                  {karte.konsolidierungsErgebnis && (
+                    <td className="px-2 py-1.5 text-right font-semibold tabular-nums text-blue-600">
+                      {karte.konsolidierungsErgebnis.neue_sku_mengen
+                        .reduce((sum, e) => sum + e.neue_menge_praktisch, 0)
+                        .toLocaleString('de-DE')}
+                    </td>
+                  )}
                   <td />
                 </tr>
               </tfoot>
@@ -236,14 +282,81 @@ function DetailInhalt({ karte }: { karte: KarteData }) {
         </div>
       )}
 
-      {(hq > 0 || dc > 0) && (
-        <div>
-          <p className="text-xs font-medium text-muted-foreground mb-1.5">Container</p>
-          <p className="text-xs">
-            {[hq > 0 && `${hq}× 40HQ`, dc > 0 && `${dc}× 20DC`].filter(Boolean).join(' + ')}
-          </p>
-        </div>
-      )}
+      {(() => {
+        const ers = karte.konsolidierungsErgebnis
+        if (ers) {
+          const stv = karte.stueckvolumen_m3
+          const max40hq = stv && volumen_40hq_m3 ? Math.floor(volumen_40hq_m3 / stv) : null
+          const max20dc = stv && volumen_20dc_m3 ? Math.floor(volumen_20dc_m3 / stv) : null
+          const newTotal = ers.neue_sku_mengen.reduce((s, e) => s + e.neue_menge_praktisch, 0)
+          const anz40hq = ers.volle_40hq + ers.rest_container.filter(c => c === '40HQ').length
+          const anz20dc = ers.rest_container.filter(c => c === '20DC').length
+          const { hqAmounts, dcAmounts } = perContainerMengen(newTotal, anz40hq, anz20dc, max40hq, max20dc)
+          const hasAny = anz40hq > 0 || anz20dc > 0
+          if (!hasAny) return null
+          return (
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-1.5">Container (nach Konsolidierung)</p>
+              <div className="flex gap-6">
+                {anz40hq > 0 && (
+                  <div className="space-y-0.5">
+                    <p className="text-xs text-muted-foreground">{anz40hq}× 40HQ{max40hq != null ? ` (max. ${max40hq.toLocaleString('de-DE')} Stk.)` : ''}</p>
+                    {hqAmounts.map((a, i) => (
+                      <p key={i} className="text-[11px] text-blue-600">
+                        Container {i + 1}: {a.toLocaleString('de-DE')} Stk.{max40hq ? ` (${Math.round(a / max40hq * 100)} %)` : ''}
+                      </p>
+                    ))}
+                  </div>
+                )}
+                {anz20dc > 0 && (
+                  <div className="space-y-0.5">
+                    <p className="text-xs text-muted-foreground">{anz20dc}× 20DC{max20dc != null ? ` (max. ${max20dc.toLocaleString('de-DE')} Stk.)` : ''}</p>
+                    {dcAmounts.map((a, i) => (
+                      <p key={i} className="text-[11px] text-blue-600">
+                        Container {i + 1}: {a.toLocaleString('de-DE')} Stk.{max20dc ? ` (${Math.round(a / max20dc * 100)} %)` : ''}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        }
+        if (hq > 0 || dc > 0) {
+          const stv = karte.stueckvolumen_m3
+          const max40hq = stv && volumen_40hq_m3 ? Math.floor(volumen_40hq_m3 / stv) : null
+          const max20dc = stv && volumen_20dc_m3 ? Math.floor(volumen_20dc_m3 / stv) : null
+          const { hqAmounts, dcAmounts } = perContainerMengen(gesamtmenge, hq, dc, max40hq, max20dc)
+          return (
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-1.5">Container</p>
+              <div className="flex gap-6">
+                {hq > 0 && (
+                  <div className="space-y-0.5">
+                    <p className="text-xs text-muted-foreground">{hq}× 40HQ{max40hq != null ? ` (max. ${max40hq.toLocaleString('de-DE')} Stk.)` : ''}</p>
+                    {hqAmounts.map((a, i) => (
+                      <p key={i} className="text-[11px] text-muted-foreground">
+                        Container {i + 1}: {a.toLocaleString('de-DE')} Stk.{max40hq ? ` (${Math.round(a / max40hq * 100)} %)` : ''}
+                      </p>
+                    ))}
+                  </div>
+                )}
+                {dc > 0 && (
+                  <div className="space-y-0.5">
+                    <p className="text-xs text-muted-foreground">{dc}× 20DC{max20dc != null ? ` (max. ${max20dc.toLocaleString('de-DE')} Stk.)` : ''}</p>
+                    {dcAmounts.map((a, i) => (
+                      <p key={i} className="text-[11px] text-muted-foreground">
+                        Container {i + 1}: {a.toLocaleString('de-DE')} Stk.{max20dc ? ` (${Math.round(a / max20dc * 100)} %)` : ''}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        }
+        return null
+      })()}
     </div>
   )
 }
@@ -258,6 +371,7 @@ interface KonsolidierungsKarteProps {
   volumen_40hq_m3: number | null
   isInGruppe?: boolean
   gruppefarbe?: string
+  onMengeChange?: (skuId: string, neueMenge: number) => void
 }
 
 export function KonsolidierungsKarte({
@@ -268,6 +382,7 @@ export function KonsolidierungsKarte({
   volumen_40hq_m3,
   isInGruppe = false,
   gruppefarbe,
+  onMengeChange,
 }: KonsolidierungsKarteProps) {
   const [expanded, setExpanded] = useState(false)
 
@@ -300,13 +415,39 @@ export function KonsolidierungsKarte({
                 <TooltipProvider delayDuration={200}>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <span className="text-amber-500 cursor-default text-xs font-bold leading-none">!</span>
+                      <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-100 border border-amber-400 text-amber-600 text-[10px] font-bold cursor-default shrink-0">!</span>
                     </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-xs text-xs">
-                      <p className="font-medium mb-1">War konsolidiert mit:</p>
-                      {karte.konsolidierungspartner.map((p, i) => (
-                        <p key={i}>{p.produkt_namen.join(', ')}</p>
-                      ))}
+                    <TooltipContent side="right" sideOffset={6} collisionPadding={16} className="max-w-[280px] text-xs space-y-1.5">
+                      <p className="font-medium">War konsolidiert mit:</p>
+                      {karte.konsolidierungspartner.map((p, i) => {
+                        const containerLabel = (() => {
+                          if (p.container_anteil && Object.keys(p.container_anteil).length > 0) {
+                            const parts = Object.entries(p.container_anteil)
+                              .filter(([, v]) => v > 0)
+                              .map(([art, v]) => { const r = Math.round(v * 100) / 100; return `${r % 1 === 0 ? r : r.toFixed(2)}× ${art}` })
+                              .join(' + ')
+                            return parts || null
+                          }
+                          const hq = p.anzahl_40hq ?? 0; const dc = p.anzahl_20dc ?? 0
+                          if (hq === 0 && dc === 0) return null
+                          return [hq > 0 && `${hq}× 40HQ`, dc > 0 && `${dc}× 20DC`].filter(Boolean).join(' + ')
+                        })()
+                        return (
+                          <div key={i} className="flex items-center justify-between gap-3">
+                            <span className="truncate">{p.produkt_namen.join(', ') || 'Weitere Bestellung'}</span>
+                            <div className="flex items-center gap-1 shrink-0">
+                              {p.bestelldatum && (
+                                <span className="text-muted-foreground tabular-nums">
+                                  {new Date(p.bestelldatum + 'T00:00:00').toLocaleDateString('de-DE')}
+                                </span>
+                              )}
+                              {containerLabel && (
+                                <Badge variant="outline" className="text-[10px] font-mono h-4 px-1">{containerLabel}</Badge>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
@@ -317,7 +458,10 @@ export function KonsolidierungsKarte({
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="text-sm font-medium truncate">{karte.produktNamen.join(', ')}</span>
                 <Badge variant="secondary" className="text-xs tabular-nums shrink-0">
-                  {karte.gesamtmenge.toLocaleString('de-DE')} Stk.
+                  {(karte.konsolidierungsErgebnis
+                    ? karte.konsolidierungsErgebnis.neue_sku_mengen.reduce((s, e) => s + e.neue_menge_praktisch, 0)
+                    : karte.gesamtmenge
+                  ).toLocaleString('de-DE')} Stk.
                 </Badge>
                 <ContainerBadge karte={karte} />
                 {karte.herkunft === 'manuell' && (
@@ -377,7 +521,7 @@ export function KonsolidierungsKarte({
         </div>
 
         <CollapsibleContent>
-          <DetailInhalt karte={karte} />
+          <DetailInhalt karte={karte} volumen_20dc_m3={volumen_20dc_m3} volumen_40hq_m3={volumen_40hq_m3} onMengeChange={onMengeChange} />
         </CollapsibleContent>
       </div>
     </Collapsible>

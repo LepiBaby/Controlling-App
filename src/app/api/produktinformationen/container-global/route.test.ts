@@ -16,7 +16,7 @@ function req(url: string, options?: RequestInit) {
 }
 
 const EINTRAG_ID = '33333333-3333-3333-8333-333333333333'
-const MOCK_GLOBAL = { id: EINTRAG_ID, volumen_20dc: 25.5, volumen_40dc: 56.1, volumen_40hq: 67.7 }
+const MOCK_GLOBAL = { id: EINTRAG_ID, volumen_20dc: 25.5, volumen_40hq: 67.7 }
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -66,7 +66,7 @@ describe('PUT /api/produktinformationen/container-global', () => {
     const res = await PUT(req('http://localhost/', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ volumen_20dc: 25.5, volumen_40dc: 56.1, volumen_40hq: 67.7 }),
+      body: JSON.stringify({ volumen_20dc: 25.5, volumen_40hq: 67.7 }),
     }))
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -74,7 +74,7 @@ describe('PUT /api/produktinformationen/container-global', () => {
   })
 
   it('returns 200 with partial data (some null)', async () => {
-    upsertMock({ ...MOCK_GLOBAL, volumen_40dc: null })
+    upsertMock({ ...MOCK_GLOBAL, volumen_40hq: null })
     const res = await PUT(req('http://localhost/', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },

@@ -19,7 +19,7 @@ const PRODUKT_ID = '22222222-2222-2222-8222-222222222222'
 const EINTRAG_ID = '33333333-3333-3333-8333-333333333333'
 const MOCK_ENTRY = {
   id: EINTRAG_ID, produkt_id: PRODUKT_ID,
-  produktionszeit_tage: 30, zwischenzeit_tage: 7, shipping_zeit_tage: 21, entladungszeit_tage: 3,
+  pufferzeit_tage: 5, produktionszeit_tage: 30, zwischenzeit_tage: 7, shipping_zeit_tage: 21, entladungszeit_tage: 3,
 }
 
 beforeEach(() => {
@@ -61,7 +61,7 @@ describe('PUT /api/produktinformationen/lieferzeit', () => {
     const res = await PUT(req('http://localhost/', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ produkt_id: PRODUKT_ID, produktionszeit_tage: 30, zwischenzeit_tage: 7, shipping_zeit_tage: 21, entladungszeit_tage: 3 }),
+      body: JSON.stringify({ produkt_id: PRODUKT_ID, pufferzeit_tage: 5, produktionszeit_tage: 30, zwischenzeit_tage: 7, shipping_zeit_tage: 21, entladungszeit_tage: 3 }),
     }))
     expect(res.status).toBe(200)
     const body = await res.json()

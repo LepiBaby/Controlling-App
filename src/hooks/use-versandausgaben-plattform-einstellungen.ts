@@ -35,7 +35,7 @@ const DEFAULTS: VersandausgabenPlattformEinstellungen = {
 export function useVersandausgabenPlattformEinstellungen(plattformId: string | null) {
   const [einstellungen, setEinstellungen] =
     useState<VersandausgabenPlattformEinstellungen | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(!!plattformId)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {

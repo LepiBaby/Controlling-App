@@ -24,6 +24,9 @@ export interface KpiCategory {
   ist_abzugsposten: boolean
   ust_satz: number | null
   exclude_from_rentabilitaet: boolean
+  // PROJ-74 (Erweiterung): true = systemverwaltete, schreibgeschützte Langfristig-
+  // Investitionsgruppe (Snapshot aus globalem KPI-Modell). Im globalen Modell stets undefined/false.
+  is_system?: boolean
   children?: KpiCategory[]
 }
 

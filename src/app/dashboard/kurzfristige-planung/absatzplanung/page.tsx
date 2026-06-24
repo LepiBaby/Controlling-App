@@ -2,6 +2,7 @@
 
 import { NavSheet } from '@/components/nav-sheet'
 import { LogoutButton } from '@/components/logout-button'
+import { AbsatzplanungKacheln } from '@/components/absatzplanung-kacheln'
 import { AbsatzplanungTabelle } from '@/components/absatzplanung-tabelle'
 import { Toaster } from '@/components/ui/toaster'
 
@@ -20,7 +21,10 @@ export default function AbsatzplanungPage() {
         </div>
       </header>
 
-      <main className="flex-1 p-6">
+      <main className="flex-1 p-6 space-y-6">
+        <div className="mx-auto max-w-full">
+          <AbsatzplanungKacheln />
+        </div>
         <div className="mx-auto max-w-full">
           <AbsatzplanungTabelle />
         </div>

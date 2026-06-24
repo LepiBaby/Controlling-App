@@ -49,39 +49,53 @@ function bestimmeContainerFuerRestvolumen(
 ): { container: Array<'20DC' | '40HQ'>; ziel_m3: number } {
   if (rest_m3 <= 0) return { container: [], ziel_m3: 0 }
 
-  const halbe_20dc = volumen_20dc_m3 / 2
-  const schwelle_abrunden = volumen_20dc_m3 * 1.3
-  const schwelle_mitte = (volumen_20dc_m3 + volumen_40hq_m3) / 2
+  const containers: Array<'20DC' | '40HQ'> = []
+  let ziel_m3 = 0
+  let remaining = rest_m3
 
-  // Below half a 20DC — still use one 20DC (min size)
-  if (rest_m3 <= halbe_20dc) {
-    return { container: ['20DC'], ziel_m3: volumen_20dc_m3 }
+  while (remaining > 0) {
+    const schwelleHalb = volumen_20dc_m3 / 2
+    const schwelleAbrunden = volumen_20dc_m3 * 1.3
+    const schwelleMitte = (volumen_20dc_m3 + volumen_40hq_m3) / 2
+
+    // Nach mindestens einem gebuchten Container: Rest unter ½ 20DC wird gestrichen — nicht wirtschaftlich
+    if (containers.length > 0 && remaining < schwelleHalb) {
+      break
+    }
+
+    if (remaining < schwelleHalb) {
+      const target = Math.min(remaining * 1.2, volumen_20dc_m3)
+      ziel_m3 += target
+      containers.push('20DC')
+      remaining = 0
+    } else if (remaining <= volumen_20dc_m3) {
+      ziel_m3 += volumen_20dc_m3
+      containers.push('20DC')
+      remaining = 0
+    } else if (remaining <= schwelleAbrunden) {
+      ziel_m3 += volumen_20dc_m3
+      containers.push('20DC')
+      remaining = 0
+    } else if (remaining < schwelleMitte) {
+      const target = remaining * 1.2
+      const container = target <= volumen_20dc_m3 ? '20DC' : '40HQ'
+      ziel_m3 += target
+      containers.push(container)
+      remaining = 0
+    } else {
+      // Ab Mittelpunkt: einen vollen 40HQ buchen, Rest in nächster Iteration
+      ziel_m3 += volumen_40hq_m3
+      containers.push('40HQ')
+      remaining -= volumen_40hq_m3
+    }
   }
 
-  // Between half-20DC and rounding threshold — use one 20DC
-  if (rest_m3 <= schwelle_abrunden) {
-    return { container: ['20DC'], ziel_m3: volumen_20dc_m3 }
-  }
-
-  // Between rounding threshold and halfway between 20DC and 40HQ — use one 20DC
-  if (rest_m3 <= schwelle_mitte) {
-    return { container: ['20DC'], ziel_m3: volumen_20dc_m3 }
-  }
-
-  // Between middle and one full 40HQ
-  if (rest_m3 <= volumen_40hq_m3) {
-    return { container: ['40HQ'], ziel_m3: volumen_40hq_m3 }
-  }
-
-  // More than one 40HQ — scale up with additional containers
-  const extra40hq = Math.ceil(rest_m3 / volumen_40hq_m3) - 1
-  const containers: Array<'20DC' | '40HQ'> = ['40HQ', ...Array(extra40hq).fill('40HQ' as const)]
-  return { container: containers, ziel_m3: containers.length * volumen_40hq_m3 }
+  return { container: containers, ziel_m3 }
 }
 
 function addTage(isoDate: string, tage: number): string {
-  const d = new Date(isoDate + 'T00:00:00')
-  d.setDate(d.getDate() + tage)
+  const d = new Date(isoDate + 'T00:00:00Z')
+  d.setUTCDate(d.getUTCDate() + tage)
   return d.toISOString().slice(0, 10)
 }
 

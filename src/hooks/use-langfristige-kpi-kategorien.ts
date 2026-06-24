@@ -29,6 +29,7 @@ interface LangfristigeKategorieRecord {
   name: string
   level: 1 | 2 | 3
   sort_order: number
+  is_system?: boolean
 }
 
 // Auf die gemeinsame KpiCategory-Form abbilden; ungenutzte Felder defaulten.
@@ -48,6 +49,7 @@ function toKpiCategory(r: LangfristigeKategorieRecord): KpiCategory {
     ist_abzugsposten: false,
     ust_satz: null,
     exclude_from_rentabilitaet: false,
+    is_system: r.is_system ?? false,
   }
 }
 
@@ -134,10 +136,12 @@ export function useLangfristigeKpiKategorien(versionId: string, art: Langfristig
 
   const moveCategory = useCallback(async (id: string, direction: 'up' | 'down') => {
     const category = categories.find(c => c.id === id)
-    if (!category) return
+    if (!category || category.is_system) return
 
+    // Systemgruppen (feste Produktinvestitions-Übergruppen) bleiben fix und werden
+    // beim Umsortieren nicht berücksichtigt.
     const siblings = categories
-      .filter(c => c.parent_id === category.parent_id)
+      .filter(c => c.parent_id === category.parent_id && !c.is_system)
       .sort((a, b) => a.sort_order - b.sort_order)
 
     const index = siblings.findIndex(c => c.id === id)
@@ -173,9 +177,11 @@ export function useLangfristigeKpiKategorien(versionId: string, art: Langfristig
     const active = categories.find(c => c.id === activeId)
     const over = categories.find(c => c.id === overId)
     if (!active || !over || active.parent_id !== over.parent_id) return
+    // Systemgruppen sind fix — weder verschiebbar noch als Ankerziel zulässig.
+    if (active.is_system || over.is_system) return
 
     const siblings = categories
-      .filter(c => c.parent_id === active.parent_id)
+      .filter(c => c.parent_id === active.parent_id && !c.is_system)
       .sort((a, b) => a.sort_order - b.sort_order)
 
     const withoutActive = siblings.filter(c => c.id !== activeId)
@@ -183,7 +189,9 @@ export function useLangfristigeKpiKategorien(versionId: string, art: Langfristig
     const insertAt = position === 'before' ? overIndex : overIndex + 1
     withoutActive.splice(insertAt, 0, active)
 
-    const updates = withoutActive.map((c, idx) => ({ id: c.id, sort_order: idx }))
+    // sort_order hinter den festen Systemgruppen fortführen.
+    const systemCount = categories.filter(c => c.parent_id === active.parent_id && c.is_system).length
+    const updates = withoutActive.map((c, idx) => ({ id: c.id, sort_order: systemCount + idx }))
     setCategories(prev => prev.map(c => {
       const u = updates.find(u => u.id === c.id)
       return u ? { ...c, sort_order: u.sort_order } : c
@@ -201,15 +209,17 @@ export function useLangfristigeKpiKategorien(versionId: string, art: Langfristig
   // Umhängen: activeId (inkl. Nachfahren) unter newParentId verschieben.
   const reparentCategory = useCallback(async (activeId: string, newParentId: string | null, newLevel: 1 | 2 | 3) => {
     const active = categories.find(c => c.id === activeId)
-    if (!active) return
+    if (!active || active.is_system) return
 
     const levelDiff = newLevel - active.level
     const descendants = descendantIds(categories, activeId)
 
-    const newSiblings = categories.filter(c => c.parent_id === newParentId)
+    // Hinter den festen Systemgruppen einreihen; gespiegelte Gruppen bleiben unangetastet.
+    const newSiblings = categories.filter(c => c.parent_id === newParentId && !c.is_system)
+    const systemCount = categories.filter(c => c.parent_id === newParentId && c.is_system).length
     const newSortOrder = newSiblings.length > 0
       ? Math.max(...newSiblings.map(c => c.sort_order)) + 1
-      : 0
+      : systemCount
 
     setCategories(prev => prev.map(c => {
       if (c.id === activeId) return { ...c, parent_id: newParentId, level: newLevel, sort_order: newSortOrder }

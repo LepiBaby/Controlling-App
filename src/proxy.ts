@@ -23,7 +23,12 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  // Lokale ES256-JWT-Verifizierung (per WebCrypto, JWKS gecacht) statt eines
+  // GoTrue-Netzwerk-Calls (getUser) bei JEDEM Request — der Proxy läuft auf allen
+  // Seiten- und API-Aufrufen, daher ist das der größte Latenz-Hebel. getClaims()
+  // refresht via getSession() das Token und schreibt die Cookies über setAll().
+  const { data } = await supabase.auth.getClaims()
+  const user = data?.claims ?? null
 
   const isPublicPath =
     request.nextUrl.pathname.startsWith('/login') ||

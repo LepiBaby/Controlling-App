@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 
 export type Berechnungsart =
+  | 'mittelwert_7'
   | 'mittelwert_14'
   | 'mittelwert_30'
   | 'mittelwert_60'
@@ -13,6 +14,7 @@ export type Berechnungsart =
   | 'keine'
 
 export const BERECHNUNGSARTEN: Berechnungsart[] = [
+  'mittelwert_7',
   'mittelwert_14',
   'mittelwert_30',
   'mittelwert_60',
@@ -24,6 +26,7 @@ export const BERECHNUNGSARTEN: Berechnungsart[] = [
 ]
 
 export const BERECHNUNGSART_LABELS: Record<Berechnungsart, string> = {
+  mittelwert_7: 'Mittelwert 7 Tage',
   mittelwert_14: 'Mittelwert 14 Tage',
   mittelwert_30: 'Mittelwert 30 Tage',
   mittelwert_60: 'Mittelwert 60 Tage',

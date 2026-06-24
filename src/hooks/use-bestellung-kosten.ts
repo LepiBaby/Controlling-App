@@ -73,6 +73,7 @@ export function useBestellungKosten(bestellungId: string | null) {
       datum?: string
       nettobetrag?: number
       begruendung?: string | null
+      ist_automatisch?: boolean
     },
   ): Promise<BestellungKosten> => {
     if (!bestellungId) throw new Error('Keine Bestellung')

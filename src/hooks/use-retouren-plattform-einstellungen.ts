@@ -37,7 +37,7 @@ const DEFAULTS: RetourenPlattformEinstellungen = {
 export function useRetourenPlattformEinstellungen(plattformId: string | null) {
   const [einstellungen, setEinstellungen] =
     useState<RetourenPlattformEinstellungen | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(!!plattformId)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {

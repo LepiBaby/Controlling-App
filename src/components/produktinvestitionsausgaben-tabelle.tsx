@@ -27,11 +27,11 @@ function formatNum(v: number): string {
 
 const MONTH_LABELS = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez']
 
-function mondayOfISOWeek(year: number, week: number): Date {
+function thursdayOfISOWeek(year: number, week: number): Date {
   const jan4 = new Date(Date.UTC(year, 0, 4))
   const dow = jan4.getUTCDay() || 7
   const monday1 = new Date(jan4.getTime() - (dow - 1) * 86_400_000)
-  return new Date(monday1.getTime() + (week - 1) * 7 * 86_400_000)
+  return new Date(monday1.getTime() + (week - 1) * 7 * 86_400_000 + 3 * 86_400_000)
 }
 
 // ─── Row types ────────────────────────────────────────────────────────────────
@@ -381,7 +381,7 @@ export function ProduktinvestitionsausgabenTabelle({ referenceDate }: { referenc
   const monthGroups = useMemo(() => {
     const groups: Array<{ label: string; colSpan: number; isPast: boolean }> = []
     const addWeek = (year: number, week: number, isPast: boolean, cols: number) => {
-      const d = mondayOfISOWeek(year, week)
+      const d = thursdayOfISOWeek(year, week)
       const label = `${MONTH_LABELS[d.getUTCMonth()]} ${d.getUTCFullYear()}`
       if (groups.length > 0 && groups[groups.length - 1].label === label) {
         groups[groups.length - 1].colSpan += cols

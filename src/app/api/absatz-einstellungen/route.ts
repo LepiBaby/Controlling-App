@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { requireAuth } from '@/lib/supabase-server'
 
 const BERECHNUNGSARTEN = [
-  'mittelwert_14', 'mittelwert_30', 'mittelwert_60', 'mittelwert_90',
+  'mittelwert_7', 'mittelwert_14', 'mittelwert_30', 'mittelwert_60', 'mittelwert_90',
   'gewichtet_30', 'gewichtet_60', 'gewichtet_90', 'keine',
 ] as const
 

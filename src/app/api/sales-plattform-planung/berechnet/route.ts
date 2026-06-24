@@ -38,13 +38,13 @@ interface KatRow { id: string; name: string; parent_id: string | null; type: str
 interface GewichtungEinstellung { gewichtung_erstes_drittel: number | null; gewichtung_zweites_drittel: number | null; gewichtung_drittes_drittel: number | null }
 interface AbsatzEinstellung extends GewichtungEinstellung { sales_plattform_id: string; produkt_id: string; berechnungsart: string }
 interface AbsatzPlanungRow { sku_id: string | null; produkt_id: string; sales_plattform_id: string; kw_year: number; kw_number: number; absatz_manuell: number | null; effektiver_vk_manuell: number | null }
-interface RetourenEinstellung { sales_plattform_id: string; produkt_id: string; berechnungsart: string; rueckversandkosten_euro_netto: number | null; retourenhandling_kosten_euro_netto: number | null }
-interface RetourenPlattEinstellung { sales_plattform_id: string; erstattung_verkaufsgebuehr_prozent: number | null }
+interface RetourenEinstellung { sales_plattform_id: string; produkt_id: string; berechnungsart: string; rueckversandkosten_euro_netto: number | null; retourenhandling_kosten_euro_netto: number | null; erstattung_verkaufsgebuehr_prozent: number | null }
+interface RetourenAllgemeinProduktEinstellung { produkt_id: string; berechnungsart: string }
 interface VkGebEinstellung { sales_plattform_id: string; produkt_id: string; verkaufsgebuehr_prozent: number | null }
-interface MarketingPlanungRow { produkt_id: string; sales_plattform_id: string; kw_year: number; kw_number: number; marketingkosten_pct_manuell: number | null }
-interface MarketingEinstellung extends GewichtungEinstellung { sales_plattform_id: string; produkt_id: string; berechnungsart: string }
+interface MarketingPlanungRow { produkt_id: string; kategorie_id: string; kw_year: number; kw_number: number; marketingkosten_pct_manuell: number | null }
+interface MarketingEinstellung extends GewichtungEinstellung { kategorie_id: string; produkt_id: string; berechnungsart: string }
 interface UmsatzTransRow { produkt_id: string; sales_plattform_id: string; leistungsdatum: string; betrag: number; kategorie_id: string }
-interface AusgabenTransRow { produkt_id: string; sales_plattform_id: string; leistungsdatum: string; betrag_netto: number }
+interface AusgabenTransRow { produkt_id: string; kategorie_id: string; leistungsdatum: string; betrag_netto: number }
 interface SendungRow { plattform_id: string; menge: number }
 interface BestandRow { sku_id: string; datum: string; bestand_sendungen: SendungRow[] }
 
@@ -126,6 +126,25 @@ export async function GET() {
     skusByProdukt.get(s.parent_id)!.push(s.id)
   }
 
+  // Root category IDs for UST rate lookup
+  let vkGebRootId: string | null = null
+  let vertriebParentId: string | null = null
+  let retourenRootId: string | null = null
+  let marketingL1Id: string | null = null
+  for (const k of kats) {
+    if (k.type !== 'ausgaben_kosten') continue
+    const n = k.name.toLowerCase()
+    if ((n.includes('verkaufsgebühr') || n.includes('verkaufsgebuehr')) && vkGebRootId === null) {
+      vkGebRootId = k.id
+      if (k.parent_id) {
+        const par = kats.find(p => p.id === k.parent_id)
+        if (par && par.level === 1) vertriebParentId = k.parent_id
+      }
+    }
+    if (n === 'retouren' && retourenRootId === null) retourenRootId = k.id
+    if (n === 'marketing' && k.level === 1 && marketingL1Id === null) marketingL1Id = k.id
+  }
+
   // 4. Load all needed data in parallel
   const histStartStr = toDateOnly(addDays(today, -90))
   const planYears = [...new Set(planungswochen.map(w => w.year))]
@@ -133,9 +152,10 @@ export async function GET() {
 
   const [
     absatzPlanResult, absatzEinstResult, bestandResult,
-    retourenEinstResult, retourenPlattResult, vkGebResult,
+    retourenEinstResult, retourenPlattResult, retourenAllgemeinResult, vkGebResult,
     marketingPlanResult, marketingEinstResult,
-    umsatzTransResult, marketingAusgResult,
+    umsatzTransResult, marketingAusgResult, ustResult,
+    auszahlungsMarketingResult, mktKatPlattResult, ustEbeneResult,
   ] = await Promise.all([
     supabase.from('absatz_planung')
       .select('sku_id, produkt_id, sales_plattform_id, kw_year, kw_number, absatz_manuell, effektiver_vk_manuell')
@@ -149,19 +169,20 @@ export async function GET() {
           .gte('datum', histStartStr).lt('datum', todayStr).in('sku_id', skus.map(s => s.id)).limit(10000)
       : Promise.resolve({ data: [], error: null }),
     supabase.from('retouren_einstellungen')
-      .select('sales_plattform_id, produkt_id, berechnungsart, rueckversandkosten_euro_netto, retourenhandling_kosten_euro_netto')
+      .select('sales_plattform_id, produkt_id, berechnungsart, rueckversandkosten_euro_netto, retourenhandling_kosten_euro_netto, erstattung_verkaufsgebuehr_prozent')
       .eq('user_id', user!.id).limit(500),
-    supabase.from('retouren_plattform_einstellungen')
-      .select('sales_plattform_id, erstattung_verkaufsgebuehr_prozent')
-      .eq('user_id', user!.id).limit(100),
+    Promise.resolve({ data: [], error: null }), // retouren_plattform_einstellungen no longer used
+    supabase.from('retouren_allgemein_produkt_einstellungen')
+      .select('produkt_id, berechnungsart')
+      .eq('user_id', user!.id).limit(500),
     supabase.from('verkaufsgebuehr_einstellungen')
       .select('sales_plattform_id, produkt_id, verkaufsgebuehr_prozent')
       .eq('user_id', user!.id).limit(500),
     supabase.from('marketing_planung')
-      .select('produkt_id, sales_plattform_id, kw_year, kw_number, marketingkosten_pct_manuell')
+      .select('produkt_id, kategorie_id, kw_year, kw_number, marketingkosten_pct_manuell')
       .eq('user_id', user!.id).in('kw_year', planYears).limit(2000),
     supabase.from('marketing_einstellungen')
-      .select('sales_plattform_id, produkt_id, berechnungsart, gewichtung_erstes_drittel, gewichtung_zweites_drittel, gewichtung_drittes_drittel')
+      .select('kategorie_id, produkt_id, berechnungsart, gewichtung_erstes_drittel, gewichtung_zweites_drittel, gewichtung_drittes_drittel')
       .eq('user_id', user!.id).neq('berechnungsart', 'keine').limit(500),
     supabase.from('umsatz_transaktionen')
       .select('produkt_id, sales_plattform_id, leistungsdatum, betrag, kategorie_id')
@@ -169,18 +190,72 @@ export async function GET() {
       .not('produkt_id', 'is', null).not('sales_plattform_id', 'is', null).limit(30000),
     marketingKatIdsArr.length > 0
       ? supabase.from('ausgaben_kosten_transaktionen')
-          .select('produkt_id, sales_plattform_id, leistungsdatum, betrag_netto')
+          .select('produkt_id, kategorie_id, leistungsdatum, betrag_netto')
           .gte('leistungsdatum', histStartStr).lt('leistungsdatum', todayStr)
-          .in('kategorie_id', marketingKatIdsArr).eq('relevanz', 'rentabilitaet')
-          .not('produkt_id', 'is', null).not('sales_plattform_id', 'is', null).limit(20000)
+          .in('kategorie_id', marketingKatIdsArr).in('relevanz', ['rentabilitaet', 'beides'])
+          .not('produkt_id', 'is', null).limit(20000)
       : Promise.resolve({ data: [], error: null }),
+    supabase.from('ust_kategorie_saetze')
+      .select('kategorie_id, ebene, ust_satz')
+      .eq('user_id', user!.id)
+      .limit(1000),
+    supabase.from('auszahlungs_marketing_gruppen')
+      .select('kpi_kategorie_id')
+      .eq('user_id', user!.id)
+      .limit(500),
+    supabase.from('marketing_kategorie_einstellungen')
+      .select('kategorie_id, sales_plattform_id')
+      .eq('user_id', user!.id)
+      .limit(100),
+    supabase.from('ust_l1_ebene_auswahl')
+      .select('kategorie_id, ebene')
+      .eq('user_id', user!.id)
+      .limit(500),
   ])
 
-  for (const r of [absatzPlanResult, absatzEinstResult, retourenEinstResult, retourenPlattResult, vkGebResult, marketingPlanResult, marketingEinstResult, umsatzTransResult]) {
+  for (const r of [absatzPlanResult, absatzEinstResult, retourenEinstResult, retourenPlattResult, retourenAllgemeinResult, vkGebResult, marketingPlanResult, marketingEinstResult, umsatzTransResult]) {
     if ('error' in r && r.error) return NextResponse.json({ error: r.error.message }, { status: 500 })
   }
   if (bestandResult.error) return NextResponse.json({ error: bestandResult.error.message }, { status: 500 })
   if (marketingAusgResult.error) return NextResponse.json({ error: marketingAusgResult.error.message }, { status: 500 })
+
+  const inkludierteMarketingKatIds = new Set<string>(
+    ((auszahlungsMarketingResult.data ?? []) as { kpi_kategorie_id: string }[]).map(r => r.kpi_kategorie_id)
+  )
+
+  const kategoriePlattformMktMap = new Map<string, string | null>()
+  for (const e of (mktKatPlattResult.data ?? []) as { kategorie_id: string; sales_plattform_id: string | null }[]) {
+    kategoriePlattformMktMap.set(e.kategorie_id, e.sales_plattform_id ?? null)
+  }
+
+  const ustRateMap = new Map<string, number>()
+  for (const row of (ustResult.data ?? []) as { kategorie_id: string; ebene: number; ust_satz: number | null }[]) {
+    if (row.ust_satz != null) ustRateMap.set(`${row.kategorie_id}:${row.ebene}`, Number(row.ust_satz))
+  }
+  const ustEbeneMap = new Map<string, 1 | 2>()
+  for (const r of (ustEbeneResult.data ?? []) as { kategorie_id: string; ebene: number }[]) {
+    ustEbeneMap.set(r.kategorie_id, r.ebene as 1 | 2)
+  }
+
+  function getUstMultiplier(specificId: string | null, parentId: string | null): number {
+    if (parentId) {
+      const ebene = ustEbeneMap.get(parentId) ?? 1  // default: Gesamt (ebene=1)
+      if (ebene === 1) {
+        const r = ustRateMap.get(`${parentId}:1`)
+        if (r != null) return 1 + r / 100
+      } else if (specificId) {
+        const r = ustRateMap.get(`${specificId}:2`)
+        if (r != null) return 1 + r / 100
+      }
+    }
+    if (specificId) {
+      const r2 = ustRateMap.get(`${specificId}:2`)
+      if (r2 != null) return 1 + r2 / 100
+      const r1 = ustRateMap.get(`${specificId}:1`)
+      if (r1 != null) return 1 + r1 / 100
+    }
+    return 1
+  }
 
   // ── 5. Build lookup maps ────────────────────────────────────────────────
 
@@ -243,7 +318,8 @@ export async function GET() {
   // Umsatz trans by "prodId:plattId"
   const bruttoByKombi = new Map<string, { datum: string; betrag: number }[]>()
   const rueckByKombi = new Map<string, { datum: string; betrag: number }[]>()
-  const umsatzFuerMktByKombi = new Map<string, { datum: string; betrag: number }[]>()
+  const umsatzFuerMktByProdukt = new Map<string, { datum: string; betrag: number }[]>()
+  const umsatzFuerMktByProduktPlattform = new Map<string, { datum: string; betrag: number }[]>()
   for (const row of (umsatzTransResult.data ?? []) as UmsatzTransRow[]) {
     if (!row.produkt_id || !row.sales_plattform_id) continue
     const key = `${row.produkt_id}:${row.sales_plattform_id}`
@@ -257,8 +333,11 @@ export async function GET() {
       rueckByKombi.get(key)!.push({ datum: row.leistungsdatum, betrag: Number(row.betrag) })
     }
     if (!isAbzug || isRabatt) {
-      if (!umsatzFuerMktByKombi.has(key)) umsatzFuerMktByKombi.set(key, [])
-      umsatzFuerMktByKombi.get(key)!.push({ datum: row.leistungsdatum, betrag: isRabatt ? -Number(row.betrag) : Number(row.betrag) })
+      const entry = { datum: row.leistungsdatum, betrag: isRabatt ? -Number(row.betrag) : Number(row.betrag) }
+      if (!umsatzFuerMktByProdukt.has(row.produkt_id)) umsatzFuerMktByProdukt.set(row.produkt_id, [])
+      umsatzFuerMktByProdukt.get(row.produkt_id)!.push(entry)
+      if (!umsatzFuerMktByProduktPlattform.has(key)) umsatzFuerMktByProduktPlattform.set(key, [])
+      umsatzFuerMktByProduktPlattform.get(key)!.push(entry)
     }
   }
 
@@ -267,9 +346,10 @@ export async function GET() {
     retourenEinstMap.set(`${e.produkt_id}:${e.sales_plattform_id}`, e)
   }
 
-  const erstattungPctMap = new Map<string, number | null>()
-  for (const e of (retourenPlattResult.data ?? []) as RetourenPlattEinstellung[]) {
-    erstattungPctMap.set(e.sales_plattform_id, e.erstattung_verkaufsgebuehr_prozent)
+  // Allgemeine Berechnungsart je Produkt (plattformunabhängig)
+  const retourenAllgemeinMap = new Map<string, string>()
+  for (const e of (retourenAllgemeinResult.data ?? []) as RetourenAllgemeinProduktEinstellung[]) {
+    retourenAllgemeinMap.set(e.produkt_id, e.berechnungsart)
   }
 
   const vkGebProzentMap = new Map<string, number | null>()
@@ -280,55 +360,109 @@ export async function GET() {
   const marketingManualMap = new Map<string, number>()
   for (const m of (marketingPlanResult.data ?? []) as MarketingPlanungRow[]) {
     if (m.marketingkosten_pct_manuell != null) {
-      marketingManualMap.set(`${m.produkt_id}:${m.sales_plattform_id}:${m.kw_year}:${m.kw_number}`, Number(m.marketingkosten_pct_manuell))
+      marketingManualMap.set(`${m.produkt_id}:${m.kategorie_id}:${m.kw_year}:${m.kw_number}`, Number(m.marketingkosten_pct_manuell))
     }
   }
 
   const marketingEinstMap = new Map<string, MarketingEinstellung>()
+  const marketingKombisByProdukt = new Map<string, string[]>()
   for (const e of (marketingEinstResult.data ?? []) as MarketingEinstellung[]) {
-    marketingEinstMap.set(`${e.produkt_id}:${e.sales_plattform_id}`, e)
+    marketingEinstMap.set(`${e.produkt_id}:${e.kategorie_id}`, e)
+    if (!marketingKombisByProdukt.has(e.produkt_id)) marketingKombisByProdukt.set(e.produkt_id, [])
+    marketingKombisByProdukt.get(e.produkt_id)!.push(e.kategorie_id)
   }
 
   const mktAusgByKombi = new Map<string, { datum: string; betrag_netto: number }[]>()
   for (const row of (marketingAusgResult.data ?? []) as AusgabenTransRow[]) {
-    if (!row.produkt_id || !row.sales_plattform_id) continue
-    const key = `${row.produkt_id}:${row.sales_plattform_id}`
+    if (!row.produkt_id || !row.kategorie_id) continue
+    const key = `${row.produkt_id}:${row.kategorie_id}`
     if (!mktAusgByKombi.has(key)) mktAusgByKombi.set(key, [])
     mktAusgByKombi.get(key)!.push({ datum: row.leistungsdatum, betrag_netto: Number(row.betrag_netto) })
   }
 
   // ── 6. Precompute retourenquote and marketing pct per produkt×plattform ──
 
+  // Die letzten 7 Tage werden bei Retourenquoten-Berechnungen ausgeblendet,
+  // da aktuelle Retouren oft mit Verzögerung erfasst werden.
+  const quoteEndStr = toDateOnly(addDays(today, -7))
+
+  // Retourenquote: Berechnungsart kommt jetzt aus der allgemeinen Produkteinstellung (plattformunabhängig)
   const retourenquoteCache = new Map<string, number>()
   function getRetourenquote(produktId: string, plattformId: string): number {
-    const key = `${produktId}:${plattformId}`
-    if (retourenquoteCache.has(key)) return retourenquoteCache.get(key)!
-    const einst = retourenEinstMap.get(key)
-    if (!einst || einst.berechnungsart === 'keine') { retourenquoteCache.set(key, 0); return 0 }
-    const periodDays = getPeriodDays(einst.berechnungsart)
-    const startStr = toDateOnly(addDays(today, -periodDays))
-    const brutto = (bruttoByKombi.get(key) ?? []).filter(r => r.datum >= startStr && r.datum < todayStr)
-    const rueck = (rueckByKombi.get(key) ?? []).filter(r => r.datum >= startStr && r.datum < todayStr)
+    const cacheKey = `${produktId}:${plattformId}`
+    if (retourenquoteCache.has(cacheKey)) return retourenquoteCache.get(cacheKey)!
+    const berechnungsart = retourenAllgemeinMap.get(produktId) ?? 'keine'
+    if (berechnungsart === 'keine') { retourenquoteCache.set(cacheKey, 0); return 0 }
+    const periodDays = getPeriodDays(berechnungsart)
+    const startStr = toDateOnly(addDays(today, -periodDays - 7))
+    const kombiKey = `${produktId}:${plattformId}`
+    const brutto = (bruttoByKombi.get(kombiKey) ?? []).filter(r => r.datum >= startStr && r.datum < quoteEndStr)
+    const rueck = (rueckByKombi.get(kombiKey) ?? []).filter(r => r.datum >= startStr && r.datum < quoteEndStr)
     const sumBrutto = brutto.reduce((a, r) => a + r.betrag, 0)
     const sumRueck = rueck.reduce((a, r) => a + r.betrag, 0)
     const quote = sumBrutto > 0 ? sumRueck / sumBrutto : 0
-    retourenquoteCache.set(key, quote)
+    retourenquoteCache.set(cacheKey, quote)
+    return quote
+  }
+
+  // Rückerstattungsquote: ebenfalls allgemeine Berechnungsart
+  const rueckQuoteCache = new Map<string, number>()
+  function getRueckerstattungsQuote(produktId: string, plattformId: string): number {
+    const cacheKey = `${produktId}:${plattformId}`
+    if (rueckQuoteCache.has(cacheKey)) return rueckQuoteCache.get(cacheKey)!
+    const berechnungsart = retourenAllgemeinMap.get(produktId) ?? 'keine'
+    if (berechnungsart === 'keine') { rueckQuoteCache.set(cacheKey, 0); return 0 }
+    const periodDays = getPeriodDays(berechnungsart)
+    const startStr = toDateOnly(addDays(today, -periodDays - 7))
+    const kombiKey = `${produktId}:${plattformId}`
+    const brutto = (bruttoByKombi.get(kombiKey) ?? []).filter(r => r.datum >= startStr && r.datum < quoteEndStr)
+    const rueck = (rueckByKombi.get(kombiKey) ?? []).filter(r => r.datum >= startStr && r.datum < quoteEndStr)
+    const sumBrutto = brutto.reduce((a, r) => a + r.betrag, 0)
+    const sumRueck = rueck.reduce((a, r) => a + r.betrag, 0)
+    const quote = sumBrutto > 0 ? sumRueck / sumBrutto : 0
+    rueckQuoteCache.set(cacheKey, quote)
     return quote
   }
 
   const marketingPctCache = new Map<string, number>()
-  function getMarketingHistorischPct(produktId: string, plattformId: string): number {
-    const key = `${produktId}:${plattformId}`
+  function getMarketingHistorischPct(produktId: string, kategorieId: string): number {
+    const key = `${produktId}:${kategorieId}`
     if (marketingPctCache.has(key)) return marketingPctCache.get(key)!
     const einst = marketingEinstMap.get(key)
     if (!einst) { marketingPctCache.set(key, 0); return 0 }
     const periodDays = getPeriodDays(einst.berechnungsart)
-    const startStr = toDateOnly(addDays(today, -periodDays))
+    const periodStart = addDays(today, -periodDays)
+    const startStr = toDateOnly(periodStart)
     const ausgaben = (mktAusgByKombi.get(key) ?? []).filter(r => r.datum >= startStr && r.datum < todayStr)
-    const umsatzRows = (umsatzFuerMktByKombi.get(key) ?? []).filter(r => r.datum >= startStr && r.datum < todayStr)
-    const sumAusg = ausgaben.reduce((a, r) => a + r.betrag_netto, 0)
-    const sumUmsatz = umsatzRows.reduce((a, r) => a + r.betrag, 0)
-    const pct = sumUmsatz > 0 ? Math.round((sumAusg / sumUmsatz) * 100 * 100) / 100 : 0
+    const plattformIdForMkt = kategoriePlattformMktMap.get(kategorieId) ?? null
+    const umsatzRows = plattformIdForMkt
+      ? (umsatzFuerMktByProduktPlattform.get(`${produktId}:${plattformIdForMkt}`) ?? []).filter(r => r.datum >= startStr && r.datum < todayStr)
+      : (umsatzFuerMktByProdukt.get(produktId) ?? []).filter(r => r.datum >= startStr && r.datum < todayStr)
+    let pct: number
+    if (einst.berechnungsart.startsWith('gewichtet_')) {
+      const third = periodDays / 3
+      const t1 = startStr
+      const t2 = toDateOnly(addDays(periodStart, third))
+      const t3 = toDateOnly(addDays(periodStart, third * 2))
+      const sumA = (s: string, e: string) => ausgaben.filter(r => r.datum >= s && r.datum < e).reduce((a, r) => a + r.betrag_netto, 0)
+      const sumU = (s: string, e: string) => umsatzRows.filter(r => r.datum >= s && r.datum < e).reduce((a, r) => a + r.betrag, 0)
+      const a1 = sumA(t1, t2); const a2 = sumA(t2, t3); const a3 = sumA(t3, todayStr)
+      const u1 = sumU(t1, t2); const u2 = sumU(t2, t3); const u3 = sumU(t3, todayStr)
+      const p1 = u1 === 0 ? 0 : (a1 / u1) * 100
+      const p2 = u2 === 0 ? 0 : (a2 / u2) * 100
+      const p3 = u3 === 0 ? 0 : (a3 / u3) * 100
+      const w1 = einst.gewichtung_erstes_drittel; const w2 = einst.gewichtung_zweites_drittel; const w3 = einst.gewichtung_drittes_drittel
+      if (w1 != null && w2 != null && w3 != null) {
+        pct = Math.round(((w1 * p1 + w2 * p2 + w3 * p3) / 100) * 100) / 100
+      } else {
+        const totalA = a1 + a2 + a3; const totalU = u1 + u2 + u3
+        pct = totalU === 0 ? 0 : Math.round((totalA / totalU) * 100 * 100) / 100
+      }
+    } else {
+      const sumAusg = ausgaben.reduce((a, r) => a + r.betrag_netto, 0)
+      const sumUmsatz = umsatzRows.reduce((a, r) => a + r.betrag, 0)
+      pct = sumUmsatz > 0 ? Math.round((sumAusg / sumUmsatz) * 100 * 100) / 100 : 0
+    }
     marketingPctCache.set(key, pct)
     return pct
   }
@@ -337,6 +471,8 @@ export async function GET() {
 
   interface ResultRow { kategorie: string; produkt_id: string; sales_plattform_id: string; kw_year: number; kw_number: number; wert: number }
   const results: ResultRow[] = []
+  const bruttoumsatzByProdKw = new Map<string, number>()
+  const bruttoumsatzByProdPlattKw = new Map<string, number>()
 
   for (const kw of planungswochen) {
     for (const plt of plattformen) {
@@ -358,49 +494,74 @@ export async function GET() {
 
         results.push({ kategorie: 'bruttoumsatz', produkt_id: prd.id, sales_plattform_id: plt.id, kw_year: kw.year, kw_number: kw.week, wert: bruttoumsatz })
 
-        const retourenquote = getRetourenquote(prd.id, plt.id)
+        const prodKwAccKey = `${prd.id}:${kw.year}:${kw.week}`
+        bruttoumsatzByProdKw.set(prodKwAccKey, (bruttoumsatzByProdKw.get(prodKwAccKey) ?? 0) + bruttoumsatz)
+        bruttoumsatzByProdPlattKw.set(`${prd.id}:${plt.id}:${kw.year}:${kw.week}`, bruttoumsatz)
 
-        if (retourenquote > 0) {
+        const retourenquote = getRetourenquote(prd.id, plt.id)
+        const rueckQuote = getRueckerstattungsQuote(prd.id, plt.id)
+
+        if (rueckQuote > 0) {
           results.push({
             kategorie: 'rueckerstattungen',
             produkt_id: prd.id, sales_plattform_id: plt.id, kw_year: kw.year, kw_number: kw.week,
-            wert: Math.round(retourenquote * bruttoumsatz * 100) / 100,
+            wert: Math.round(rueckQuote * bruttoumsatz * 100) / 100,
           })
         }
 
         const vkGebProzent = vkGebProzentMap.get(`${prd.id}:${plt.id}`) ?? null
+        const erstattungPct = retourenEinstMap.get(`${prd.id}:${plt.id}`)?.erstattung_verkaufsgebuehr_prozent ?? null
+        const erstattungFraction = erstattungPct != null ? Number(erstattungPct) / 100 : 0
         if (vkGebProzent != null && vkGebProzent > 0) {
-          results.push({
-            kategorie: 'verkaufsgebuehr',
-            produkt_id: prd.id, sales_plattform_id: plt.id, kw_year: kw.year, kw_number: kw.week,
-            wert: Math.round(bruttoumsatz * (vkGebProzent / 100) * 100) / 100,
-          })
-        }
-
-        const retourenEinst = retourenEinstMap.get(`${prd.id}:${plt.id}`)
-        if (retourenEinst && retourenEinst.berechnungsart !== 'keine' && retourenquote > 0) {
-          const rueckversand = Number(retourenEinst.rueckversandkosten_euro_netto ?? 0)
-          const handling = Number(retourenEinst.retourenhandling_kosten_euro_netto ?? 0)
-          const erstattungPct = erstattungPctMap.get(plt.id) ?? null
-          const erstattungFraction = erstattungPct != null ? Number(erstattungPct) / 100 : 0
-          const retourenKosten = retourenquote * productAbsatz * (rueckversand + handling)
+          const vkGeb = bruttoumsatz * (vkGebProzent / 100)
             - bruttoumsatz * retourenquote * erstattungFraction
-          if (retourenKosten !== 0) {
+          if (vkGeb !== 0) {
             results.push({
-              kategorie: 'retouren',
+              kategorie: 'verkaufsgebuehr',
               produkt_id: prd.id, sales_plattform_id: plt.id, kw_year: kw.year, kw_number: kw.week,
-              wert: Math.round(retourenKosten * 100) / 100,
+              wert: Math.round(vkGeb * getUstMultiplier(vkGebRootId, vertriebParentId) * 100) / 100,
             })
           }
         }
 
-        const marketingManual = marketingManualMap.get(`${prd.id}:${plt.id}:${kw.year}:${kw.week}`)
-        const marketingPct = marketingManual != null ? marketingManual : getMarketingHistorischPct(prd.id, plt.id)
-        if (marketingPct > 0) {
+        const retourenEinst = retourenEinstMap.get(`${prd.id}:${plt.id}`)
+        const allgBerechnungsart = retourenAllgemeinMap.get(prd.id) ?? 'keine'
+        if (allgBerechnungsart !== 'keine' && retourenquote > 0) {
+          const rueckversand = Number(retourenEinst?.rueckversandkosten_euro_netto ?? 0)
+          const retourenKosten = retourenquote * productAbsatz * rueckversand
+          if (retourenKosten !== 0) {
+            results.push({
+              kategorie: 'retouren',
+              produkt_id: prd.id, sales_plattform_id: plt.id, kw_year: kw.year, kw_number: kw.week,
+              wert: Math.round(retourenKosten * getUstMultiplier(retourenRootId, vertriebParentId) * 100) / 100,
+            })
+          }
+        }
+
+      }
+    }
+  }
+
+  // Marketing rows: per produkt × marketing_kategorie × kw (not per sales platform)
+  for (const kw of planungswochen) {
+    for (const prd of produkte) {
+      const katIds = (marketingKombisByProdukt.get(prd.id) ?? []).filter(id => inkludierteMarketingKatIds.has(id))
+      for (const katId of katIds) {
+        const plattformId = kategoriePlattformMktMap.get(katId) ?? null
+        const base = plattformId
+          ? (bruttoumsatzByProdPlattKw.get(`${prd.id}:${plattformId}:${kw.year}:${kw.week}`) ?? 0)
+          : (bruttoumsatzByProdKw.get(`${prd.id}:${kw.year}:${kw.week}`) ?? 0)
+        if (base === 0) continue
+        const manualVal = marketingManualMap.get(`${prd.id}:${katId}:${kw.year}:${kw.week}`)
+        const pct = manualVal != null ? manualVal : getMarketingHistorischPct(prd.id, katId)
+        if (pct > 0) {
           results.push({
             kategorie: 'marketing',
-            produkt_id: prd.id, sales_plattform_id: plt.id, kw_year: kw.year, kw_number: kw.week,
-            wert: Math.round(bruttoumsatz * (marketingPct / 100) * 100) / 100,
+            produkt_id: prd.id,
+            sales_plattform_id: katId,
+            kw_year: kw.year,
+            kw_number: kw.week,
+            wert: Math.round(base * (pct / 100) * getUstMultiplier(katId, marketingL1Id) * 100) / 100,
           })
         }
       }

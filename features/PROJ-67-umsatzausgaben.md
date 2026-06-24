@@ -1,8 +1,8 @@
 # PROJ-67: Umsatzausgaben — Kurzfristige Planung
 
-## Status: In Review
+## Status: Approved
 **Created:** 2026-06-15
-**Last Updated:** 2026-06-16
+**Last Updated:** 2026-06-17
 
 ## Dependencies
 - Requires: PROJ-1 (Authentifizierung) — nur eingeloggte Nutzer
@@ -597,7 +597,7 @@ Alle Bausteine bereits vorhanden:
 ## QA Test Results
 
 **QA Date:** 2026-06-17
-**QA Status:** In Review — 1 Medium + 2 Low bugs found
+**QA Status:** Approved — Medium + Low bugs accepted/skipped by Product Owner
 
 ### Tests
 
@@ -684,6 +684,13 @@ Alle Bausteine bereits vorhanden:
 ### Production-Ready-Entscheidung
 
 **NOT READY** — 1 Medium-Bug (fehlende rote KW-Markierung) muss vor Deployment behoben werden.
+
+## Post-QA Fix (2026-06-20)
+
+**[BUG] Ist-Tatsächlich leer für Produktausgaben (Gruppen + Untergruppen)**
+- Ursache: `ist-tatsaechlich/route.ts` filterte nach Rentabilitätslogik (`leistungsdatum` + `relevanz IN ('rentabilitaet','beides')`). Die Produktausgaben-Transaktionen (Ware, Einlagerung, Shipping, Inspektion) sind jedoch fast ausschließlich mit `relevanz = 'liquiditaet'` erfasst → wurden komplett herausgefiltert.
+- Fix: Route auf **Liquiditätslogik** umgestellt (identisch zu PROJ-29 / den übrigen Ausgaben-Ist-Tatsächlich-Routen): `zahlungsdatum` + `relevanz IN ('liquiditaet','beides')` + `betrag_brutto`. `gruppe_id` (L2) bleibt Matching-Ebene, `produkt_id` für die Produkt-Leaf-Zeilen.
+- Trennung bestätigt: Die **Umsatzsteuerermittlung** (`steuerausgaben-planung/berechnet`, `reporting/umsatzsteuer`, `vorsteuer`) verwendet weiterhin getrennt die **Rentabilitätslogik** (`leistungsdatum` + `relevanz rentabilitaet/beides`). Ist-Tatsächlich (Liquidität) und USt-Ermittlung (Rentabilität) sind sauber entkoppelt.
 
 ## Deployment
 _To be added by /deploy_

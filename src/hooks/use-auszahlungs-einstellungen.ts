@@ -13,8 +13,8 @@ export interface AuszahlungsEinstellung {
   auszahlungsrhythmus: Rhythmus
   naechste_auszahlung_basis_kw: number | null
   naechste_auszahlung_basis_jahr: number | null
+  verschiebung_wochen: number
   retouren_inkludiert: boolean
-  marketing_inkludiert: boolean
 }
 
 export const RHYTHMUS_WOCHEN: Record<Rhythmus, number> = {
@@ -58,6 +58,26 @@ export function getCurrentISOWeekAndYear(): { kw: number; jahr: number } {
   return { kw, jahr: thursday.getFullYear() }
 }
 
+export function addWeeks(
+  kw: number,
+  jahr: number,
+  weeks: number,
+): { kw: number; jahr: number } {
+  let resultKw = kw + weeks
+  let resultJahr = jahr
+  let weeksInYear = getISOWeeksInYear(resultJahr)
+  while (resultKw > weeksInYear) {
+    resultKw -= weeksInYear
+    resultJahr += 1
+    weeksInYear = getISOWeeksInYear(resultJahr)
+  }
+  while (resultKw < 1) {
+    resultJahr -= 1
+    resultKw += getISOWeeksInYear(resultJahr)
+  }
+  return { kw: resultKw, jahr: resultJahr }
+}
+
 export function calculateNextPayoutWeek(
   basisKw: number,
   basisJahr: number,
@@ -86,8 +106,8 @@ const makeDefault = (plattformId: string): AuszahlungsEinstellung => ({
   auszahlungsrhythmus: 'woechentlich',
   naechste_auszahlung_basis_kw: null,
   naechste_auszahlung_basis_jahr: null,
+  verschiebung_wochen: 0,
   retouren_inkludiert: false,
-  marketing_inkludiert: false,
 })
 
 export function useAuszahlungsEinstellungen(plattformId: string | null) {

@@ -9,6 +9,7 @@ export interface BestellungDaten {
   verfuegbarkeitsdatum: string | null
   anzahl_40hq: number
   anzahl_20dc: number
+  container_anteil?: Record<string, number> | null
   produkte: Array<{
     produkt_id: string
     sku_mengen: Array<{ menge_praktisch: number }>
@@ -18,14 +19,14 @@ export interface BestellungDaten {
 export interface ProduktKosten {
   produkt_id: string
   warenkosten: number | null
-  zollsatz_prozent: number | null
+  zollsatz_pct: number | null
 }
 
 export interface Zahlungskonditionen {
   produkt_id: string
-  vor_produktion_prozent: number | null
-  nach_produktion_prozent: number | null
-  nach_ankunft_prozent: number | null
+  vor_produktion_pct: number | null
+  nach_produktion_pct: number | null
+  nach_ankunft_pct: number | null
   zahlungsziel_vor_produktion_tage: number | null
   zahlungsziel_nach_produktion_tage: number | null
   zahlungsziel_nach_ankunft_tage: number | null
@@ -108,19 +109,19 @@ export function generiereBestellkosten(
     }> = [
       {
         name: 'Vor Produktion',
-        prozent: zk.vor_produktion_prozent,
+        prozent: zk.vor_produktion_pct,
         basisdatum: bestellung.bestelldatum,
         zahlungsziel: zk.zahlungsziel_vor_produktion_tage,
       },
       {
         name: 'Nach Produktion',
-        prozent: zk.nach_produktion_prozent,
+        prozent: zk.nach_produktion_pct,
         basisdatum: bestellung.shippingdatum,
         zahlungsziel: zk.zahlungsziel_nach_produktion_tage,
       },
       {
         name: 'Nach Ankunft',
-        prozent: zk.nach_ankunft_prozent,
+        prozent: zk.nach_ankunft_pct,
         basisdatum: bestellung.ankunftsdatum,
         zahlungsziel: zk.zahlungsziel_nach_ankunft_tage,
       },
@@ -143,19 +144,32 @@ export function generiereBestellkosten(
     }
   }
 
+  // Effective container counts: when consolidation is active, read exclusively from container_anteil
+  // (missing key means 0, not fallback to old integer count)
+  const eff40hq = bestellung.container_anteil != null
+    ? (bestellung.container_anteil['40HQ'] ?? 0)
+    : bestellung.anzahl_40hq
+  const eff20dc = bestellung.container_anteil != null
+    ? (bestellung.container_anteil['20DC'] ?? 0)
+    : bestellung.anzahl_20dc
+
+  function fmtAnzahl(n: number): string {
+    return n % 1 === 0
+      ? String(n)
+      : n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  }
+
   // ─── Inspektion (1 entry) ─────────────────────────────────────────────────
   const inspektionCatId = findKategorie(produktUnterkategorien, 'Inspektion')
   if (kostenGlobal && bestellung.produktionsende_datum) {
     const kosten40hq = kostenGlobal.inspektion_kosten_40hq ?? 0
     const kosten20dc = kostenGlobal.inspektion_kosten_20dc ?? 0
-    const betrag = round2(
-      bestellung.anzahl_40hq * kosten40hq + bestellung.anzahl_20dc * kosten20dc
-    )
-    if (betrag > 0 || (bestellung.anzahl_40hq + bestellung.anzahl_20dc > 0 && (kosten40hq > 0 || kosten20dc > 0))) {
+    const betrag = round2(eff40hq * kosten40hq + eff20dc * kosten20dc)
+    if (betrag > 0 || (eff40hq + eff20dc > 0 && (kosten40hq > 0 || kosten20dc > 0))) {
       const datum = addTage(bestellung.produktionsende_datum, kostenGlobal.inspektion_zahlungsziel_tage ?? 0)
       const teile: string[] = []
-      if (bestellung.anzahl_40hq > 0) teile.push(`${bestellung.anzahl_40hq} × 40HQ (${kosten40hq.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €)`)
-      if (bestellung.anzahl_20dc > 0) teile.push(`${bestellung.anzahl_20dc} × 20DC (${kosten20dc.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €)`)
+      if (eff40hq > 0) teile.push(`${fmtAnzahl(eff40hq)} × 40HQ (${kosten40hq.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €)`)
+      if (eff20dc > 0) teile.push(`${fmtAnzahl(eff20dc)} × 20DC (${kosten20dc.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €)`)
       eintraege.push({
         kpi_kategorie_id: inspektionCatId,
         datum,
@@ -172,14 +186,12 @@ export function generiereBestellkosten(
   if (kostenGlobal && bestellung.ankunftsdatum) {
     const kosten40hq = kostenGlobal.shipping_kosten_40hq ?? 0
     const kosten20dc = kostenGlobal.shipping_kosten_20dc ?? 0
-    shippingBetrag = round2(
-      bestellung.anzahl_40hq * kosten40hq + bestellung.anzahl_20dc * kosten20dc
-    )
-    if (shippingBetrag > 0 || (bestellung.anzahl_40hq + bestellung.anzahl_20dc > 0 && (kosten40hq > 0 || kosten20dc > 0))) {
+    shippingBetrag = round2(eff40hq * kosten40hq + eff20dc * kosten20dc)
+    if (shippingBetrag > 0 || (eff40hq + eff20dc > 0 && (kosten40hq > 0 || kosten20dc > 0))) {
       const datum = addTage(bestellung.ankunftsdatum, kostenGlobal.shipping_zahlungsziel_tage ?? 0)
       const teile: string[] = []
-      if (bestellung.anzahl_40hq > 0) teile.push(`${bestellung.anzahl_40hq} × 40HQ (${kosten40hq.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €)`)
-      if (bestellung.anzahl_20dc > 0) teile.push(`${bestellung.anzahl_20dc} × 20DC (${kosten20dc.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €)`)
+      if (eff40hq > 0) teile.push(`${fmtAnzahl(eff40hq)} × 40HQ (${kosten40hq.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €)`)
+      if (eff20dc > 0) teile.push(`${fmtAnzahl(eff20dc)} × 20DC (${kosten20dc.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €)`)
       eintraege.push({
         kpi_kategorie_id: shippingCatId,
         datum,
@@ -198,17 +210,17 @@ export function generiereBestellkosten(
     let zollBetrag = 0
     for (const { produkt_id, gesamt } of wareGesamtProProdukt) {
       const pk = pkMap.get(produkt_id)
-      if (!pk?.zollsatz_prozent || pk.zollsatz_prozent <= 0) continue
+      if (!pk?.zollsatz_pct || pk.zollsatz_pct <= 0) continue
       // Each product's zoll base: its ware + its proportional share of shipping
       const shippingAnteil = wareTotal > 0 ? shippingBetrag * (gesamt / wareTotal) : 0
-      zollBetrag += round2((gesamt + shippingAnteil) * (pk.zollsatz_prozent / 100))
+      zollBetrag += round2((gesamt + shippingAnteil) * (pk.zollsatz_pct / 100))
     }
     zollBetrag = round2(zollBetrag)
 
     if (zollBetrag > 0) {
       const datum = addTage(bestellung.ankunftsdatum, kostenGlobal.zoll_zahlungsziel_tage ?? 0)
       const zollsatz = wareGesamtProProdukt.length === 1
-        ? (pkMap.get(wareGesamtProProdukt[0].produkt_id)?.zollsatz_prozent ?? 0)
+        ? (pkMap.get(wareGesamtProProdukt[0].produkt_id)?.zollsatz_pct ?? 0)
         : null
       const begruendung = zollsatz !== null
         ? `Zoll ${zollsatz}% auf ${wareTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € Ware + ${shippingBetrag.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € Shipping`
@@ -228,14 +240,12 @@ export function generiereBestellkosten(
   if (kostenGlobal && bestellung.verfuegbarkeitsdatum) {
     const kosten40hq = kostenGlobal.einlagerung_kosten_40hq ?? 0
     const kosten20dc = kostenGlobal.einlagerung_kosten_20dc ?? 0
-    const betrag = round2(
-      bestellung.anzahl_40hq * kosten40hq + bestellung.anzahl_20dc * kosten20dc
-    )
-    if (betrag > 0 || (bestellung.anzahl_40hq + bestellung.anzahl_20dc > 0 && (kosten40hq > 0 || kosten20dc > 0))) {
+    const betrag = round2(eff40hq * kosten40hq + eff20dc * kosten20dc)
+    if (betrag > 0 || (eff40hq + eff20dc > 0 && (kosten40hq > 0 || kosten20dc > 0))) {
       const datum = addTage(bestellung.verfuegbarkeitsdatum, kostenGlobal.einlagerung_zahlungsziel_tage ?? 0)
       const teile: string[] = []
-      if (bestellung.anzahl_40hq > 0) teile.push(`${bestellung.anzahl_40hq} × 40HQ (${kosten40hq.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €)`)
-      if (bestellung.anzahl_20dc > 0) teile.push(`${bestellung.anzahl_20dc} × 20DC (${kosten20dc.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €)`)
+      if (eff40hq > 0) teile.push(`${fmtAnzahl(eff40hq)} × 40HQ (${kosten40hq.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €)`)
+      if (eff20dc > 0) teile.push(`${fmtAnzahl(eff20dc)} × 20DC (${kosten20dc.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €)`)
       eintraege.push({
         kpi_kategorie_id: einlagerungCatId,
         datum,

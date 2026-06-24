@@ -130,6 +130,11 @@ export function KpiCategoryTree({
     const active = categories.find(c => c.id === activeId)
     if (!active) return
 
+    // Schreibgeschützte Systemgruppen (feste Produktinvestitions-Gruppen) sind weder
+    // als Sortier-Anker noch als Umhäng-Ziel zulässig.
+    const overCat = categories.find(c => c.id === overId)
+    if (overCat?.is_system) { setDropIntent({ overId, action: 'reparent', valid: false }); return }
+
     // Root drop zone
     if (overId === ROOT_DROP_ID) {
       const activeDepth = getSubtreeDepth(categories, activeId)

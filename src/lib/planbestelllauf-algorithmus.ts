@@ -48,6 +48,12 @@ function toDateStr(date: Date): string {
   return date.toISOString().slice(0, 10)
 }
 
+function fmtDE(isoDate: string | null | undefined): string {
+  if (!isoDate) return '–'
+  const [y, m, d] = isoDate.split('-')
+  return `${d}.${m}.${y}`
+}
+
 // ─── Input Types ───────────────────────────────────────────────────────────────
 
 export interface SkuInput {
@@ -55,6 +61,7 @@ export interface SkuInput {
   sku_name: string
   aktueller_bestand: number
   moq_sku: number | null
+  avg_wochenabsatz: number
 }
 
 export interface ProduktInput {
@@ -74,41 +81,40 @@ export interface ProduktInput {
   stueckvolumen_cm3: number | null
   max_20dc: number | null
   max_40hq: number | null
-  avg_wochenabsatz: number
 }
 
 export interface BestehendeBestellungInput {
   bestellung_id: string
   status: 'plan' | 'laufend'
+  herkunft?: 'algorithmus' | 'manuell' | null
   bestelldatum: string | null
+  produktionsstart_datum: string | null
+  produktionsende_datum: string | null
+  shippingdatum: string | null
   ankunftsdatum: string | null
+  verfuegbarkeitsdatum: string | null
   produkt_ids: string[]
-  sku_mengen: Array<{ sku_id: string; produkt_id: string; menge_praktisch: number }>
+  sku_mengen: Array<{ sku_id: string; produkt_id: string; menge_praktisch: number; menge_theoretisch: number | null; menge_nach_moq?: number | null }>
 }
 
 export interface AlgorithmusInput {
   heute: Date
   planungshorizont_wochen: number
   produkte: ProduktInput[]
-  absatzplanung: Array<{ produkt_id: string; kw_year: number; kw_number: number; menge: number }>
+  absatzplanung: Array<{ produkt_id: string; sku_id?: string; kw_year: number; kw_number: number; menge: number }>
   bestehendeBestellungen: BestehendeBestellungInput[]
 }
 
-// ─── Output Types (must match use-planbestelllauf.ts shapes) ──────────────────
+// ─── Output Types ─────────────────────────────────────────────────────────────
 
 export interface SkuMengeVorschlag {
   sku_id: string
   sku_name: string
   menge_theoretisch: number
+  menge_nach_moq: number
   menge_praktisch: number
   begruendung_anpassung: string
-}
-
-export interface WizardKonsolidierung {
-  mit_temp_id?: string
-  mit_bestellung_id?: string
-  mit_produkt_namen: string[]
-  containerart: string
+  is_trigger?: boolean
 }
 
 export interface NeuePlanbestellung {
@@ -122,18 +128,30 @@ export interface NeuePlanbestellung {
   ankunftsdatum: string | null
   verfuegbarkeitsdatum: string | null
   sku_mengen: SkuMengeVorschlag[]
-  konsolidierungen: WizardKonsolidierung[]
   warnungen: string[]
+  container: Array<'20DC' | '40HQ'>
 }
 
 export interface PlanbestelllaufAenderung {
   bestellung_id: string
+  produkt_ids: string[]
   produkt_namen: string[]
-  aenderungsart: 'bestelldatum' | 'menge' | 'konsolidierung'
+  aenderungsart: 'bestelldatum' | 'menge' | 'bestelldatum_und_menge' | 'keine_aenderung' | 'kein_bedarf' | 'konsolidierung'
+  herkunft?: 'algorithmus' | 'manuell'
   alt_wert: string
   neu_wert: string
   begruendung: string
-  // Structured new values for the API to apply
+  warnungen?: string[]
+  alte_daten?: {
+    bestelldatum?: string
+    produktionsstart_datum?: string
+    produktionsende_datum?: string
+    shippingdatum?: string
+    ankunftsdatum?: string
+    verfuegbarkeitsdatum?: string
+    container?: Array<'20DC' | '40HQ'>
+    sku_mengen?: Array<{ sku_id: string; menge_theoretisch: number | null; menge_nach_moq?: number | null; menge_praktisch: number }>
+  }
   neue_daten?: {
     bestelldatum?: string
     produktionsstart_datum?: string
@@ -141,7 +159,8 @@ export interface PlanbestelllaufAenderung {
     shippingdatum?: string
     ankunftsdatum?: string
     verfuegbarkeitsdatum?: string
-    sku_mengen?: Array<{ sku_id: string; menge_praktisch: number; begruendung_anpassung: string }>
+    container?: Array<'20DC' | '40HQ'>
+    sku_mengen?: Array<{ sku_id: string; sku_name?: string; menge_theoretisch?: number; menge_nach_moq?: number; menge_praktisch: number; begruendung_anpassung: string }>
   }
 }
 
@@ -180,52 +199,53 @@ function computeDates(bestelldatum: Date, p: ProduktInput): {
   }
 }
 
-type AbsatzMap = Map<string, Map<string, number>> // produkt_id → kwKey → menge
-type LastKnownMap = Map<string, { kw: KwRef; menge: number }> // produkt_id → last known absatz
+// Per-SKU absatz maps
+type SkuAbsatzMap = Map<string, Map<string, number>>   // sku_id → kwKey → menge
+type SkuLastKnownMap = Map<string, { kw: KwRef; menge: number }>  // sku_id → last known
 
-function buildAbsatzMaps(
+function buildSkuAbsatzMaps(
   absatzplanung: AlgorithmusInput['absatzplanung']
-): { absatzMap: AbsatzMap; lastKnownMap: LastKnownMap } {
-  const absatzMap: AbsatzMap = new Map()
-  const lastKnownMap: LastKnownMap = new Map()
+): { skuAbsatzMap: SkuAbsatzMap; skuLastKnownMap: SkuLastKnownMap } {
+  const skuAbsatzMap: SkuAbsatzMap = new Map()
+  const skuLastKnownMap: SkuLastKnownMap = new Map()
 
   for (const row of absatzplanung) {
-    if (!absatzMap.has(row.produkt_id)) absatzMap.set(row.produkt_id, new Map())
+    const skuId = row.sku_id
+    if (!skuId) continue
+
+    if (!skuAbsatzMap.has(skuId)) skuAbsatzMap.set(skuId, new Map())
     const key = kwKey({ year: row.kw_year, week: row.kw_number })
-    const existing = absatzMap.get(row.produkt_id)!.get(key) ?? 0
-    absatzMap.get(row.produkt_id)!.set(key, existing + (row.menge ?? 0))
+    skuAbsatzMap.get(skuId)!.set(key, row.menge ?? 0)
 
     const rowKw: KwRef = { year: row.kw_year, week: row.kw_number }
-    const last = lastKnownMap.get(row.produkt_id)
+    const last = skuLastKnownMap.get(skuId)
     if (!last || kwBefore(last.kw, rowKw)) {
-      lastKnownMap.set(row.produkt_id, { kw: rowKw, menge: row.menge ?? 0 })
+      skuLastKnownMap.set(skuId, { kw: rowKw, menge: row.menge ?? 0 })
     }
   }
 
-  return { absatzMap, lastKnownMap }
+  return { skuAbsatzMap, skuLastKnownMap }
 }
 
-function getAbsatz(
-  produktId: string, kw: KwRef, absatzMap: AbsatzMap, lastKnownMap: LastKnownMap
+function getAbsatzSku(
+  skuId: string, kw: KwRef, skuAbsatzMap: SkuAbsatzMap, skuLastKnownMap: SkuLastKnownMap
 ): number {
-  const produktMap = absatzMap.get(produktId)
-  if (!produktMap) return 0
+  const skuMap = skuAbsatzMap.get(skuId)
+  if (!skuMap) return 0
 
   const key = kwKey(kw)
-  if (produktMap.has(key)) return produktMap.get(key)!
+  if (skuMap.has(key)) return skuMap.get(key)!
 
-  // Fallback: use last known value
-  const last = lastKnownMap.get(produktId)
+  // Fallback: use last known value for weeks beyond the planning horizon
+  const last = skuLastKnownMap.get(skuId)
   if (!last) return 0
-
-  // Only use fallback for weeks AFTER the last known week
   if (!kwBefore(kw, last.kw)) return last.menge
   return 0
 }
 
-function computeMeldebestand(
-  produkt: ProduktInput, fromKw: KwRef,
-  absatzMap: AbsatzMap, lastKnownMap: LastKnownMap
+function computeMeldebestandSku(
+  sku: SkuInput, produkt: ProduktInput, fromKw: KwRef,
+  skuAbsatzMap: SkuAbsatzMap, skuLastKnownMap: SkuLastKnownMap
 ): number {
   const lieferzeitTage = computeGesamtlieferzeit(produkt)
   const lieferzeitWochen = Math.ceil(lieferzeitTage / 7)
@@ -233,11 +253,11 @@ function computeMeldebestand(
   let absatzUberLieferzeit = 0
   let kw = fromKw
   for (let i = 0; i < lieferzeitWochen; i++) {
-    absatzUberLieferzeit += getAbsatz(produkt.produkt_id, kw, absatzMap, lastKnownMap)
+    absatzUberLieferzeit += getAbsatzSku(sku.sku_id, kw, skuAbsatzMap, skuLastKnownMap)
     kw = addKw(kw, 1)
   }
 
-  const sicherheitsbestand = produkt.avg_wochenabsatz * produkt.sicherheitsbestand_wochen
+  const sicherheitsbestand = sku.avg_wochenabsatz * produkt.sicherheitsbestand_wochen
   return Math.ceil(absatzUberLieferzeit + sicherheitsbestand)
 }
 
@@ -253,143 +273,223 @@ interface SkuMengenCalc {
 }
 
 function applyMoqAdjustment(
-  produkt: ProduktInput, theoretical: number
+  produkt: ProduktInput, initialMengen: SkuMengenCalc[]
 ): SkuMengenCalc[] {
-  const skus = produkt.skus
-  if (skus.length === 0) return []
+  const result: SkuMengenCalc[] = initialMengen.map(m => ({ ...m, begruendung: [...m.begruendung] }))
 
-  // Split theoretical quantity proportionally by current stock
-  const totalBestand = skus.reduce((s, sku) => s + sku.aktueller_bestand, 0)
-  const result: SkuMengenCalc[] = skus.map(sku => {
-    const share = totalBestand > 0
-      ? sku.aktueller_bestand / totalBestand
-      : 1 / skus.length
-    const theor = Math.max(0, Math.round(theoretical * share))
-    return { sku_id: sku.sku_id, sku_name: sku.sku_name, menge_theoretisch: theor, menge: theor, moq_gerundet: false, begruendung: [] }
-  })
+  // 'produkt'-Ebene bedeutet: gleiche MOQ gilt je einzelner SKU (nicht als Gesamtsumme)
+  for (const m of result) {
+    const moq = produkt.moq_ebene === 'sku'
+      ? (produkt.skus.find(s => s.sku_id === m.sku_id)?.moq_sku ?? 0)
+      : (produkt.moq_gesamt ?? 0)
 
-  // Apply MOQ
-  if (produkt.moq_ebene === 'sku') {
-    for (let i = 0; i < result.length; i++) {
-      const moq = skus[i].moq_sku ?? 0
-      if (moq > 0 && result[i].menge < moq) {
-        result[i].begruendung.push(`MOQ-Anpassung: auf ${moq} aufgerundet (MOQ = ${moq})`)
-        result[i].menge = moq
-        result[i].moq_gerundet = true
+    if (moq > 0 && m.menge < moq) {
+      const schwelle50 = Math.round(moq * 0.5)
+      if (m.menge_theoretisch < moq * 0.5) {
+        m.menge = 0
+        m.begruendung.push(`Nicht bestellt: ${m.menge_theoretisch} < ${schwelle50} Stk. (50 % MOQ ${moq})`)
+      } else {
+        m.begruendung.push(`MOQ: ${m.menge_theoretisch}→${moq} Stk.`)
+        m.menge = moq
+        m.moq_gerundet = true
       }
-    }
-  } else if (produkt.moq_ebene === 'produkt' && produkt.moq_gesamt) {
-    const moqGesamt = produkt.moq_gesamt
-    const currentTotal = result.reduce((s, m) => s + m.menge, 0)
-    if (currentTotal < moqGesamt) {
-      // Distribute moq_gesamt proportionally
-      const diff = moqGesamt - currentTotal
-      distributeAmongSkus(result, diff, false)
-      result.forEach(m => { if (m.menge > m.menge_theoretisch) m.moq_gerundet = true })
     }
   }
 
   return result
 }
 
-function distributeAmongSkus(
-  skuMengen: SkuMengenCalc[], diff: number, skipMoqGerundet: boolean
-): void {
-  const eligible = skipMoqGerundet
-    ? skuMengen.filter(m => !m.moq_gerundet)
-    : skuMengen
-  if (eligible.length === 0) return
+function computeContainerPlan(
+  total: number, max20dc: number, max40hq: number
+): { targetTotal: number; containers: Array<'20DC' | '40HQ'>; begruendung: string } {
+  const containers: Array<'20DC' | '40HQ'> = []
+  const begruendungen: string[] = []
+  let targetTotal = 0
+  let remaining = total
 
-  const totalEligible = eligible.reduce((s, m) => s + m.menge, 0)
-  let remaining = diff
+  while (remaining > 0) {
+    const schwelleHalb = max20dc / 2
+    const schwelleAbrunden = max20dc * 1.3
+    const schwelleMitte = (max20dc + max40hq) / 2
 
-  // Distribute proportionally, largest first
-  const sorted = [...eligible].sort((a, b) => b.menge - a.menge)
-  for (let i = 0; i < sorted.length; i++) {
-    const share = totalEligible > 0
-      ? sorted[i].menge / totalEligible
-      : 1 / sorted.length
-    const add = i === sorted.length - 1
-      ? remaining
-      : Math.round(diff * share)
-    const target = skuMengen.find(m => m.sku_id === sorted[i].sku_id)!
-    target.menge += add
-    remaining -= add
+    // Nach mindestens einem gebuchten Container: Rest unter 20DC-Kapazität wird gestrichen —
+    // ein weiterer kleiner Container ist nach ganzen Containerladungen wirtschaftlich nicht sinnvoll.
+    if (containers.length > 0 && remaining < schwelleHalb) {
+      begruendungen.push(`Rest ${remaining} Stk. gestrichen (unter ½ 20DC — nicht wirtschaftlich)`)
+      break
+    }
+
+    if (remaining < schwelleHalb) {
+      const target = Math.min(Math.round(remaining * 1.2), max20dc)
+      targetTotal += target
+      containers.push('20DC')
+      begruendungen.push(`20DC ×1,2: ${remaining}→${target} Stk.`)
+      remaining = 0
+    } else if (remaining <= max20dc) {
+      targetTotal += max20dc
+      containers.push('20DC')
+      begruendungen.push(`20DC: ${remaining}→${max20dc} Stk.`)
+      remaining = 0
+    } else if (remaining <= schwelleAbrunden) {
+      targetTotal += max20dc
+      containers.push('20DC')
+      begruendungen.push(`20DC abgerundet: ${remaining}→${max20dc} Stk.`)
+      remaining = 0
+    } else if (remaining < schwelleMitte) {
+      const target = Math.round(remaining * 1.2)
+      const container = target <= max20dc ? '20DC' : '40HQ'
+      targetTotal += target
+      containers.push(container)
+      begruendungen.push(`${container} ×1,2: ${remaining}→${target} Stk.`)
+      remaining = 0
+    } else {
+      // At or above midpoint: book a full 40HQ and continue with remainder
+      const restNach40hq = remaining - max40hq
+      targetTotal += max40hq
+      containers.push('40HQ')
+      begruendungen.push(`40HQ: ${max40hq} Stk.${restNach40hq > 0 ? `, Rest ${restNach40hq} Stk.` : ''}`)
+      remaining -= max40hq
+    }
   }
+
+  return { targetTotal, containers, begruendung: begruendungen.join('; ') }
 }
 
 function applyContainerOptimierung(
   produkt: ProduktInput, skuMengen: SkuMengenCalc[]
-): { finalMengen: SkuMengenCalc[]; containerart: 'plan' | '20DC' | '40HQ' | null; warnungen: string[] } {
+): { finalMengen: SkuMengenCalc[]; containers: Array<'20DC' | '40HQ'>; warnungen: string[] } {
   const max20dc = produkt.max_20dc
   const max40hq = produkt.max_40hq
   const warnungen: string[] = []
 
   if (!max20dc || !max40hq) {
-    if (produkt.stueckvolumen_cm3 == null) {
-      warnungen.push('Container-Optimierung übersprungen: Paketmaße nicht gepflegt.')
-    }
-    return { finalMengen: skuMengen, containerart: null, warnungen }
+    const fehlend: string[] = []
+    if (produkt.stueckvolumen_cm3 == null) fehlend.push('Stückvolumen (cm³)')
+    if (!max20dc) fehlend.push('max. 20DC-Kapazität')
+    if (!max40hq) fehlend.push('max. 40HQ-Kapazität')
+    warnungen.push(`Container-Optimierung übersprungen: Fehlende Stammdaten (${fehlend.join(', ')}) — bitte in Produktinformationen ergänzen.`)
+    return { finalMengen: skuMengen, containers: [], warnungen }
   }
 
   const total = skuMengen.reduce((s, m) => s + m.menge, 0)
-  const schwelleAbrunden = max20dc * 1.3
-  const schwelleMitte = (max20dc + max40hq) / 2
-
-  let targetTotal: number
-  let containerart: '20DC' | '40HQ'
-  let begruendung: string
-
-  if (total < max20dc) {
-    targetTotal = max20dc
-    containerart = '20DC'
-    begruendung = `Container-Optimierung: auf 20DC-Kapazität aufgerundet (+${max20dc - total} Stk.)`
-  } else if (total <= schwelleAbrunden) {
-    targetTotal = max20dc
-    containerart = '20DC'
-    begruendung = total > max20dc
-      ? `Container-Optimierung: auf 20DC-Kapazität abgerundet (−${total - max20dc} Stk.)`
-      : ''
-  } else if (total < schwelleMitte) {
-    targetTotal = Math.round(total * 1.2)
-    containerart = targetTotal <= max20dc ? '20DC' : '40HQ'
-    begruendung = `Container-Optimierung: ×1,2 Buffer → ${targetTotal} Stk.`
-  } else {
-    targetTotal = max40hq
-    containerart = '40HQ'
-    begruendung = `Container-Optimierung: auf 40HQ-Kapazität aufgerundet (+${max40hq - total} Stk.)`
+  if (total === 0) {
+    return { finalMengen: skuMengen, containers: [], warnungen }
   }
+
+  const { targetTotal, containers, begruendung } = computeContainerPlan(total, max20dc, max40hq)
 
   if (targetTotal === total) {
-    return { finalMengen: skuMengen, containerart, warnungen }
+    return { finalMengen: skuMengen, containers, warnungen }
   }
 
-  const diff = targetTotal - total
   const updated = skuMengen.map(m => ({ ...m, begruendung: [...m.begruendung] }))
+  const diff = targetTotal - total
+
+  const getMoq = (skuId: string): number =>
+    produkt.moq_ebene === 'sku'
+      ? (produkt.skus.find(s => s.sku_id === skuId)?.moq_sku ?? 0)
+      : (produkt.moq_gesamt ?? 0)
+
+  const getFloor = (m: SkuMengenCalc): number => getMoq(m.sku_id)
 
   if (diff > 0) {
-    // Increase: skip moq_gerunded unless all are moq_gerunded
-    const hasNonMoq = updated.some(m => !m.moq_gerundet)
-    distributeAmongSkus(updated, diff, hasNonMoq)
-    updated.forEach(m => { if (begruendung) m.begruendung.push(begruendung) })
-  } else {
-    // Decrease proportionally
-    const totalBeforeReduce = updated.reduce((s, m) => s + m.menge, 0)
+    // Upscale: scale from menge_theoretisch proportionally, floor at MOQ.
+    // MOQ-rounded SKUs can also receive extra capacity if their theoretisch × ratio > MOQ.
+    const totalTheoretical = updated.reduce((s, m) => s + m.menge_theoretisch, 0)
+    const ratio = totalTheoretical > 0 ? targetTotal / totalTheoretical : 1
+
     for (const m of updated) {
-      const newMenge = Math.max(0, Math.round(m.menge * (targetTotal / totalBeforeReduce)))
-      if (newMenge !== m.menge && begruendung) m.begruendung.push(begruendung)
+      const moq = getMoq(m.sku_id)
+      const scaled = Math.round(m.menge_theoretisch * ratio)
+      const newMenge = moq > 0 ? Math.max(moq, scaled) : scaled
+      if (newMenge !== m.menge) {
+        if (moq > 0 && scaled < moq) {
+          m.begruendung.push(`Skaliert: ${m.menge_theoretisch}→${moq} Stk. (MOQ-Boden)`)
+        } else {
+          m.begruendung.push(`Skaliert: ${m.menge_theoretisch}→${newMenge} Stk.`)
+        }
+      }
       m.menge = newMenge
     }
-    // Fix rounding drift
+
+    let driftUp = targetTotal - updated.reduce((s, m) => s + m.menge, 0)
+    if (driftUp !== 0) {
+      const adjustable = [...updated]
+        .filter(m => { const moq = getMoq(m.sku_id); return moq <= 0 || m.menge > moq })
+        .sort((a, b) => b.menge_theoretisch - a.menge_theoretisch)
+
+      if (driftUp > 0) {
+        const first = adjustable[0] ?? updated.reduce((a, b) => (a.menge >= b.menge ? a : b))
+        first.menge += driftUp
+        first.begruendung.push(`Rundung: +${driftUp} Stk.`)
+      } else {
+        for (const m of adjustable) {
+          if (driftUp === 0) break
+          const moq = getMoq(m.sku_id)
+          const floor = moq > 0 ? moq : 0
+          const maxReduce = m.menge - floor
+          if (maxReduce > 0) {
+            const reduce = Math.min(-driftUp, maxReduce)
+            m.menge -= reduce
+            driftUp += reduce
+            m.begruendung.push(`Rundung: −${reduce} Stk.`)
+          }
+        }
+        if (driftUp !== 0) {
+          const largest = updated.reduce((a, b) => (a.menge >= b.menge ? a : b))
+          largest.menge += driftUp
+          largest.begruendung.push(`Rundung: ${driftUp > 0 ? '+' : ''}${driftUp} Stk.`)
+        }
+      }
+    }
+    if (begruendung) warnungen.push(`Container: ${begruendung}`)
+  } else {
+    // Downscale: reduce proportionally, floor = max(menge_theoretisch, MOQ)
+    const totalBeforeReduce = updated.reduce((s, m) => s + m.menge, 0)
+    const reduktionsFaktor = targetTotal / totalBeforeReduce
+    for (const m of updated) {
+      const floor = getFloor(m)
+      const scaledDown = Math.round(m.menge * reduktionsFaktor)
+      const newMenge = Math.max(floor, scaledDown)
+      if (newMenge !== m.menge) {
+        if (scaledDown < floor) {
+          m.begruendung.push(`Untergrenze: ${m.menge}→${floor} Stk.`)
+        } else {
+          m.begruendung.push(`Reduziert: ${m.menge}→${newMenge} Stk.`)
+        }
+      }
+      m.menge = newMenge
+    }
+    if (begruendung) warnungen.push(`Container: ${begruendung}`)
     const newTotal = updated.reduce((s, m) => s + m.menge, 0)
     if (newTotal !== targetTotal) {
-      const drift = targetTotal - newTotal
-      const target = updated.reduce((a, b) => (a.menge >= b.menge ? a : b))
-      target.menge += drift
+      let drift = targetTotal - newTotal
+      if (drift < 0) {
+        // Reduce further: SKUs with room above floor = max(theoretisch, MOQ)
+        const reducible = [...updated]
+          .filter(m => m.menge > getFloor(m))
+          .sort((a, b) => (b.menge - getFloor(b)) - (a.menge - getFloor(a)))
+        for (const m of reducible) {
+          if (drift === 0) break
+          const maxReduce = m.menge - getFloor(m)
+          const reduce = Math.min(-drift, maxReduce)
+          m.menge -= reduce
+          drift += reduce
+          m.begruendung.push(`Rundung: −${reduce} Stk.`)
+        }
+        if (drift !== 0) {
+          const finalTotal = updated.reduce((s, m) => s + m.menge, 0)
+          warnungen.push(`Container-Abweichung: ${finalTotal} Stk. (Ziel: ${targetTotal} Stk.) — alle SKUs am Minimum.`)
+        }
+      } else {
+        const largest = updated.reduce((a, b) => (a.menge >= b.menge ? a : b))
+        largest.menge += drift
+        largest.begruendung.push(`Rundung: +${drift} Stk.`)
+      }
     }
   }
 
-  return { finalMengen: updated, containerart, warnungen }
+  return { finalMengen: updated, containers, warnungen }
 }
 
 // ─── Simulate one product ──────────────────────────────────────────────────────
@@ -405,214 +505,176 @@ function simulateProdukt(
   produkt: ProduktInput,
   aktuelleKw: KwRef,
   horizonEndKw: KwRef,
-  absatzMap: AbsatzMap,
-  lastKnownMap: LastKnownMap,
-  laufendDeliveries: Array<{ kw: KwRef; menge: number }>,
+  skuAbsatzMap: SkuAbsatzMap,
+  skuLastKnownMap: SkuLastKnownMap,
+  alleOffenDeliveriesBySku: Map<string, Array<{ kw: KwRef; menge: number }>>,
   tempIdCounter: { n: number },
 ): OrderResult[] {
-  const lieferzeitTage = computeGesamtlieferzeit(produkt)
-  const lieferzeitWochen = Math.ceil(lieferzeitTage / 7)
+  // Kalkulatorischer Bestand: startet mit aktuellem Bestand, Lieferungen werden wochenweise addiert
+  const skuKalkulatorisch = new Map<string, number>()
+  for (const sku of produkt.skus) {
+    skuKalkulatorisch.set(sku.sku_id, sku.aktueller_bestand)
+  }
 
-  let stock = produkt.skus.reduce((s, sku) => s + sku.aktueller_bestand, 0)
-  const futureDeliveries: Array<{ kw: KwRef; menge: number }> = [...laufendDeliveries]
+  // Actual projected stock for theoretical demand (restbestand at ankunft)
+  const skuActualStock = new Map<string, number>()
+  for (const sku of produkt.skus) {
+    skuActualStock.set(sku.sku_id, sku.aktueller_bestand)
+  }
+
+  // Future deliveries for actual stock projection
+  const skuFutureDeliveries = new Map<string, Array<{ kw: KwRef; menge: number }>>()
+  for (const sku of produkt.skus) {
+    skuFutureDeliveries.set(sku.sku_id, [...(alleOffenDeliveriesBySku.get(sku.sku_id) ?? [])])
+  }
+
   const orders: OrderResult[] = []
-
   let simKw = aktuelleKw
 
   while (kwBefore(simKw, horizonEndKw) || kwEqual(simKw, horizonEndKw)) {
-    const meldebestand = computeMeldebestand(produkt, simKw, absatzMap, lastKnownMap)
-
-    // Search forward for next trigger
-    let searchStock = stock
-    let searchKw = simKw
-    let triggerFound = false
-
-    while (kwBefore(searchKw, horizonEndKw) || kwEqual(searchKw, horizonEndKw)) {
-      // Add deliveries arriving this week
-      for (const d of futureDeliveries) {
-        if (kwEqual(d.kw, searchKw)) {
-          searchStock += d.menge
-        }
+    // Apply this week's arrivals and absatz to kalkulatorisch and actual stock
+    for (const sku of produkt.skus) {
+      const absatz = getAbsatzSku(sku.sku_id, simKw, skuAbsatzMap, skuLastKnownMap)
+      let kalk = skuKalkulatorisch.get(sku.sku_id)!
+      let s = skuActualStock.get(sku.sku_id)!
+      for (const d of skuFutureDeliveries.get(sku.sku_id)!) {
+        if (kwEqual(d.kw, simKw)) { s += d.menge }
       }
+      const effectiveSales = Math.min(absatz, Math.max(0, s))
+      skuKalkulatorisch.set(sku.sku_id, kalk - effectiveSales)
+      skuActualStock.set(sku.sku_id, s - effectiveSales)
+    }
 
-      // Subtract weekly sales
-      const sales = getAbsatz(produkt.produkt_id, searchKw, absatzMap, lastKnownMap)
-      searchStock -= sales
+    // Trigger: collect all SKUs whose kalkulatorischer Bestand <= Meldebestand
+    const triggeringSkuIds = new Set<string>()
+    for (const sku of produkt.skus) {
+      const meldebestand = computeMeldebestandSku(sku, produkt, simKw, skuAbsatzMap, skuLastKnownMap)
+      if (skuKalkulatorisch.get(sku.sku_id)! <= meldebestand) {
+        triggeringSkuIds.add(sku.sku_id)
+      }
+    }
 
-      if (searchStock <= meldebestand) {
-        // Bestellzeitpunkt found
-        const bestelldatumDate = isoWeekToMonday(searchKw)
-        const isInPast = bestelldatumDate < new Date()
-        const actualBestelldatum = isInPast ? new Date() : bestelldatumDate
+    if (triggeringSkuIds.size > 0) {
+      const bestelldatumDate = isoWeekToMonday(simKw)
+      const isInPast = bestelldatumDate < new Date()
+      const actualBestelldatum = isInPast ? new Date() : bestelldatumDate
 
-        const dates = computeDates(actualBestelldatum, produkt)
-        const ankunftKw = dateToIsoWeek(new Date(dates.ankunftsdatum + 'T00:00:00Z'))
+      const dates = computeDates(actualBestelldatum, produkt)
+      const ankunftKw = dateToIsoWeek(new Date(dates.verfuegbarkeitsdatum + 'T00:00:00Z'))
 
-        // Compute theoretical quantity
-        const zielreichweiteWochen = produkt.zielreichweite_wochen > 0
-          ? produkt.zielreichweite_wochen
-          : 12
+      const zielreichweiteWochen = produkt.zielreichweite_wochen > 0
+        ? produkt.zielreichweite_wochen : 12
 
-        // Simulate stock at arrival
-        let stockAtAnkunft = searchStock
-        let kw2 = addKw(searchKw, 1)
+      // Per-SKU theoretical demand based on actual projected stock at ankunftKw
+      const initialSkuMengen: SkuMengenCalc[] = produkt.skus.map(sku => {
+        let stockAtAnkunft = skuActualStock.get(sku.sku_id)!
+        let kw2 = addKw(simKw, 1)
         while (kwBefore(kw2, ankunftKw)) {
-          for (const d of futureDeliveries) {
+          for (const d of skuFutureDeliveries.get(sku.sku_id)!) {
             if (kwEqual(d.kw, kw2)) stockAtAnkunft += d.menge
           }
-          stockAtAnkunft -= getAbsatz(produkt.produkt_id, kw2, absatzMap, lastKnownMap)
+          stockAtAnkunft -= Math.min(getAbsatzSku(sku.sku_id, kw2, skuAbsatzMap, skuLastKnownMap), Math.max(0, stockAtAnkunft))
           kw2 = addKw(kw2, 1)
         }
+        for (const d of skuFutureDeliveries.get(sku.sku_id)!) {
+          if (kwEqual(d.kw, ankunftKw)) stockAtAnkunft += d.menge
+        }
 
-        // Sum planned absatz from ankunft to ankunft + zielreichweite
         let absatzInZielreichweite = 0
         let kw3 = ankunftKw
         for (let i = 0; i < zielreichweiteWochen; i++) {
-          absatzInZielreichweite += getAbsatz(produkt.produkt_id, kw3, absatzMap, lastKnownMap)
+          absatzInZielreichweite += getAbsatzSku(sku.sku_id, kw3, skuAbsatzMap, skuLastKnownMap)
           kw3 = addKw(kw3, 1)
         }
 
-        const theoreticalTotal = Math.max(0, absatzInZielreichweite - Math.max(0, stockAtAnkunft))
-
-        // Apply MOQ
-        const skuMengenRaw = applyMoqAdjustment(produkt, theoreticalTotal)
-
-        // Apply container optimization
-        const { finalMengen, containerart, warnungen } = applyContainerOptimierung(produkt, skuMengenRaw)
-
-        const gesamtmenge = finalMengen.reduce((s, m) => s + m.menge, 0)
-
-        // Build warnungen
-        const allWarnungen = [...warnungen]
-        if (isInPast) {
-          allWarnungen.push('Bestellzeitpunkt bereits überschritten — sofort bestellen.')
+        const theoretisch = Math.max(0, Math.round(absatzInZielreichweite - Math.max(0, stockAtAnkunft)))
+        return {
+          sku_id: sku.sku_id,
+          sku_name: sku.sku_name,
+          menge_theoretisch: theoretisch,
+          menge: theoretisch,
+          moq_gerundet: false,
+          begruendung: [],
         }
-        if (gesamtmenge === 0) {
-          allWarnungen.push('Theoretische Bestellmenge ist 0 — Bestand deckt die gesamte Zielreichweite.')
-        }
-        if (!produkt.max_20dc) {
-          allWarnungen.push('Container-Daten unvollständig — Container-Optimierung übersprungen.')
-        }
+      })
 
-        tempIdCounter.n++
-        const tempId = `temp-${tempIdCounter.n}`
+      const skusWithDemand = initialSkuMengen.filter(m => m.menge_theoretisch > 0)
 
-        const neuePlanbestellung: NeuePlanbestellung = {
-          temp_id: tempId,
-          produkt_ids: [produkt.produkt_id],
-          produkt_namen: [produkt.produkt_name],
-          ...dates,
-          sku_mengen: finalMengen.map(m => ({
+      if (skusWithDemand.length === 0) {
+        simKw = addKw(simKw, 1)
+        continue
+      }
+
+      const totalTheoretical = skusWithDemand.reduce((s, m) => s + m.menge_theoretisch, 0)
+      const skuMengenRaw = applyMoqAdjustment(produkt, skusWithDemand)
+      const skusToOrder = skuMengenRaw.filter(m => m.menge > 0)
+      const skusExcludedByMoq = skuMengenRaw.filter(m => m.menge === 0)
+
+      if (skusToOrder.length === 0 || !skusToOrder.some(m => triggeringSkuIds.has(m.sku_id))) {
+        simKw = addKw(simKw, 1)
+        continue
+      }
+
+      // Capture menge after MOQ adjustment (before container optimization)
+      const mengeNachMoqMap = new Map<string, number>()
+      for (const m of skuMengenRaw) mengeNachMoqMap.set(m.sku_id, m.menge)
+
+      const totalAfterMoq = skusToOrder.reduce((s, m) => s + m.menge, 0)
+      const { finalMengen, containers, warnungen } = applyContainerOptimierung(produkt, skusToOrder)
+      const gesamtmenge = finalMengen.reduce((s, m) => s + m.menge, 0)
+
+      const allWarnungen: string[] = []
+      if (totalAfterMoq !== totalTheoretical) allWarnungen.push(`MOQ: ${totalTheoretical}→${totalAfterMoq} Stk.`)
+      allWarnungen.push(...warnungen)
+      if (isInPast) allWarnungen.push(`Bestelldatum in Vergangenheit (${toDateStr(bestelldatumDate)}) → auf heute vorgezogen.`)
+      if (!produkt.max_20dc) allWarnungen.push(`Container-Optimierung übersprungen: max_20DC fehlt (Produktinformationen prüfen).`)
+
+      tempIdCounter.n++
+      const tempId = `temp-${tempIdCounter.n}`
+
+      const neuePlanbestellung: NeuePlanbestellung = {
+        temp_id: tempId,
+        produkt_ids: [produkt.produkt_id],
+        produkt_namen: [produkt.produkt_name],
+        ...dates,
+        sku_mengen: [
+          ...finalMengen.map(m => ({
             sku_id: m.sku_id,
             sku_name: m.sku_name,
             menge_theoretisch: m.menge_theoretisch,
+            menge_nach_moq: mengeNachMoqMap.get(m.sku_id) ?? m.menge_theoretisch,
             menge_praktisch: m.menge,
             begruendung_anpassung: m.begruendung.join('; '),
+            is_trigger: triggeringSkuIds.has(m.sku_id),
           })),
-          konsolidierungen: [],
-          warnungen: allWarnungen,
-          _containerart: containerart,
-        } as NeuePlanbestellung & { _containerart: string | null }
-
-        orders.push({ bestelldatum: actualBestelldatum, ankunftKw, gesamtmenge, neuePlanbestellung })
-
-        // Add new order as future delivery for subsequent simulation
-        futureDeliveries.push({ kw: ankunftKw, menge: gesamtmenge })
-
-        // Continue from next week
-        stock = searchStock
-        simKw = addKw(searchKw, 1)
-        triggerFound = true
-        break
+          ...skusExcludedByMoq.map(m => ({
+            sku_id: m.sku_id,
+            sku_name: m.sku_name,
+            menge_theoretisch: m.menge_theoretisch,
+            menge_nach_moq: 0,
+            menge_praktisch: 0,
+            begruendung_anpassung: m.begruendung.join('; '),
+            is_trigger: triggeringSkuIds.has(m.sku_id),
+          })),
+        ],
+        warnungen: allWarnungen,
+        container: containers,
       }
 
-      searchKw = addKw(searchKw, 1)
+      orders.push({ bestelldatum: actualBestelldatum, ankunftKw, gesamtmenge, neuePlanbestellung })
+
+      // Add new order to delivery tracking and immediately boost kalk so simulation doesn't
+      // re-trigger every week when lead time exceeds the remaining planning horizon.
+      for (const m of finalMengen) {
+        skuFutureDeliveries.get(m.sku_id)!.push({ kw: ankunftKw, menge: m.menge })
+        skuKalkulatorisch.set(m.sku_id, skuKalkulatorisch.get(m.sku_id)! + m.menge)
+      }
     }
 
-    if (!triggerFound) break
+    simKw = addKw(simKw, 1)
   }
 
   return orders
-}
-
-// ─── Consolidation check ──────────────────────────────────────────────────────
-
-function checkKonsolidierungen(
-  alleBestellungen: Array<NeuePlanbestellung & { _containerart?: string | null }>,
-  produktById: Map<string, ProduktInput>,
-): void {
-  const n = alleBestellungen.length
-
-  for (let i = 0; i < n; i++) {
-    for (let j = i + 1; j < n; j++) {
-      const a = alleBestellungen[i]
-      const b = alleBestellungen[j]
-      if (!a.bestelldatum || !b.bestelldatum) continue
-
-      // Same manufacturer check
-      const herstellerA = a.produkt_ids.map(id => produktById.get(id)?.hersteller_id).filter(Boolean)[0]
-      const herstellerB = b.produkt_ids.map(id => produktById.get(id)?.hersteller_id).filter(Boolean)[0]
-      if (!herstellerA || !herstellerB || herstellerA !== herstellerB) continue
-
-      // Date proximity check (≤30 days)
-      const dA = new Date(a.bestelldatum + 'T00:00:00Z')
-      const dB = new Date(b.bestelldatum + 'T00:00:00Z')
-      const diffDays = Math.abs(dA.getTime() - dB.getTime()) / 86_400_000
-      if (diffDays > 30) continue
-
-      // Combined volume check
-      const volA = computeBestellungVolumen(a, produktById)
-      const volB = computeBestellungVolumen(b, produktById)
-      const totalVol = volA + volB
-
-      // Find global container volumes
-      const firstProdA = produktById.get(a.produkt_ids[0])
-      if (!firstProdA?.max_20dc || !firstProdA?.max_40hq) continue
-
-      // Use volume-based container check
-      const stueckvolA = firstProdA.stueckvolumen_cm3
-      if (!stueckvolA) continue
-
-      // Get container volumes from the first product's capacities
-      // max_20dc = vol_20dc / stueck, max_40hq = vol_40hq / stueck
-      // But total volume is mixed products — compare using total piece count
-      const totalStueck = a.sku_mengen.reduce((s, m) => s + m.menge_praktisch, 0)
-        + b.sku_mengen.reduce((s, m) => s + m.menge_praktisch, 0)
-
-      // Determine container type for combined order
-      let containerart: '20DC' | '40HQ' | null = null
-      if (totalStueck <= firstProdA.max_20dc) containerart = '20DC'
-      else if (totalStueck <= firstProdA.max_40hq) containerart = '40HQ'
-
-      if (!containerart) continue // Doesn't fit even in 40HQ
-
-      // Add consolidation to both orders
-      a.konsolidierungen.push({
-        mit_temp_id: b.temp_id,
-        mit_produkt_namen: b.produkt_namen,
-        containerart,
-      })
-      b.konsolidierungen.push({
-        mit_temp_id: a.temp_id,
-        mit_produkt_namen: a.produkt_namen,
-        containerart,
-      })
-    }
-  }
-}
-
-function computeBestellungVolumen(
-  bestellung: NeuePlanbestellung,
-  produktById: Map<string, ProduktInput>,
-): number {
-  let vol = 0
-  for (const id of bestellung.produkt_ids) {
-    const p = produktById.get(id)
-    if (!p?.stueckvolumen_cm3) continue
-    const menge = bestellung.sku_mengen.reduce((s, m) => s + m.menge_praktisch, 0)
-    vol += menge * p.stueckvolumen_cm3
-  }
-  return vol
 }
 
 // ─── Compare with existing plan orders ────────────────────────────────────────
@@ -623,67 +685,126 @@ function buildAenderungen(
   produkt: ProduktInput,
 ): PlanbestelllaufAenderung[] {
   const aenderungen: PlanbestelllaufAenderung[] = []
+  const claimedIndices = new Set<number>()
 
   for (const existing of bestehendePlanOrders) {
     if (!existing.bestelldatum) continue
-
     const existingDate = new Date(existing.bestelldatum + 'T00:00:00Z')
+    const existingTotal = existing.sku_mengen.reduce((s, m) => s + m.menge_praktisch, 0)
 
-    // Find closest optimal order by date
-    let closest: OrderResult | null = null
-    let closestDiff = Infinity
-    for (const opt of optimalOrders) {
-      const diff = Math.abs(opt.bestelldatum.getTime() - existingDate.getTime()) / 86_400_000
-      if (diff < closestDiff) {
-        closestDiff = diff
-        closest = opt
-      }
+    let altContainer: Array<'20DC' | '40HQ'> | undefined
+    if (produkt.max_20dc && produkt.max_40hq && existingTotal > 0) {
+      const { containers } = computeContainerPlan(existingTotal, produkt.max_20dc, produkt.max_40hq)
+      if (containers.length > 0) altContainer = containers
     }
 
-    if (!closest) continue
+    // Find closest UNCLAIMED optimal order
+    let closest: OrderResult | null = null
+    let closestIdx = -1
+    let closestDiff = Infinity
+    for (let i = 0; i < optimalOrders.length; i++) {
+      if (claimedIndices.has(i)) continue
+      const diff = Math.abs(optimalOrders[i].bestelldatum.getTime() - existingDate.getTime()) / 86_400_000
+      if (diff < closestDiff) { closestDiff = diff; closest = optimalOrders[i]; closestIdx = i }
+    }
 
-    // Date change recommendation (>7 days difference)
-    if (closestDiff > 7) {
-      const newDates = closest.neuePlanbestellung
+    if (!closest) {
       aenderungen.push({
         bestellung_id: existing.bestellung_id,
+        produkt_ids: [produkt.produkt_id],
         produkt_namen: [produkt.produkt_name],
-        aenderungsart: 'bestelldatum',
-        alt_wert: existing.bestelldatum,
-        neu_wert: newDates.bestelldatum ?? '',
-        begruendung: 'Bestellzeitpunkt hat sich aufgrund aktualisierter Absatzplanung oder Stammdaten geändert.',
-        neue_daten: {
-          bestelldatum: newDates.bestelldatum ?? undefined,
-          produktionsstart_datum: newDates.produktionsstart_datum ?? undefined,
-          produktionsende_datum: newDates.produktionsende_datum ?? undefined,
-          shippingdatum: newDates.shippingdatum ?? undefined,
-          ankunftsdatum: newDates.ankunftsdatum ?? undefined,
-          verfuegbarkeitsdatum: newDates.verfuegbarkeitsdatum ?? undefined,
+        aenderungsart: 'kein_bedarf',
+        alt_wert: `${existingTotal} Stk.`,
+        neu_wert: '0 Stk.',
+        begruendung: 'Kein Bedarf im Planungshorizont erkannt — Bestellung wird gelöscht.',
+        alte_daten: {
+          bestelldatum: existing.bestelldatum ?? undefined,
+          produktionsstart_datum: existing.produktionsstart_datum ?? undefined,
+          produktionsende_datum: existing.produktionsende_datum ?? undefined,
+          shippingdatum: existing.shippingdatum ?? undefined,
+          ankunftsdatum: existing.ankunftsdatum ?? undefined,
+          verfuegbarkeitsdatum: existing.verfuegbarkeitsdatum ?? undefined,
+          container: altContainer,
+          sku_mengen: existing.sku_mengen.map(m => ({ sku_id: m.sku_id, menge_theoretisch: m.menge_theoretisch, menge_nach_moq: m.menge_nach_moq ?? null, menge_praktisch: m.menge_praktisch })),
         },
       })
+      continue
     }
 
-    // Quantity change recommendation (>15% difference)
-    const existingTotal = existing.sku_mengen.reduce((s, m) => s + m.menge_praktisch, 0)
+    // Claim this optimal order — no other existing order can match it
+    claimedIndices.add(closestIdx)
+
+    const newDates = closest.neuePlanbestellung
     const optimalTotal = closest.gesamtmenge
     const relDiff = existingTotal > 0 ? Math.abs(optimalTotal - existingTotal) / existingTotal : 1
-    if (relDiff > 0.15 && optimalTotal !== existingTotal) {
+
+    const datumGeaendert = closestDiff > 7
+    const mengeGeaendert = relDiff > 0.15 && optimalTotal !== existingTotal
+
+    if (!datumGeaendert && !mengeGeaendert) {
       aenderungen.push({
         bestellung_id: existing.bestellung_id,
+        produkt_ids: [produkt.produkt_id],
         produkt_namen: [produkt.produkt_name],
-        aenderungsart: 'menge',
-        alt_wert: `${existingTotal} Stk.`,
-        neu_wert: `${optimalTotal} Stk.`,
-        begruendung: 'Bestellmenge hat sich aufgrund aktualisierter Absatzplanung geändert.',
-        neue_daten: {
-          sku_mengen: closest.neuePlanbestellung.sku_mengen.map(m => ({
-            sku_id: m.sku_id,
-            menge_praktisch: m.menge_praktisch,
-            begruendung_anpassung: m.begruendung_anpassung,
-          })),
+        aenderungsart: 'keine_aenderung',
+        alt_wert: existing.bestelldatum ?? '',
+        neu_wert: existing.bestelldatum ?? '',
+        begruendung: 'Keine Änderung notwendig.',
+        alte_daten: {
+          bestelldatum: existing.bestelldatum ?? undefined,
+          produktionsstart_datum: existing.produktionsstart_datum ?? undefined,
+          produktionsende_datum: existing.produktionsende_datum ?? undefined,
+          shippingdatum: existing.shippingdatum ?? undefined,
+          ankunftsdatum: existing.ankunftsdatum ?? undefined,
+          verfuegbarkeitsdatum: existing.verfuegbarkeitsdatum ?? undefined,
+          container: altContainer,
+          sku_mengen: existing.sku_mengen.map(m => ({ sku_id: m.sku_id, menge_theoretisch: m.menge_theoretisch, menge_nach_moq: m.menge_nach_moq ?? null, menge_praktisch: m.menge_praktisch })),
         },
       })
+      continue
     }
+
+    const begruendungen: string[] = []
+    if (datumGeaendert) begruendungen.push(`Bestelldatum verschoben: ${fmtDE(existing.bestelldatum)} → ${fmtDE(newDates.bestelldatum)} (${Math.round(closestDiff)} Tage)`)
+    if (mengeGeaendert) begruendungen.push(`Menge: ${existingTotal} → ${optimalTotal} Stk. (${optimalTotal > existingTotal ? '+' : ''}${optimalTotal - existingTotal} Stk., ${Math.round(relDiff * 100)} %)`)
+
+    aenderungen.push({
+      bestellung_id: existing.bestellung_id,
+      produkt_ids: [produkt.produkt_id],
+      produkt_namen: [produkt.produkt_name],
+      aenderungsart: datumGeaendert && mengeGeaendert ? 'bestelldatum_und_menge' : datumGeaendert ? 'bestelldatum' : 'menge',
+      alt_wert: datumGeaendert ? existing.bestelldatum : `${existingTotal} Stk.`,
+      neu_wert: datumGeaendert ? (newDates.bestelldatum ?? '') : `${optimalTotal} Stk.`,
+      begruendung: begruendungen.join(' | '),
+      alte_daten: {
+        bestelldatum: existing.bestelldatum ?? undefined,
+        produktionsstart_datum: existing.produktionsstart_datum ?? undefined,
+        produktionsende_datum: existing.produktionsende_datum ?? undefined,
+        shippingdatum: existing.shippingdatum ?? undefined,
+        ankunftsdatum: existing.ankunftsdatum ?? undefined,
+        verfuegbarkeitsdatum: existing.verfuegbarkeitsdatum ?? undefined,
+        container: altContainer,
+        sku_mengen: existing.sku_mengen.map(m => ({ sku_id: m.sku_id, menge_theoretisch: m.menge_theoretisch, menge_nach_moq: m.menge_nach_moq ?? null, menge_praktisch: m.menge_praktisch })),
+      },
+      warnungen: closest.neuePlanbestellung.warnungen,
+      neue_daten: {
+        bestelldatum: newDates.bestelldatum ?? undefined,
+        produktionsstart_datum: newDates.produktionsstart_datum ?? undefined,
+        produktionsende_datum: newDates.produktionsende_datum ?? undefined,
+        shippingdatum: newDates.shippingdatum ?? undefined,
+        ankunftsdatum: newDates.ankunftsdatum ?? undefined,
+        verfuegbarkeitsdatum: newDates.verfuegbarkeitsdatum ?? undefined,
+        container: closest.neuePlanbestellung.container.length > 0 ? closest.neuePlanbestellung.container : undefined,
+        sku_mengen: newDates.sku_mengen.map(m => ({
+          sku_id: m.sku_id,
+          sku_name: m.sku_name,
+          menge_theoretisch: m.menge_theoretisch,
+          menge_nach_moq: m.menge_nach_moq,
+          menge_praktisch: m.menge_praktisch,
+          begruendung_anpassung: m.begruendung_anpassung,
+        })),
+      },
+    })
   }
 
   return aenderungen
@@ -701,27 +822,31 @@ export function runPlanbestelllauf(input: AlgorithmusInput): PlanbestelllaufErge
   const aktuelleKw = dateToIsoWeek(heute)
   const horizonEndKw = addKw(aktuelleKw, planungshorizont_wochen)
 
-  const { absatzMap, lastKnownMap } = buildAbsatzMaps(absatzplanung)
+  const { skuAbsatzMap, skuLastKnownMap } = buildSkuAbsatzMaps(absatzplanung)
 
-  // Build laufend deliveries per product
-  const laufendByProdukt = new Map<string, Array<{ kw: KwRef; menge: number }>>()
+  // Kalkulatorischer Bestand: laufende Bestellungen (feste Commitments) und manuell angelegte
+  // Planbestellungen (Erstplanbestellungen) als fixe Zugänge einbeziehen.
+  // Algorithmus-Planbestellungen werden bewusst ausgeschlossen, damit der Algorithmus sie neu
+  // bewertet und via buildAenderungen Empfehlungen erzeugen kann.
+  const alleOffenBySku = new Map<string, Array<{ kw: KwRef; menge: number }>>()
   for (const b of bestehendeBestellungen) {
-    if (b.status !== 'laufend' || !b.ankunftsdatum) continue
+    if (!b.ankunftsdatum) continue
+    const isFixed = b.status === 'laufend' || (b.status === 'plan' && b.herkunft === 'manuell')
+    if (!isFixed) continue
     const ankunftKw = dateToIsoWeek(new Date(b.ankunftsdatum + 'T00:00:00Z'))
     for (const sm of b.sku_mengen) {
-      if (!laufendByProdukt.has(sm.produkt_id)) laufendByProdukt.set(sm.produkt_id, [])
-      laufendByProdukt.get(sm.produkt_id)!.push({ kw: ankunftKw, menge: sm.menge_praktisch })
+      if (!alleOffenBySku.has(sm.sku_id)) alleOffenBySku.set(sm.sku_id, [])
+      alleOffenBySku.get(sm.sku_id)!.push({ kw: ankunftKw, menge: sm.menge_praktisch })
     }
   }
 
-  // Build produktById map
   const produktById = new Map<string, ProduktInput>()
   for (const p of produkte) produktById.set(p.produkt_id, p)
 
-  // Get existing plan orders per product
   const planOrdersByProdukt = new Map<string, BestehendeBestellungInput[]>()
   for (const b of bestehendeBestellungen) {
     if (b.status !== 'plan') continue
+    if (b.herkunft === 'manuell') continue  // Erstplanbestellungen bleiben unverändert
     for (const pid of b.produkt_ids) {
       if (!planOrdersByProdukt.has(pid)) planOrdersByProdukt.set(pid, [])
       planOrdersByProdukt.get(pid)!.push(b)
@@ -735,20 +860,21 @@ export function runPlanbestelllauf(input: AlgorithmusInput): PlanbestelllaufErge
   for (const produkt of produkte) {
     if (produkt.skus.length === 0) continue
 
-    const laufendDeliveries = laufendByProdukt.get(produkt.produkt_id) ?? []
+    const alleOffenDeliveriesBySku = new Map<string, Array<{ kw: KwRef; menge: number }>>()
+    for (const sku of produkt.skus) {
+      alleOffenDeliveriesBySku.set(sku.sku_id, [...(alleOffenBySku.get(sku.sku_id) ?? [])])
+    }
+
     const optimalOrders = simulateProdukt(
-      produkt, aktuelleKw, horizonEndKw, absatzMap, lastKnownMap,
-      laufendDeliveries, tempIdCounter,
+      produkt, aktuelleKw, horizonEndKw, skuAbsatzMap, skuLastKnownMap,
+      alleOffenDeliveriesBySku, tempIdCounter,
     )
+
+    const existingPlanOrders = planOrdersByProdukt.get(produkt.produkt_id) ?? []
+    aenderungen.push(...buildAenderungen(optimalOrders, existingPlanOrders, produkt))
 
     if (optimalOrders.length === 0) continue
 
-    // Compare with existing plan orders
-    const existingPlanOrders = planOrdersByProdukt.get(produkt.produkt_id) ?? []
-    const produktAenderungen = buildAenderungen(optimalOrders, existingPlanOrders, produkt)
-    aenderungen.push(...produktAenderungen)
-
-    // Determine which optimal orders are "new" (not covered by existing plan orders)
     const coveredOptimalIndices = new Set<number>()
     for (const existing of existingPlanOrders) {
       if (!existing.bestelldatum) continue
@@ -769,13 +895,42 @@ export function runPlanbestelllauf(input: AlgorithmusInput): PlanbestelllaufErge
     }
   }
 
-  // Consolidation check
-  const allForConsolidation = neuePlanbestellungen as Array<NeuePlanbestellung & { _containerart?: string | null }>
-  checkKonsolidierungen(allForConsolidation, produktById)
-
-  // Clean up internal fields
-  for (const b of neuePlanbestellungen) {
-    delete (b as unknown as Record<string, unknown>)._containerart
+  // Erstplanbestellungen (herkunft = 'manuell') erscheinen als keine_aenderung,
+  // damit sie im Wizard-Schritt 1 sichtbar sind aber nie verändert werden.
+  for (const b of bestehendeBestellungen) {
+    if (b.status !== 'plan' || b.herkunft !== 'manuell') continue
+    const existingTotal = b.sku_mengen.reduce((s, m) => s + m.menge_praktisch, 0)
+    const produkt = b.produkt_ids.length > 0 ? produktById.get(b.produkt_ids[0]) : undefined
+    let altContainer: Array<'20DC' | '40HQ'> | undefined
+    if (produkt?.max_20dc && produkt?.max_40hq && existingTotal > 0) {
+      const { containers } = computeContainerPlan(existingTotal, produkt.max_20dc, produkt.max_40hq)
+      if (containers.length > 0) altContainer = containers
+    }
+    aenderungen.push({
+      bestellung_id: b.bestellung_id,
+      produkt_ids: b.produkt_ids,
+      produkt_namen: b.produkt_ids.map(pid => produktById.get(pid)?.produkt_name ?? pid),
+      aenderungsart: 'keine_aenderung',
+      herkunft: 'manuell',
+      alt_wert: b.bestelldatum ?? '',
+      neu_wert: b.bestelldatum ?? '',
+      begruendung: 'Erstplanbestellung — wird nicht durch den Algorithmus verändert.',
+      alte_daten: {
+        bestelldatum: b.bestelldatum ?? undefined,
+        produktionsstart_datum: b.produktionsstart_datum ?? undefined,
+        produktionsende_datum: b.produktionsende_datum ?? undefined,
+        shippingdatum: b.shippingdatum ?? undefined,
+        ankunftsdatum: b.ankunftsdatum ?? undefined,
+        verfuegbarkeitsdatum: b.verfuegbarkeitsdatum ?? undefined,
+        container: altContainer,
+        sku_mengen: b.sku_mengen.map(m => ({
+          sku_id: m.sku_id,
+          menge_theoretisch: m.menge_theoretisch,
+          menge_nach_moq: m.menge_nach_moq ?? null,
+          menge_praktisch: m.menge_praktisch,
+        })),
+      },
+    })
   }
 
   return { aenderungen_bestehende: aenderungen, neue_planbestellungen: neuePlanbestellungen }

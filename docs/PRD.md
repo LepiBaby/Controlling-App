@@ -86,6 +86,33 @@ Eine interne Controlling-Plattform für das Finanzreporting eines E-Commerce Unt
 | P1 | PROJ-72: Liquiditätsauswertung — Kurzfristige Planung | Planned |
 | P1 | PROJ-73: Langfristige Planung — Planversionen & Navigation (Foundation) | Planned |
 | P1 | PROJ-74: KPI-Modell Verwaltung — Langfristige Planung | Planned |
+| P1 | PROJ-75: Grundeinstellungen — Langfristige Planung | Planned |
+| P1 | PROJ-76: Auszahlungseinstellungen — Langfristige Planung | Planned |
+| P1 | PROJ-77: Produktinformationen — Langfristige Planung | Planned |
+| P1 | PROJ-78: Vertriebseinstellungen — Langfristige Planung | Planned |
+| P1 | PROJ-79: Verkaufsgebühr-Einstellungen — Langfristige Planung | Planned |
+| P1 | PROJ-80: Marketing-Einstellungen — Langfristige Planung | Planned |
+| P1 | PROJ-81: Operative Fixkosten-Einstellungen — Langfristige Planung | Planned |
+| P1 | PROJ-82: Finanzierungseinstellungen — Langfristige Planung | Planned |
+| P1 | PROJ-83: Steuereinstellungen — Langfristige Planung | Planned |
+| P1 | PROJ-84: Absatzplanung — Langfristige Planung | Planned |
+| P1 | PROJ-85: Marketing-Planung — Langfristige Planung | Planned |
+| P1 | PROJ-86: Bestellplanung — Langfristige Planung | Planned |
+| P1 | PROJ-87: Sales-Plattform-Planung — Langfristige Planung | Planned |
+| P1 | PROJ-88: Operativekosten Planung — Langfristige Planung | Planned |
+| P1 | PROJ-89: Einnahmenplanung — Langfristige Planung | Planned |
+| P1 | PROJ-90: Finanzierungsausgaben Planung — Langfristige Planung | Planned |
+| P1 | PROJ-91: Umsatzausgaben Planung — Langfristige Planung | Planned |
+| P1 | PROJ-92: Investitionsausgaben Planung — Langfristige Planung | Planned |
+| P1 | PROJ-93: Steuerausgaben Planung — Langfristige Planung | Planned |
+| P1 | PROJ-94: Liquiditätsauswertung — Langfristige Planung | Planned |
+| P1 | PROJ-95: Rentabilitätsauswertung — Langfristige Planung | Planned |
+| P1 | PROJ-96: Umsatzauswertung — Langfristige Planung | Planned |
+| P1 | PROJ-97: Umsatzkosten-Auswertung — Langfristige Planung | Planned |
+| P1 | PROJ-98: Operative Kosten-Auswertung — Langfristige Planung | Planned |
+| P1 | PROJ-99: Investitionsauswertung — Langfristige Planung | Planned |
+| P1 | PROJ-100: Finanzierungsausgaben-Auswertung — Langfristige Planung | Planned |
+| P1 | PROJ-101: Kapitalbedarf & Finanzierung — Langfristige Planung | Planned |
 
 ## Success Metrics
 - Alle Finanzdaten werden in einer zentralen Plattform erfasst (kein Excel-Chaos)

@@ -116,6 +116,9 @@ export async function GET(request: Request) {
   const { user, supabase, error } = await requireAuth()
   if (error) return error
 
+  const reqUrl = new URL(request.url)
+  const vHorizont = Math.min(Math.max(parseInt(reqUrl.searchParams.get('vergangenheit_horizont') ?? '0', 10) || 0, 0), 52)
+
   // ── 1. Load grundeinstellungen, kpi_categories, auszahlungseinstellungen ───
   const [grundResult, katsResult, auszResult, mktGruppenResult] = await Promise.all([
     supabase.from('grundeinstellungen')
@@ -148,8 +151,10 @@ export async function GET(request: Request) {
   const today = new Date()
   today.setUTCHours(0, 0, 0, 0)
   const currentMonday = getISOWeekMonday(today)
-  const currentKw = getISOWeekInfo(today)
+  const realCurrentKw = getISOWeekInfo(today)
 
+  // planungswochen starts at current week (not extended into the past).
+  // pvMap is only used for future Soll values; past Ist-Plan uses manual entries only.
   const planungswochen: { year: number; week: number }[] = []
   for (let i = 0; i < planungsHorizont; i++) {
     const monday = new Date(currentMonday.getTime() + i * 7 * 86_400_000)
@@ -157,13 +162,13 @@ export async function GET(request: Request) {
   }
   if (planungswochen.length === 0) return NextResponse.json([])
 
-  // Revenue weeks extend backward to cover shift + rhythm windows
+  // Revenue weeks extend backward to cover shift + rhythm windows + past plan weeks
   const maxV = Math.max(...auszEinst.map(e => e.verschiebung_wochen ?? 0), 0)
   const maxR = Math.max(...auszEinst.map(e => rhythmusToWeeks(e.auszahlungsrhythmus)), 1)
   const extraBefore = maxV + maxR
 
   const allRevenueWeeks: { year: number; week: number }[] = []
-  for (let i = -(extraBefore - 1); i < planungsHorizont; i++) {
+  for (let i = -(extraBefore - 1) - vHorizont; i < planungsHorizont; i++) {
     const monday = new Date(currentMonday.getTime() + i * 7 * 86_400_000)
     allRevenueWeeks.push(getISOWeekInfo(monday))
   }
@@ -235,9 +240,7 @@ export async function GET(request: Request) {
     mktKatByPlatt.get(row.sales_plattform_id)!.add(row.kpi_kategorie_id)
   }
 
-  // ── 7. Aggregate net per platform per revenue KW + marketing per platform per KW ──
-  // Note: netByPlattKw covers allRevenueWeeks (used with shifted revenue window)
-  //       marketingByPlattKw covers allRevenueWeeks (summed over R-week rhythm window, no shift)
+  // ── 7. Aggregate net per platform per revenue KW ─────────────────────────────
   const netByPlattKw = new Map<string, number>()
 
   for (const kw of allRevenueWeeks) {
@@ -280,41 +283,39 @@ export async function GET(request: Request) {
   // paymentByPlattKw: "plattId:year:week" → net payout for that platform in that week
   const paymentByPlattKw = new Map<string, number>()
 
+  const planStart = weekIndex(planungswochen[0].year, planungswochen[0].week)
+  const planEnd = weekIndex(planungswochen[planungswochen.length - 1].year, planungswochen[planungswochen.length - 1].week)
+
   for (const einst of auszEinst) {
     if (!einst.naechste_auszahlung_basis_kw || !einst.naechste_auszahlung_basis_jahr) continue
     const V = einst.verschiebung_wochen ?? 0
     const R = rhythmusToWeeks(einst.auszahlungsrhythmus)
     const firstPayment = nextPaymentWeek(
       einst.naechste_auszahlung_basis_kw, einst.naechste_auszahlung_basis_jahr,
-      R, currentKw.year, currentKw.week,
+      R, realCurrentKw.year, realCurrentKw.week,
     )
 
+    function applyPayment(payKw: { year: number; week: number }) {
+      let sum = 0
+      for (let wOff = -(V + R - 1); wOff <= -V; wOff++) {
+        const revKw = addISOWeeks(payKw, wOff)
+        sum += netByPlattKw.get(`${einst.sales_plattform_id}:${revKw.year}:${revKw.week}`) ?? 0
+      }
+      let mktDeduction = 0
+      for (let wOff = -(R - 1); wOff <= 0; wOff++) {
+        const mktKw = addISOWeeks(payKw, wOff)
+        mktDeduction += marketingByPlattKw.get(`${einst.sales_plattform_id}:${mktKw.year}:${mktKw.week}`) ?? 0
+      }
+      const plattKwKey = `${einst.sales_plattform_id}:${payKw.year}:${payKw.week}`
+      paymentByPlattKw.set(plattKwKey, (paymentByPlattKw.get(plattKwKey) ?? 0) + sum - mktDeduction)
+    }
+
+    // Forward pass only: payment weeks within planungswochen range
     let payKw = firstPayment
     for (let i = 0; i < planungsHorizont + extraBefore; i++) {
       const payIdx = weekIndex(payKw.year, payKw.week)
-      const planStart = weekIndex(planungswochen[0].year, planungswochen[0].week)
-      const planEnd = weekIndex(planungswochen[planungswochen.length - 1].year, planungswochen[planungswochen.length - 1].week)
-
       if (payIdx > planEnd) break
-
-      if (payIdx >= planStart) {
-        // Sum net revenue from the shifted window (Umsatz, Rabatte, Erstattungen, VKGebühr, Retouren)
-        let sum = 0
-        for (let wOff = -(V + R - 1); wOff <= -V; wOff++) {
-          const revKw = addISOWeeks(payKw, wOff)
-          sum += netByPlattKw.get(`${einst.sales_plattform_id}:${revKw.year}:${revKw.week}`) ?? 0
-        }
-        // Marketing: sum over the R-week rhythm window ending at payKw (no shift).
-        // Controlled entirely by auszahlungs_marketing_gruppen (inkludiert=true rows already filtered at query time).
-        let mktDeduction = 0
-        for (let wOff = -(R - 1); wOff <= 0; wOff++) {
-          const mktKw = addISOWeeks(payKw, wOff)
-          mktDeduction += marketingByPlattKw.get(`${einst.sales_plattform_id}:${mktKw.year}:${mktKw.week}`) ?? 0
-        }
-        const plattKwKey = `${einst.sales_plattform_id}:${payKw.year}:${payKw.week}`
-        paymentByPlattKw.set(plattKwKey, (paymentByPlattKw.get(plattKwKey) ?? 0) + sum - mktDeduction)
-      }
-
+      if (payIdx >= planStart) applyPayment(payKw)
       payKw = addISOWeeks(payKw, R)
     }
   }
@@ -337,5 +338,59 @@ export async function GET(request: Request) {
     })
   }
   result.sort((a, b) => weekIndex(a.kw_year, a.kw_number) - weekIndex(b.kw_year, b.kw_number))
+
+  // ── 10. Persist computed values into einnahmen_planung ───────────────────────
+  // Save per-platform entries (sales_plattform_id as kategorie_id) plus the
+  // aggregate total under the Produktverkäufe L1 category.
+  const pvKat = kats.find(k => k.type === 'einnahmen' && k.level === 1 &&
+    k.name.trim().toLowerCase() === 'produktverkäufe')
+
+  const now = new Date().toISOString()
+
+  // Per-platform entries (positive and negative values both valid)
+  const platformRows = result.map(row => ({
+    user_id: user!.id,
+    kategorie_id: row.sales_plattform_id,
+    kw_year: row.kw_year,
+    kw_number: row.kw_number,
+    betrag_manuell: row.wert,
+    updated_at: now,
+  }))
+
+  // Aggregate total per week under Produktverkäufe category
+  const totalRows: typeof platformRows = []
+  if (pvKat) {
+    const totalByKw = new Map<string, number>()
+    for (const row of result) {
+      const k = `${row.kw_year}:${row.kw_number}`
+      totalByKw.set(k, (totalByKw.get(k) ?? 0) + row.wert)
+    }
+    for (const [kwKey, total] of totalByKw) {
+      const [yr, wk] = kwKey.split(':').map(Number)
+      totalRows.push({
+        user_id: user!.id,
+        kategorie_id: pvKat.id,
+        kw_year: yr,
+        kw_number: wk,
+        betrag_manuell: Math.round(total * 100) / 100,
+        updated_at: now,
+      })
+    }
+  }
+
+  // Separate upsert calls: per-platform and totals are independent — one failure won't block the other
+  if (platformRows.length > 0) {
+    await supabase.from('einnahmen_planung').upsert(platformRows, {
+      onConflict: 'user_id,kategorie_id,kw_year,kw_number',
+      ignoreDuplicates: false,
+    })
+  }
+  if (totalRows.length > 0) {
+    await supabase.from('einnahmen_planung').upsert(totalRows, {
+      onConflict: 'user_id,kategorie_id,kw_year,kw_number',
+      ignoreDuplicates: false,
+    })
+  }
+
   return NextResponse.json(result)
 }

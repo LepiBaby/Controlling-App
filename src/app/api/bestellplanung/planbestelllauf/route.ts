@@ -91,7 +91,7 @@ export async function POST() {
     supabase.from('produktinformationen_hersteller_zuordnung').select('produkt_id, hersteller_id').eq('user_id', user!.id).limit(500),
     supabase.from('absatz_einstellungen').select('sales_plattform_id, produkt_id, berechnungsart, gewichtung_erstes_drittel, gewichtung_zweites_drittel, gewichtung_drittes_drittel').eq('user_id', user!.id).neq('berechnungsart', 'keine').limit(500),
     supabase.from('absatz_planung').select('produkt_id, sku_id, kw_year, kw_number, absatz_manuell').eq('user_id', user!.id).not('sku_id', 'is', null).not('absatz_manuell', 'is', null).limit(20000),
-    supabase.from('bestellungen').select('id, status, herkunft, bestelldatum, produktionsstart_datum, produktionsende_datum, shippingdatum, ankunftsdatum, ankunftsdatum_ist, verfuegbarkeitsdatum, verfuegbarkeitsdatum_ist').eq('user_id', user!.id).in('status', ['plan', 'laufend']).limit(500),
+    supabase.from('bestellungen').select('id, status, herkunft, bestelldatum, produktionsstart_datum, produktionsende_datum, shippingdatum, ankunftsdatum, ankunftsdatum_ist, verfuegbarkeitsdatum, verfuegbarkeitsdatum_ist, anzahl_40hq, anzahl_20dc').eq('user_id', user!.id).in('status', ['plan', 'laufend']).limit(500),
   ])
 
   const skusData: Array<{ id: string; name: string; parent_id: string }> = skusRes.data ?? []
@@ -181,6 +181,7 @@ export async function POST() {
   // ─── 8. Build existing bestellungen input ────────────────────────────────────
   const existingBestellungIds = (bestellungenRes.data ?? []).map((b: { id: string }) => b.id)
   let bestehendeBestellungen: BestehendeBestellungInput[] = []
+  let prodByBest = new Map<string, string[]>()
 
   if (existingBestellungIds.length > 0) {
     const [prodRes, skuMengenBestRes] = await Promise.all([
@@ -188,7 +189,6 @@ export async function POST() {
       supabase.from('bestellungen_sku_mengen').select('bestellung_id, sku_id, menge_praktisch, menge_theoretisch, menge_nach_moq').in('bestellung_id', existingBestellungIds),
     ])
 
-    const prodByBest = new Map<string, string[]>()
     for (const p of (prodRes.data ?? []) as Array<{ bestellung_id: string; produkt_id: string }>) {
       if (!prodByBest.has(p.bestellung_id)) prodByBest.set(p.bestellung_id, [])
       prodByBest.get(p.bestellung_id)!.push(p.produkt_id)
@@ -286,7 +286,69 @@ export async function POST() {
 
   const ergebnis = runPlanbestelllauf(input)
 
-  // ─── 11. Add ProduktStammdaten + ContainerGlobal for Wizard Step 3 ──────────
+  // ─── 11. Attach konsolidierungspartner to aenderungen_bestehende ──────────────
+  // konsolidierungsgruppe_id is NOT a column on bestellungen — derived from bestellungen_konsolidierungsmitglieder
+  const aenderungsIds = ergebnis.aenderungen_bestehende.map(a => a.bestellung_id)
+  let aenderungenMitPartner = ergebnis.aenderungen_bestehende
+
+  if (aenderungsIds.length > 0) {
+    const { data: mitgliederForAend } = await supabase
+      .from('bestellungen_konsolidierungsmitglieder')
+      .select('gruppe_id, bestellung_id, container_anteil')
+      .in('bestellung_id', aenderungsIds)
+
+    const aendMitglieder = (mitgliederForAend ?? []) as Array<{ gruppe_id: string; bestellung_id: string; container_anteil: Record<string, number> | null }>
+
+    if (aendMitglieder.length > 0) {
+      const gruppeByAendId = new Map<string, string>()
+      const anteilByAendId = new Map<string, Record<string, number> | null>()
+      for (const m of aendMitglieder) {
+        gruppeByAendId.set(m.bestellung_id, m.gruppe_id)
+        anteilByAendId.set(m.bestellung_id, m.container_anteil)
+      }
+
+      const gruppeIds = [...new Set(aendMitglieder.map(m => m.gruppe_id))]
+      const { data: allMitglieder } = await supabase
+        .from('bestellungen_konsolidierungsmitglieder')
+        .select('gruppe_id, bestellung_id, container_anteil')
+        .in('gruppe_id', gruppeIds)
+
+      const allMitgliederRows = (allMitglieder ?? []) as Array<{ gruppe_id: string; bestellung_id: string; container_anteil: Record<string, number> | null }>
+      const gruppeToMembers = new Map<string, string[]>()
+      const anteilById = new Map<string, Record<string, number> | null>()
+      for (const m of allMitgliederRows) {
+        if (!gruppeToMembers.has(m.gruppe_id)) gruppeToMembers.set(m.gruppe_id, [])
+        gruppeToMembers.get(m.gruppe_id)!.push(m.bestellung_id)
+        anteilById.set(m.bestellung_id, m.container_anteil)
+      }
+
+      const bestellungenBase = (bestellungenRes.data ?? []) as Array<{ id: string; bestelldatum: string | null; anzahl_40hq: number; anzahl_20dc: number }>
+      const baseById = new Map(bestellungenBase.map(b => [b.id, b]))
+
+      aenderungenMitPartner = ergebnis.aenderungen_bestehende.map(a => {
+        const gruppeId = gruppeByAendId.get(a.bestellung_id)
+        if (!gruppeId) return a
+        const members = gruppeToMembers.get(gruppeId) ?? []
+        const partner = members
+          .filter(mid => mid !== a.bestellung_id)
+          .map(mid => {
+            const base = baseById.get(mid)
+            const produktIds = prodByBest.get(mid) ?? []
+            return {
+              bestellung_id: mid,
+              produkt_namen: produktIds.map(pid => produktNameMap.get(pid) ?? '').filter(Boolean),
+              bestelldatum: base?.bestelldatum ?? null,
+              anzahl_40hq: base?.anzahl_40hq ?? 0,
+              anzahl_20dc: base?.anzahl_20dc ?? 0,
+              container_anteil: anteilById.get(mid) ?? null,
+            }
+          })
+        return { ...a, konsolidierungspartner: partner }
+      })
+    }
+  }
+
+  // ─── 12. Add ProduktStammdaten + ContainerGlobal for Wizard Step 3 ──────────
   const herstellerNamenRes = await supabase
     .from('produktinformationen_hersteller')
     .select('id, name')
@@ -327,5 +389,5 @@ export async function POST() {
     volumen_40hq: volumen40hq,
   }
 
-  return NextResponse.json({ ...ergebnis, produkt_stammdaten, container_global })
+  return NextResponse.json({ ...ergebnis, aenderungen_bestehende: aenderungenMitPartner, produkt_stammdaten, container_global })
 }

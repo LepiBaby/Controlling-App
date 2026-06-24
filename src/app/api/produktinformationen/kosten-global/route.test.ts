@@ -18,11 +18,11 @@ function req(url: string, options?: RequestInit) {
 const EINTRAG_ID = '33333333-3333-3333-8333-333333333333'
 const MOCK_ENTRY = {
   id: EINTRAG_ID,
-  shipping_kosten_20dc: 1500, shipping_kosten_40dc: 2500, shipping_kosten_40hq: 2800,
+  shipping_kosten_20dc: 1500, shipping_kosten_40hq: 2800,
   shipping_zahlungsziel_tage: 30,
-  inspektion_kosten_20dc: 200, inspektion_kosten_40dc: 300, inspektion_kosten_40hq: 350,
+  inspektion_kosten_20dc: 200, inspektion_kosten_40hq: 350,
   inspektion_zahlungsziel_tage: 14,
-  einlagerung_kosten_20dc: 100, einlagerung_kosten_40dc: 150, einlagerung_kosten_40hq: 180,
+  einlagerung_kosten_20dc: 100, einlagerung_kosten_40hq: 180,
   einlagerung_zahlungsziel_tage: 7,
   zoll_zahlungsziel_tage: 60,
 }

@@ -7,6 +7,10 @@ type SupabaseClient = Awaited<ReturnType<typeof createSupabaseServerClient>>
 export interface KonsolidierungsPartner {
   bestellung_id: string
   produkt_namen: string[]
+  bestelldatum: string | null
+  anzahl_40hq: number
+  anzahl_20dc: number
+  container_anteil: Record<string, number> | null
 }
 
 export interface FullBestellung {
@@ -45,9 +49,14 @@ export interface FullBestellung {
   konsolidierungsgruppe_id: string | null
   konsolidierungspartner: KonsolidierungsPartner[]
   container_anteil: Record<string, number> | null
+  snapshot_vor_konsolidierung: {
+    anzahl_40hq: number
+    anzahl_20dc: number
+    sku_mengen: Array<{ sku_id: string; menge_praktisch: number }>
+  } | null
 }
 
-type BaseRow = Omit<FullBestellung, 'produkte' | 'sku_mengen' | 'konsolidierungsgruppe_id' | 'konsolidierungspartner' | 'container_anteil'>
+type BaseRow = Omit<FullBestellung, 'produkte' | 'sku_mengen' | 'konsolidierungsgruppe_id' | 'konsolidierungspartner' | 'container_anteil' | 'snapshot_vor_konsolidierung'>
 
 export async function enrichBestellungen(
   supabase: SupabaseClient,
@@ -63,7 +72,7 @@ export async function enrichBestellungen(
       .select('id, bestellung_id, sku_id, menge_theoretisch, menge_nach_moq, menge_praktisch, begruendung_anpassung, is_trigger')
       .in('bestellung_id', ids),
     supabase.from('bestellungen_konsolidierungsmitglieder')
-      .select('bestellung_id, gruppe_id, container_anteil')
+      .select('bestellung_id, gruppe_id, container_anteil, snapshot_vor_konsolidierung')
       .in('bestellung_id', ids),
   ])
 
@@ -73,8 +82,13 @@ export async function enrichBestellungen(
     menge_theoretisch: number | null; menge_nach_moq: number | null; menge_praktisch: number
     begruendung_anpassung: string | null; is_trigger: boolean
   }> = skuMengenRes.data ?? []
-  const mitgliederRaw: Array<{ bestellung_id: string; gruppe_id: string; container_anteil: Record<string, number> | null }> =
-    (mitgliederRes.data ?? []) as Array<{ bestellung_id: string; gruppe_id: string; container_anteil: Record<string, number> | null }>
+  const mitgliederRaw: Array<{
+    bestellung_id: string; gruppe_id: string; container_anteil: Record<string, number> | null
+    snapshot_vor_konsolidierung: { anzahl_40hq: number; anzahl_20dc: number; sku_mengen: Array<{ sku_id: string; menge_praktisch: number }> } | null
+  }> = (mitgliederRes.data ?? []) as Array<{
+    bestellung_id: string; gruppe_id: string; container_anteil: Record<string, number> | null
+    snapshot_vor_konsolidierung: { anzahl_40hq: number; anzahl_20dc: number; sku_mengen: Array<{ sku_id: string; menge_praktisch: number }> } | null
+  }>
 
   // Build gruppe_id → [bestellung_id, ...] mapping for partner lookup
   const gruppeIds = [...new Set(mitgliederRaw.map(m => m.gruppe_id))]
@@ -94,17 +108,42 @@ export async function enrichBestellungen(
     gruppeToMitglieder.get(m.gruppe_id)!.push(m.bestellung_id)
   }
 
-  // Load produkt names for partner bestellungen
+  // Identify partner IDs outside the current batch
   const idsSet = new Set(ids)
   const partnerIds = [...new Set(alleMitgliederInGruppen.map(m => m.bestellung_id).filter(id => !idsSet.has(id)))]
 
+  // Fetch produkte + base data for external partners in parallel
   let partnerProdukteRaw: Array<{ bestellung_id: string; produkt_id: string }> = []
+  let partnerBaseRaw: Array<{ id: string; bestelldatum: string | null; anzahl_40hq: number; anzahl_20dc: number }> = []
   if (partnerIds.length > 0) {
-    const { data } = await supabase
-      .from('bestellungen_produkte')
-      .select('bestellung_id, produkt_id')
-      .in('bestellung_id', partnerIds)
-    partnerProdukteRaw = (data ?? []) as Array<{ bestellung_id: string; produkt_id: string }>
+    const [prodRes, baseRes] = await Promise.all([
+      supabase.from('bestellungen_produkte').select('bestellung_id, produkt_id').in('bestellung_id', partnerIds),
+      supabase.from('bestellungen').select('id, bestelldatum, anzahl_40hq, anzahl_20dc').in('id', partnerIds),
+    ])
+    partnerProdukteRaw = (prodRes.data ?? []) as Array<{ bestellung_id: string; produkt_id: string }>
+    partnerBaseRaw = (baseRes.data ?? []) as Array<{ id: string; bestelldatum: string | null; anzahl_40hq: number; anzahl_20dc: number }>
+  }
+
+  // Build unified base-data lookup covering both batch rows and external partners
+  const partnerBaseById = new Map<string, { bestelldatum: string | null; anzahl_40hq: number; anzahl_20dc: number }>()
+  for (const b of baseRows) partnerBaseById.set(b.id, { bestelldatum: b.bestelldatum, anzahl_40hq: 0, anzahl_20dc: 0 })
+  for (const b of partnerBaseRaw) partnerBaseById.set(b.id, b)
+  // Overwrite with actual container counts from base rows (which have the full data)
+  for (const b of baseRows as Array<BaseRow & { anzahl_40hq?: number; anzahl_20dc?: number }>) {
+    partnerBaseById.set(b.id, { bestelldatum: b.bestelldatum, anzahl_40hq: (b as { anzahl_40hq: number }).anzahl_40hq ?? 0, anzahl_20dc: (b as { anzahl_20dc: number }).anzahl_20dc ?? 0 })
+  }
+
+  // Build container_anteil lookup for ALL group members (not just current batch)
+  const containerAnteilAllById = new Map<string, Record<string, number> | null>()
+  for (const m of mitgliederRaw) containerAnteilAllById.set(m.bestellung_id, m.container_anteil)
+  if (gruppeIds.length > 0) {
+    const { data: allMitgliederAnteil } = await supabase
+      .from('bestellungen_konsolidierungsmitglieder')
+      .select('bestellung_id, container_anteil')
+      .in('gruppe_id', gruppeIds)
+    for (const m of (allMitgliederAnteil ?? []) as Array<{ bestellung_id: string; container_anteil: Record<string, number> | null }>) {
+      if (!containerAnteilAllById.has(m.bestellung_id)) containerAnteilAllById.set(m.bestellung_id, m.container_anteil)
+    }
   }
 
   // Collect all kategorie IDs for name lookup
@@ -121,19 +160,24 @@ export async function enrichBestellungen(
 
   const nameById = new Map(((cats ?? []) as Array<{ id: string; name: string }>).map(c => [c.id, c.name]))
 
-  // Build partner produkt_namen per bestellung_id
+  // Build partner produkt_namen per bestellung_id.
+  // Must include both the current-batch rows (produkteRaw) AND external partners (partnerProdukteRaw),
+  // because consolidated partners are often loaded in the same batch and filtered out of partnerIds.
   const partnerNamenByBestId = new Map<string, string[]>()
-  for (const p of partnerProdukteRaw) {
+  for (const p of [...produkteRaw, ...partnerProdukteRaw]) {
     if (!partnerNamenByBestId.has(p.bestellung_id)) partnerNamenByBestId.set(p.bestellung_id, [])
-    partnerNamenByBestId.get(p.bestellung_id)!.push(nameById.get(p.produkt_id) ?? '')
+    const name = nameById.get(p.produkt_id) ?? ''
+    if (name) partnerNamenByBestId.get(p.bestellung_id)!.push(name)
   }
 
   // Build per-bestellung: gruppe_id, konsolidierungspartner, container_anteil
   const gruppeIdByBestId = new Map<string, string>()
   const containerAnteilByBestId = new Map<string, Record<string, number> | null>()
+  const snapshotByBestId = new Map<string, FullBestellung['snapshot_vor_konsolidierung']>()
   for (const m of mitgliederRaw) {
     gruppeIdByBestId.set(m.bestellung_id, m.gruppe_id)
     containerAnteilByBestId.set(m.bestellung_id, m.container_anteil)
+    snapshotByBestId.set(m.bestellung_id, m.snapshot_vor_konsolidierung)
   }
 
   const partnerByBestId = new Map<string, KonsolidierungsPartner[]>()
@@ -141,10 +185,17 @@ export async function enrichBestellungen(
     const allMitglieder = gruppeToMitglieder.get(gruppeId) ?? []
     const partner: KonsolidierungsPartner[] = allMitglieder
       .filter(mid => mid !== bestId)
-      .map(mid => ({
-        bestellung_id: mid,
-        produkt_namen: partnerNamenByBestId.get(mid) ?? [],
-      }))
+      .map(mid => {
+        const base = partnerBaseById.get(mid)
+        return {
+          bestellung_id: mid,
+          produkt_namen: partnerNamenByBestId.get(mid) ?? [],
+          bestelldatum: base?.bestelldatum ?? null,
+          anzahl_40hq: base?.anzahl_40hq ?? 0,
+          anzahl_20dc: base?.anzahl_20dc ?? 0,
+          container_anteil: containerAnteilAllById.get(mid) ?? null,
+        }
+      })
     partnerByBestId.set(bestId, partner)
   }
 
@@ -175,6 +226,7 @@ export async function enrichBestellungen(
     konsolidierungsgruppe_id: gruppeIdByBestId.get(b.id) ?? null,
     konsolidierungspartner: partnerByBestId.get(b.id) ?? [],
     container_anteil: containerAnteilByBestId.get(b.id) ?? null,
+    snapshot_vor_konsolidierung: snapshotByBestId.get(b.id) ?? null,
   }))
 }
 
@@ -184,9 +236,13 @@ interface BestellungForKosten {
   id: string
   bestelldatum: string | null
   produktionsende_datum: string | null
+  produktionsende_datum_ist?: string | null
   shippingdatum: string | null
+  shippingdatum_ist?: string | null
   ankunftsdatum: string | null
+  ankunftsdatum_ist?: string | null
   verfuegbarkeitsdatum: string | null
+  verfuegbarkeitsdatum_ist?: string | null
   anzahl_40hq: number
   anzahl_20dc: number
   produkt_ids: string[]
@@ -207,6 +263,17 @@ export async function generiereUndSpeichereBestellkosten(
     .eq('user_id', userId)
     .eq('ist_automatisch', true)
     .in('bestellung_id', bestellungen.map(b => b.id))
+
+  // Load container_anteil for consolidated orders so cost calculation uses decimal fractions
+  const { data: mitgliederKosten } = await supabase
+    .from('bestellungen_konsolidierungsmitglieder')
+    .select('bestellung_id, container_anteil')
+    .in('bestellung_id', bestellungen.map(b => b.id))
+
+  const containerAnteilMap = new Map<string, Record<string, number> | null>()
+  for (const m of (mitgliederKosten ?? []) as Array<{ bestellung_id: string; container_anteil: Record<string, number> | null }>) {
+    containerAnteilMap.set(m.bestellung_id, m.container_anteil)
+  }
 
   const allProduktIds = [...new Set(bestellungen.flatMap(b => b.produkt_ids))]
   if (allProduktIds.length === 0) return
@@ -319,12 +386,13 @@ export async function generiereUndSpeichereBestellkosten(
 
     const bestellungDaten: BestellungDaten = {
       bestelldatum: b.bestelldatum,
-      produktionsende_datum: b.produktionsende_datum,
-      shippingdatum: b.shippingdatum,
-      ankunftsdatum: b.ankunftsdatum,
-      verfuegbarkeitsdatum: b.verfuegbarkeitsdatum,
+      produktionsende_datum: b.produktionsende_datum_ist ?? b.produktionsende_datum,
+      shippingdatum: b.shippingdatum_ist ?? b.shippingdatum,
+      ankunftsdatum: b.ankunftsdatum_ist ?? b.ankunftsdatum,
+      verfuegbarkeitsdatum: b.verfuegbarkeitsdatum_ist ?? b.verfuegbarkeitsdatum,
       anzahl_40hq: b.anzahl_40hq,
       anzahl_20dc: b.anzahl_20dc,
+      container_anteil: containerAnteilMap.get(b.id) ?? null,
       produkte: bestProduktIds.map(pid => ({
         produkt_id: pid,
         sku_mengen: produktSkuMap.get(pid) ?? [],
@@ -368,7 +436,7 @@ export async function ladeUndRegenerierePlanBestellkosten(
 ): Promise<void> {
   const { data: rows } = await supabase
     .from('bestellungen')
-    .select('id, bestelldatum, produktionsende_datum, shippingdatum, ankunftsdatum, verfuegbarkeitsdatum, anzahl_40hq, anzahl_20dc')
+    .select('id, bestelldatum, produktionsende_datum, produktionsende_datum_ist, shippingdatum, shippingdatum_ist, ankunftsdatum, ankunftsdatum_ist, verfuegbarkeitsdatum, verfuegbarkeitsdatum_ist, anzahl_40hq, anzahl_20dc')
     .eq('user_id', userId)
     .eq('status', 'plan')
     .limit(500)
@@ -391,9 +459,13 @@ export async function ladeUndRegenerierePlanBestellkosten(
     id: string
     bestelldatum: string | null
     produktionsende_datum: string | null
+    produktionsende_datum_ist: string | null
     shippingdatum: string | null
+    shippingdatum_ist: string | null
     ankunftsdatum: string | null
+    ankunftsdatum_ist: string | null
     verfuegbarkeitsdatum: string | null
+    verfuegbarkeitsdatum_ist: string | null
     anzahl_40hq: number
     anzahl_20dc: number
   }>).map(b => ({

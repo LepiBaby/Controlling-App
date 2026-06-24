@@ -21,7 +21,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   // Load bestellung with fields needed for cost regeneration
   const { data: bestellung, error: bErr } = await supabase
     .from('bestellungen')
-    .select('id, bestelldatum, produktionsende_datum, shippingdatum, ankunftsdatum, verfuegbarkeitsdatum, anzahl_40hq, anzahl_20dc')
+    .select('id, bestelldatum, produktionsende_datum, produktionsende_datum_ist, shippingdatum, shippingdatum_ist, ankunftsdatum, ankunftsdatum_ist, verfuegbarkeitsdatum, verfuegbarkeitsdatum_ist, anzahl_40hq, anzahl_20dc')
     .eq('id', id)
     .eq('user_id', user!.id)
     .maybeSingle()
@@ -38,17 +38,24 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
   // Regenerate auto costs from current Stammdaten on every load
   const b = bestellung as {
-    id: string; bestelldatum: string | null; produktionsende_datum: string | null
-    shippingdatum: string | null; ankunftsdatum: string | null; verfuegbarkeitsdatum: string | null
+    id: string; bestelldatum: string | null
+    produktionsende_datum: string | null; produktionsende_datum_ist: string | null
+    shippingdatum: string | null; shippingdatum_ist: string | null
+    ankunftsdatum: string | null; ankunftsdatum_ist: string | null
+    verfuegbarkeitsdatum: string | null; verfuegbarkeitsdatum_ist: string | null
     anzahl_40hq: number; anzahl_20dc: number
   }
   await generiereUndSpeichereBestellkosten(supabase, user!.id, [{
     id: b.id,
     bestelldatum: b.bestelldatum,
     produktionsende_datum: b.produktionsende_datum,
+    produktionsende_datum_ist: b.produktionsende_datum_ist,
     shippingdatum: b.shippingdatum,
+    shippingdatum_ist: b.shippingdatum_ist,
     ankunftsdatum: b.ankunftsdatum,
+    ankunftsdatum_ist: b.ankunftsdatum_ist,
     verfuegbarkeitsdatum: b.verfuegbarkeitsdatum,
+    verfuegbarkeitsdatum_ist: b.verfuegbarkeitsdatum_ist,
     anzahl_40hq: b.anzahl_40hq,
     anzahl_20dc: b.anzahl_20dc,
     produkt_ids,

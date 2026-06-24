@@ -68,8 +68,6 @@ function shiftToPaymentWeek(
   const shiftedMs = shiftedMonday.getTime()
   const basisMs = basisMonday.getTime()
 
-  if (shiftedMs <= basisMs) return getISOWeekInfo(basisMonday)
-
   const weeksDiff = (shiftedMs - basisMs) / (7 * 86400000)
   const n = Math.ceil(weeksDiff / R)
   return getISOWeekInfo(new Date(basisMs + n * R * 7 * 86400000))
@@ -91,11 +89,13 @@ interface RetourenAllgEinstRow { zahlungsziel_tage: number | null; gruppierung: 
 interface KulanzEinstRow { sales_plattform_id: string; produkt_id: string; quote_prozent: number | null; produktkosten_pro_stueck_euro_netto: number | null; versandkosten_pro_stueck_euro_netto: number | null }
 interface KulanzPlattRow { sales_plattform_id: string; zahlungsziel_tage: number | null; gruppierung: string | null; naechste_zahlung_basis_kw: number | null; naechste_zahlung_basis_jahr: number | null }
 interface MktPlanRow { produkt_id: string; kategorie_id: string; kw_year: number; kw_number: number; marketingkosten_pct_manuell: number | null }
-interface MktKatEinstRow { kategorie_id: string; zahlungsziel_tage: number | null; gruppierung: string | null; naechste_zahlung_basis_kw: number | null; naechste_zahlung_basis_jahr: number | null }
-interface BestellungRow { id: string; status: string; bestelldatum: string | null; ankunftsdatum: string | null; ankunftsdatum_ist: string | null }
+interface MktKatEinstRow { kategorie_id: string; zahlungsziel_tage: number | null; gruppierung: string | null; naechste_zahlung_basis_kw: number | null; naechste_zahlung_basis_jahr: number | null; sales_plattform_id: string | null }
+interface BestellungRow { id: string; status: string; bestelldatum: string | null; ankunftsdatum: string | null; ankunftsdatum_ist: string | null; verfuegbarkeitsdatum: string | null; verfuegbarkeitsdatum_ist: string | null }
 interface BestellProduktRow { bestellung_id: string; produkt_id: string }
 interface BestellKostRow { bestellung_id: string; kpi_kategorie_id: string; datum: string | null; nettobetrag: number }
 interface UstRow { kategorie_id: string; ebene: number; ust_satz: number | null }
+interface BestandTransFullRow { sku_id: string; datum: string; anfangsbestand: number; einlagerungen: number; anpassungen_positiv: number; anpassungen_negativ: number; warenverluste: number; sendungen_manuell: number; bestand_sendungen: Array<{ menge: number }> }
+interface BestellungSkuMengeRow { sku_id: string; menge_praktisch: number; bestellung_id: string }
 
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
@@ -108,6 +108,11 @@ export async function GET(request: Request) {
   const vonJahr = parseInt(searchParams.get('von_jahr') ?? '', 10)
   const bisKw = parseInt(searchParams.get('bis_kw') ?? '', 10)
   const bisJahr = parseInt(searchParams.get('bis_jahr') ?? '', 10)
+  // Weeks strictly before this are "past" — only manual absatz used, no auto-calc fallback
+  const ersteZukunftKw = parseInt(searchParams.get('erste_zukunftskw') ?? '', 10)
+  const ersteZukunftJahr = parseInt(searchParams.get('erste_zukunftsjahr') ?? '', 10)
+  const hatZukunftsgrenze = !isNaN(ersteZukunftKw) && !isNaN(ersteZukunftJahr)
+  const zukunftsGrenzeIdx = hatZukunftsgrenze ? ersteZukunftJahr * 54 + ersteZukunftKw : 0
 
   if ([vonKw, vonJahr, bisKw, bisJahr].some(n => isNaN(n))) {
     return NextResponse.json({ error: 'von_kw, von_jahr, bis_kw, bis_jahr sind erforderlich' }, { status: 400 })
@@ -153,10 +158,12 @@ export async function GET(request: Request) {
   const kats = (katsResult.data ?? []) as KatRow[]
 
   const childrenMap = new Map<string, string[]>()
+  const parentMap = new Map<string, string>()
   for (const k of kats) {
     if (k.parent_id) {
       if (!childrenMap.has(k.parent_id)) childrenMap.set(k.parent_id, [])
       childrenMap.get(k.parent_id)!.push(k.id)
+      parentMap.set(k.id, k.parent_id)
     }
   }
 
@@ -222,6 +229,7 @@ export async function GET(request: Request) {
     mktPlanRes, mktKatEinstRes, auszahlungsMktRes,
     bestellungenRes, bestellProdRes, bestellKostRes,
     ustRes, umsatzTransRes,
+    bestandTransFullRes, ustEbeneRes, mktEinstRes,
   ] = await Promise.all([
     supabase.from('absatz_planung')
       .select('produkt_id, sales_plattform_id, kw_year, kw_number, absatz_manuell, effektiver_vk_manuell, sku_id')
@@ -266,13 +274,13 @@ export async function GET(request: Request) {
       .select('produkt_id, kategorie_id, kw_year, kw_number, marketingkosten_pct_manuell')
       .eq('user_id', user!.id).in('kw_year', planYears).limit(5000),
     supabase.from('marketing_kategorie_einstellungen')
-      .select('kategorie_id, zahlungsziel_tage, gruppierung, naechste_zahlung_basis_kw, naechste_zahlung_basis_jahr')
+      .select('kategorie_id, zahlungsziel_tage, gruppierung, naechste_zahlung_basis_kw, naechste_zahlung_basis_jahr, sales_plattform_id')
       .eq('user_id', user!.id).limit(100),
     supabase.from('auszahlungs_marketing_gruppen')
       .select('kpi_kategorie_id, inkludiert')
       .eq('user_id', user!.id).limit(500),
     supabase.from('bestellungen')
-      .select('id, status, bestelldatum, ankunftsdatum, ankunftsdatum_ist')
+      .select('id, status, bestelldatum, ankunftsdatum, ankunftsdatum_ist, verfuegbarkeitsdatum, verfuegbarkeitsdatum_ist')
       .eq('user_id', user!.id).in('status', ['plan', 'laufend']).limit(500),
     supabase.from('bestellungen_produkte')
       .select('bestellung_id, produkt_id')
@@ -287,19 +295,61 @@ export async function GET(request: Request) {
       .select('produkt_id, kategorie_id, leistungsdatum, betrag')
       .gte('leistungsdatum', histStartStr).lt('leistungsdatum', todayStr)
       .not('produkt_id', 'is', null).limit(30000),
+    skus.length > 0
+      ? supabase.from('bestand_transaktionen')
+          .select('sku_id, datum, anfangsbestand, einlagerungen, anpassungen_positiv, anpassungen_negativ, warenverluste, sendungen_manuell, bestand_sendungen(menge)')
+          .lte('datum', todayStr)
+          .in('sku_id', skus.map(s => s.id))
+          .order('datum', { ascending: false })
+          .limit(5000)
+      : Promise.resolve({ data: [], error: null }),
+    supabase.from('ust_l1_ebene_auswahl')
+      .select('kategorie_id, ebene')
+      .eq('user_id', user!.id).limit(500),
+    supabase.from('marketing_einstellungen')
+      .select('kategorie_id, produkt_id')
+      .eq('user_id', user!.id).neq('berechnungsart', 'keine').limit(500),
   ])
+
+  // Second fetch: bestellungen_sku_mengen (needs bestellung IDs from first batch)
+  const bestellungIdsForMengen = (bestellungenRes.data ?? []).map((r: BestellungRow) => r.id)
+  const skuMengenRes = bestellungIdsForMengen.length > 0
+    ? await supabase.from('bestellungen_sku_mengen')
+        .select('sku_id, menge_praktisch, bestellung_id')
+        .in('bestellung_id', bestellungIdsForMengen)
+        .limit(5000)
+    : { data: [], error: null }
 
   // ── 4. Build lookup maps ─────────────────────────────────────────────────────
 
   // UST
-  const ustRateMap = new Map<string, number>()
+  const ustRateMap = new Map<string, number>()  // `kategorie_id:ebene` → ust_satz
   for (const r of (ustRes.data ?? []) as UstRow[]) {
     if (r.ust_satz != null) ustRateMap.set(`${r.kategorie_id}:${r.ebene}`, Number(r.ust_satz))
   }
+  // Active ebene per L1 category as explicitly selected by the user (1=Gesamt, 2=Aufgeteilt)
+  const ustEbeneMap = new Map<string, 1 | 2>()
+  for (const r of (ustEbeneRes.data ?? []) as { kategorie_id: string; ebene: number }[]) {
+    ustEbeneMap.set(r.kategorie_id, r.ebene as 1 | 2)
+  }
   function getUstMultiplier(specificId: string | null, parentId: string | null): number {
-    if (specificId) { const r2 = ustRateMap.get(`${specificId}:2`); if (r2 != null) return 1 + r2 / 100 }
-    if (parentId) { const r1 = ustRateMap.get(`${parentId}:1`); if (r1 != null) return 1 + r1 / 100 }
-    if (specificId) { const r1 = ustRateMap.get(`${specificId}:1`); if (r1 != null) return 1 + r1 / 100 }
+    if (parentId) {
+      const ebene = ustEbeneMap.get(parentId) ?? 1  // default: Gesamt (ebene=1)
+      if (ebene === 1) {
+        const r = ustRateMap.get(`${parentId}:1`)
+        if (r != null) return 1 + r / 100
+      } else if (specificId) {
+        const r = ustRateMap.get(`${specificId}:2`)
+        if (r != null) return 1 + r / 100
+      }
+    }
+    // Fallback when no parent or rate missing: prefer L2, then L1 on specificId
+    if (specificId) {
+      const r2 = ustRateMap.get(`${specificId}:2`)
+      if (r2 != null) return 1 + r2 / 100
+      const r1 = ustRateMap.get(`${specificId}:1`)
+      if (r1 != null) return 1 + r1 / 100
+    }
     return 1
   }
 
@@ -315,7 +365,8 @@ export async function GET(request: Request) {
   const vkManualMap = new Map<string, number>()         // plattId:prodId:year:week → vk
   for (const r of (absatzPlanRes.data ?? []) as AbsatzPlanRow[]) {
     if (r.absatz_manuell != null) {
-      absatzManualMap.set(`${r.sales_plattform_id}:${r.produkt_id}:${r.kw_year}:${r.kw_number}`, Number(r.absatz_manuell))
+      const key = `${r.sales_plattform_id}:${r.produkt_id}:${r.kw_year}:${r.kw_number}`
+      absatzManualMap.set(key, (absatzManualMap.get(key) ?? 0) + Number(r.absatz_manuell))
     }
     if (r.sku_id == null && r.effektiver_vk_manuell != null) {
       vkManualMap.set(`${r.sales_plattform_id}:${r.produkt_id}:${r.kw_year}:${r.kw_number}`, Number(r.effektiver_vk_manuell))
@@ -373,6 +424,8 @@ export async function GET(request: Request) {
   function getAbsatz(plattId: string, prodId: string, year: number, week: number): number {
     const manual = absatzManualMap.get(`${plattId}:${prodId}:${year}:${week}`)
     if (manual != null) return manual
+    // Past weeks: no auto-calc fallback — only use what was actually planned
+    if (hatZukunftsgrenze && year * 54 + week < zukunftsGrenzeIdx) return 0
     return calcAutoAbsatz(prodId, plattId)
   }
 
@@ -380,25 +433,19 @@ export async function GET(request: Request) {
     return vkManualMap.get(`${plattId}:${prodId}:${year}:${week}`) ?? 0
   }
 
-  // Versandausgaben settings
-  const versandEinstMap = new Map<string, VersandEinstRow>()
+  // Versandausgaben settings (plattformübergreifend: erste Einstellung je Produkt)
+  const versandEinstByProd = new Map<string, VersandEinstRow>()
   for (const r of (versandEinstRes.data ?? []) as VersandEinstRow[]) {
-    versandEinstMap.set(`${r.sales_plattform_id}:${r.produkt_id}`, r)
+    if (!versandEinstByProd.has(r.produkt_id)) versandEinstByProd.set(r.produkt_id, r)
   }
-  const versandPlattMap = new Map<string, VersandPlattRow>()
-  for (const r of (versandPlattRes.data ?? []) as VersandPlattRow[]) {
-    versandPlattMap.set(r.sales_plattform_id, r)
-  }
+  const vPlattGlobal = ((versandPlattRes.data ?? []) as VersandPlattRow[])[0] ?? null
 
-  // Lagerausgaben settings
-  const lagerEinstMap = new Map<string, LagerEinstRow>()
+  // Lagerausgaben settings (plattformübergreifend: erste Einstellung je Produkt)
+  const lagerEinstByProd = new Map<string, LagerEinstRow>()
   for (const r of (lagerEinstRes.data ?? []) as LagerEinstRow[]) {
-    lagerEinstMap.set(`${r.sales_plattform_id}:${r.produkt_id}`, r)
+    if (!lagerEinstByProd.has(r.produkt_id)) lagerEinstByProd.set(r.produkt_id, r)
   }
-  const lagerPlattMap = new Map<string, LagerPlattRow>()
-  for (const r of (lagerPlattRes.data ?? []) as LagerPlattRow[]) {
-    lagerPlattMap.set(r.sales_plattform_id, r)
-  }
+  const lPlattGlobal = ((lagerPlattRes.data ?? []) as LagerPlattRow[])[0] ?? null
 
   // Container M3 per product
   const m3ByProd = new Map<string, number>()
@@ -416,15 +463,12 @@ export async function GET(request: Request) {
   }
   const retourenAllgEinst = retourenAllgEinstRes.data as RetourenAllgEinstRow | null
 
-  // Ersatzteile/Kulanz settings
-  const kulanzEinstMap = new Map<string, KulanzEinstRow>()
+  // Ersatzteile/Kulanz settings (plattformübergreifend: erste Einstellung je Produkt)
+  const kulanzEinstByProd = new Map<string, KulanzEinstRow>()
   for (const r of (kulanzEinstRes.data ?? []) as KulanzEinstRow[]) {
-    kulanzEinstMap.set(`${r.sales_plattform_id}:${r.produkt_id}`, r)
+    if (!kulanzEinstByProd.has(r.produkt_id)) kulanzEinstByProd.set(r.produkt_id, r)
   }
-  const kulanzPlattMap = new Map<string, KulanzPlattRow>()
-  for (const r of (kulanzPlattRes.data ?? []) as KulanzPlattRow[]) {
-    kulanzPlattMap.set(r.sales_plattform_id, r)
-  }
+  const kPlattGlobal = ((kulanzPlattRes.data ?? []) as KulanzPlattRow[])[0] ?? null
 
   // Marketing plan pct
   const mktPlanMap = new Map<string, number>()
@@ -436,6 +480,11 @@ export async function GET(request: Request) {
   const mktKatEinstMap = new Map<string, MktKatEinstRow>()
   for (const r of (mktKatEinstRes.data ?? []) as MktKatEinstRow[]) {
     mktKatEinstMap.set(r.kategorie_id, r)
+  }
+
+  const aktiveMktKombis = new Set<string>()
+  for (const r of (mktEinstRes.data ?? []) as { kategorie_id: string; produkt_id: string }[]) {
+    aktiveMktKombis.add(`${r.produkt_id}:${r.kategorie_id}`)
   }
 
   // Historical umsatz for retourenquote (product-level, across all platforms)
@@ -479,6 +528,85 @@ export async function GET(request: Request) {
     bestellProdByBest.get(r.bestellung_id)!.push(r.produkt_id)
   }
 
+  // ── 4b. Geplanter Bestand je Produkt je KW (für Lagerausgaben) ──────────────
+
+  function closingBalanceFull(row: BestandTransFullRow): number {
+    const sendungenSum = (row.bestand_sendungen ?? []).reduce((s, x) => s + x.menge, 0)
+    return Math.max(0,
+      row.anfangsbestand + row.einlagerungen + row.anpassungen_positiv
+      - row.anpassungen_negativ - row.warenverluste - row.sendungen_manuell - sendungenSum
+    )
+  }
+
+  // Letzter Abschlussbestand je SKU (rows kommen DESC → erster Row je SKU = aktuellster)
+  const currentBestandBySku = new Map<string, number>()
+  for (const row of (bestandTransFullRes.data ?? []) as BestandTransFullRow[]) {
+    if (!currentBestandBySku.has(row.sku_id)) {
+      currentBestandBySku.set(row.sku_id, closingBalanceFull(row))
+    }
+  }
+
+  // Geplanter Absatz je SKU je KW (Summe über alle Plattformen, für Simulation)
+  const absatzBySkuKwRaw = new Map<string, Map<string, number>>()
+  for (const r of (absatzPlanRes.data ?? []) as AbsatzPlanRow[]) {
+    if (r.sku_id == null || r.absatz_manuell == null) continue
+    const kwKey = `${r.kw_year}:${r.kw_number}`
+    if (!absatzBySkuKwRaw.has(r.sku_id)) absatzBySkuKwRaw.set(r.sku_id, new Map())
+    const skuMap = absatzBySkuKwRaw.get(r.sku_id)!
+    skuMap.set(kwKey, (skuMap.get(kwKey) ?? 0) + Number(r.absatz_manuell))
+  }
+
+  // Lagerzugang je SKU je KW aus offenen Bestellungen (nach verfuegbarkeitsdatum)
+  const zugangBySkuKw = new Map<string, Map<string, number>>()
+  const bestellungVerfuegbarMap = new Map<string, string>()
+  for (const b of (bestellungenRes.data ?? []) as BestellungRow[]) {
+    const verfuegbar = b.verfuegbarkeitsdatum_ist ?? b.verfuegbarkeitsdatum
+    if (verfuegbar) bestellungVerfuegbarMap.set(b.id, verfuegbar)
+  }
+  for (const sm of (skuMengenRes.data ?? []) as BestellungSkuMengeRow[]) {
+    const verfuegbar = bestellungVerfuegbarMap.get(sm.bestellung_id)
+    if (!verfuegbar || sm.menge_praktisch <= 0) continue
+    const d = new Date(verfuegbar + 'T00:00:00Z')
+    const { year: vy, week: vw } = getISOWeekInfo(d)
+    const kwKey = `${vy}:${vw}`
+    if (!zugangBySkuKw.has(sm.sku_id)) zugangBySkuKw.set(sm.sku_id, new Map())
+    const skuMap = zugangBySkuKw.get(sm.sku_id)!
+    skuMap.set(kwKey, (skuMap.get(kwKey) ?? 0) + sm.menge_praktisch)
+  }
+
+  // Simulation: geplanter Bestand je Produkt je KW (Summe aller SKUs)
+  const geplanterBestandByProdKw = new Map<string, Map<string, number>>()
+  for (const prod of produkte) {
+    const prodSkuIds = skusByProdukt.get(prod.id) ?? []
+    const runningBySku = new Map<string, number>()
+    for (const skuId of prodSkuIds) {
+      runningBySku.set(skuId, currentBestandBySku.get(skuId) ?? 0)
+    }
+    const lastAbsatzBySku = new Map<string, number>()
+    const kwBestand = new Map<string, number>()
+    for (const { year, week } of planWeeks) {
+      const kwKey = `${year}:${week}`
+      let totalBestand = 0
+      for (const skuId of prodSkuIds) {
+        const zugang = zugangBySkuKw.get(skuId)?.get(kwKey) ?? 0
+        const rawAbsatz = absatzBySkuKwRaw.get(skuId)?.get(kwKey)
+        if (rawAbsatz !== undefined) lastAbsatzBySku.set(skuId, rawAbsatz)
+        const absatz = lastAbsatzBySku.get(skuId) ?? 0
+        const current = runningBySku.get(skuId) ?? 0
+        // Mirror lagerbestand-verlauf: round bestand_vorher for zero-stock guard,
+        // then round the result and carry the integer forward — same as Wochendetails.
+        const bestandVorher = Math.round(current)
+        const effectiveAbsatz = bestandVorher === 0 ? 0 : absatz
+        const nachher = Math.round(Math.max(0, current + zugang - effectiveAbsatz))
+        runningBySku.set(skuId, nachher)
+        totalBestand += nachher
+      }
+      kwBestand.set(kwKey, totalBestand)
+
+    }
+    geplanterBestandByProdKw.set(prod.id, kwBestand)
+  }
+
   // ── 5. Accumulate results ────────────────────────────────────────────────────
 
   // key: `${kategorie_id}:${produkt_id}:${year}:${week}` → wert
@@ -505,7 +633,9 @@ export async function GET(request: Request) {
       const d = new Date(datumStr + 'T00:00:00Z')
       const { year, week } = getISOWeekInfo(d)
       if (!inRange(year, week)) continue
-      const perProd = Number(k.nettobetrag) / prodIds.length
+      const katParentId = parentMap.get(k.kpi_kategorie_id) ?? null
+      const ust = getUstMultiplier(k.kpi_kategorie_id, katParentId)
+      const perProd = (Number(k.nettobetrag) / prodIds.length) * ust
       for (const prodId of prodIds) {
         addWert(k.kpi_kategorie_id, prodId, year, week, perProd)
       }
@@ -518,59 +648,62 @@ export async function GET(request: Request) {
   const retourenL2 = retourenL2Id[0] ?? null
   const kulanzL2 = kulanzL2Id[0] ?? null
 
-  for (const platt of plattformen) {
-    const vPlatt = versandPlattMap.get(platt.id)
-    const lPlatt = lagerPlattMap.get(platt.id)
-    const kPlatt = kulanzPlattMap.get(platt.id)
+  for (const prod of produkte) {
+    const vEinst = versandEinstByProd.get(prod.id)
+    const lEinst = lagerEinstByProd.get(prod.id)
+    const kEinst = kulanzEinstByProd.get(prod.id)
+    const m3 = m3ByProd.get(prod.id) ?? 0
 
-    for (const prod of produkte) {
-      const vEinst = versandEinstMap.get(`${platt.id}:${prod.id}`)
-      const lEinst = lagerEinstMap.get(`${platt.id}:${prod.id}`)
-      const kEinst = kulanzEinstMap.get(`${platt.id}:${prod.id}`)
-      const m3 = m3ByProd.get(prod.id) ?? 0
+    const versandKosten = vEinst
+      ? (Number(vEinst.versandgebuehr_spediteur ?? 0) + Number(vEinst.versandgebuehr_3pl ?? 0))
+      : 0
+    const lagerKosten = lEinst ? Number(lEinst.lagerkosten_euro_m3 ?? 0) : 0
+    const kulanzQuote = kEinst ? Number(kEinst.quote_prozent ?? 0) / 100 : 0
+    const kulanzKosten = kEinst
+      ? (Number(kEinst.produktkosten_pro_stueck_euro_netto ?? 0) + Number(kEinst.versandkosten_pro_stueck_euro_netto ?? 0))
+      : 0
 
-      const versandKosten = vEinst
-        ? (Number(vEinst.versandgebuehr_spediteur ?? 0) + Number(vEinst.versandgebuehr_3pl ?? 0))
-        : 0
-      const lagerKosten = lEinst ? Number(lEinst.lagerkosten_euro_m3 ?? 0) : 0
-      const kulanzQuote = kEinst ? Number(kEinst.quote_prozent ?? 0) / 100 : 0
-      const kulanzKosten = kEinst
-        ? (Number(kEinst.produktkosten_pro_stueck_euro_netto ?? 0) + Number(kEinst.versandkosten_pro_stueck_euro_netto ?? 0))
-        : 0
+    for (const { year, week } of planWeeks) {
+      const kwKey = `${year}:${week}`
 
-      for (const { year, week } of planWeeks) {
-        const absatz = getAbsatz(platt.id, prod.id, year, week)
-        if (absatz <= 0) continue
+      // Gesamtabsatz über alle Plattformen (für Versand und Kulanz)
+      let totalAbsatz = 0
+      for (const platt of plattformen) {
+        totalAbsatz += getAbsatz(platt.id, prod.id, year, week)
+      }
 
-        // Versandausgaben
-        if (versandL2 && versandKosten > 0 && vPlatt) {
-          const rawVersand = absatz * versandKosten
-          const pw = shiftToPaymentWeek(year, week, vPlatt.zahlungsziel_tage, vPlatt.gruppierung, vPlatt.naechste_zahlung_basis_kw, vPlatt.naechste_zahlung_basis_jahr)
-          const ust = getUstMultiplier(versandL2, vertriebL1Id)
-          addWert(versandL2, prod.id, pw.year, pw.week, rawVersand * ust)
-        }
+      // Versandausgaben
+      if (versandL2 && versandKosten > 0 && vPlattGlobal && totalAbsatz > 0) {
+        const rawVersand = totalAbsatz * versandKosten
+        const pw = shiftToPaymentWeek(year, week, vPlattGlobal.zahlungsziel_tage, vPlattGlobal.gruppierung, vPlattGlobal.naechste_zahlung_basis_kw, vPlattGlobal.naechste_zahlung_basis_jahr)
+        const ust = getUstMultiplier(versandL2, vertriebL1Id)
+        addWert(versandL2, prod.id, pw.year, pw.week, rawVersand * ust)
+      }
 
-        // Lagerausgaben
-        if (lagerL2 && lagerKosten > 0 && m3 > 0 && lPlatt) {
-          const rawLager = absatz * lagerKosten * m3
-          const pw = shiftToPaymentWeek(year, week, lPlatt.zahlungsziel_tage, lPlatt.gruppierung, lPlatt.naechste_zahlung_basis_kw, lPlatt.naechste_zahlung_basis_jahr)
+      // Lagerausgaben (basiert auf geplantem Bestand, nicht Absatz)
+      if (lagerL2 && lagerKosten > 0 && m3 > 0 && lPlattGlobal) {
+        const geplanterBestand = geplanterBestandByProdKw.get(prod.id)?.get(kwKey) ?? 0
+        if (geplanterBestand > 0) {
+          const rawLager = geplanterBestand * lagerKosten * m3
+          const pw = shiftToPaymentWeek(year, week, lPlattGlobal.zahlungsziel_tage, lPlattGlobal.gruppierung, lPlattGlobal.naechste_zahlung_basis_kw, lPlattGlobal.naechste_zahlung_basis_jahr)
           const ust = getUstMultiplier(lagerL2, vertriebL1Id)
           addWert(lagerL2, prod.id, pw.year, pw.week, rawLager * ust)
         }
+      }
 
-        // Ersatzteile/Kulanz
-        if (kulanzL2 && kulanzQuote > 0 && kulanzKosten > 0 && kPlatt) {
-          const rawKulanz = absatz * kulanzQuote * kulanzKosten
-          const pw = shiftToPaymentWeek(year, week, kPlatt.zahlungsziel_tage, kPlatt.gruppierung, kPlatt.naechste_zahlung_basis_kw, kPlatt.naechste_zahlung_basis_jahr)
-          const ust = getUstMultiplier(kulanzL2, vertriebL1Id)
-          addWert(kulanzL2, prod.id, pw.year, pw.week, rawKulanz * ust)
-        }
+      // Ersatzteile/Kulanz
+      if (kulanzL2 && kulanzQuote > 0 && kulanzKosten > 0 && totalAbsatz > 0) {
+        const rawKulanz = totalAbsatz * kulanzQuote * kulanzKosten
+        const pw = shiftToPaymentWeek(year, week, kPlattGlobal?.zahlungsziel_tage ?? null, kPlattGlobal?.gruppierung ?? null, kPlattGlobal?.naechste_zahlung_basis_kw ?? null, kPlattGlobal?.naechste_zahlung_basis_jahr ?? null)
+        const ust = getUstMultiplier(kulanzL2, vertriebL1Id)
+        addWert(kulanzL2, prod.id, pw.year, pw.week, rawKulanz * ust)
       }
     }
   }
 
   // Retourenausgaben (platform-agnostic zahlungsziel)
-  if (retourenL2 && retourenAllgEinst) {
+  // retourenAllgEinst may be null — if so, no payment shift is applied (cost lands in source week)
+  if (retourenL2) {
     for (const prod of produkte) {
       const retEinst = retourenAllgProdMap.get(prod.id)
       if (!retEinst) continue
@@ -587,7 +720,7 @@ export async function GET(request: Request) {
         if (totalAbsatz <= 0) continue
 
         const rawRetouren = quote * totalAbsatz * handlingKosten
-        const pw = shiftToPaymentWeek(year, week, retourenAllgEinst.zahlungsziel_tage, retourenAllgEinst.gruppierung, retourenAllgEinst.naechste_zahlung_basis_kw, retourenAllgEinst.naechste_zahlung_basis_jahr)
+        const pw = shiftToPaymentWeek(year, week, retourenAllgEinst?.zahlungsziel_tage ?? null, retourenAllgEinst?.gruppierung ?? null, retourenAllgEinst?.naechste_zahlung_basis_kw ?? null, retourenAllgEinst?.naechste_zahlung_basis_jahr ?? null)
         const ust = getUstMultiplier(retourenL2, vertriebL1Id)
         addWert(retourenL2, prod.id, pw.year, pw.week, rawRetouren * ust)
       }
@@ -597,15 +730,20 @@ export async function GET(request: Request) {
   // ── 5f. Marketingausgaben ────────────────────────────────────────────────────
   for (const mktKatId of unassignedMktL2Ids) {
     const mktKatEinst = mktKatEinstMap.get(mktKatId)
+    const assignedPlattformId = mktKatEinst?.sales_plattform_id ?? null
     for (const prod of produkte) {
+      if (!aktiveMktKombis.has(`${prod.id}:${mktKatId}`)) continue
       for (const { year, week } of planWeeks) {
         const pct = mktPlanMap.get(`${prod.id}:${mktKatId}:${year}:${week}`) ?? 0
         if (pct <= 0) continue
 
-        // Total base (absatz × vk) across all platforms
         let base = 0
-        for (const platt of plattformen) {
-          base += getAbsatz(platt.id, prod.id, year, week) * getVk(platt.id, prod.id, year, week)
+        if (assignedPlattformId) {
+          base = getAbsatz(assignedPlattformId, prod.id, year, week) * getVk(assignedPlattformId, prod.id, year, week)
+        } else {
+          for (const platt of plattformen) {
+            base += getAbsatz(platt.id, prod.id, year, week) * getVk(platt.id, prod.id, year, week)
+          }
         }
         if (base <= 0) continue
 
@@ -632,5 +770,67 @@ export async function GET(request: Request) {
     })
   }
 
-  return NextResponse.json({ data: result })
+  // ── 7. Persist FUTURE-week Soll values to DB (Ist-Plan anchor for when they become past) ──
+  // For future weeks: upsert newly calculated values AND delete stale auto-calc entries
+  // (rows that existed from a previous run but are now 0 / no longer calculated).
+  // Manual overrides (ist_berechnet = false) are always preserved.
+  if (hatZukunftsgrenze) {
+    const now = new Date().toISOString()
+    const saveRows: Array<{
+      user_id: string; kategorie_id: string; produkt_id: string
+      kw_year: number; kw_number: number; betrag_manuell: number; ist_berechnet: boolean; updated_at: string
+    }> = []
+    for (const [key, wert] of resultMap) {
+      const parts = key.split(':')
+      const yr = parseInt(parts[2], 10)
+      const wk = parseInt(parts[3], 10)
+      if (yr * 54 + wk < zukunftsGrenzeIdx) continue  // skip past weeks (already frozen)
+      saveRows.push({
+        user_id: user!.id,
+        kategorie_id: parts[0],
+        produkt_id: parts[1],
+        kw_year: yr,
+        kw_number: wk,
+        betrag_manuell: Math.round(wert * 100) / 100,
+        ist_berechnet: true,
+        updated_at: now,
+      })
+    }
+
+    // Fetch all existing future-week rows (needed to find manual overrides and stale entries)
+    const { data: existingRows } = await supabase
+      .from('umsatzausgaben_planung')
+      .select('kategorie_id, produkt_id, kw_year, kw_number, ist_berechnet')
+      .eq('user_id', user!.id)
+      .or(`kw_year.gt.${ersteZukunftJahr},and(kw_year.eq.${ersteZukunftJahr},kw_number.gte.${ersteZukunftKw})`)
+      .limit(5000)
+
+    const manualKeys = new Set<string>()
+    for (const r of existingRows ?? []) {
+      if (r.ist_berechnet === false) {
+        manualKeys.add(`${r.kategorie_id}:${r.produkt_id}:${r.kw_year}:${r.kw_number}`)
+      }
+    }
+
+    // Delete ALL auto-calculated future-week rows first (clears stale values from previous runs)
+    // Manual rows (ist_berechnet = false) are not touched by this delete.
+    await supabase.from('umsatzausgaben_planung')
+      .delete()
+      .eq('user_id', user!.id)
+      .eq('ist_berechnet', true)
+      .or(`kw_year.gt.${ersteZukunftJahr},and(kw_year.eq.${ersteZukunftJahr},kw_number.gte.${ersteZukunftKw})`)
+
+    // Insert fresh calculated rows (skip weeks with manual overrides)
+    const toUpsert = saveRows.filter(
+      r => !manualKeys.has(`${r.kategorie_id}:${r.produkt_id}:${r.kw_year}:${r.kw_number}`)
+    )
+    if (toUpsert.length > 0) {
+      await supabase.from('umsatzausgaben_planung').upsert(toUpsert, {
+        onConflict: 'user_id,kategorie_id,produkt_id,kw_year,kw_number',
+        ignoreDuplicates: false,
+      })
+    }
+  }
+
+  return NextResponse.json({ data: result, unassigned_marketing_kat_ids: unassignedMktL2Ids })
 }

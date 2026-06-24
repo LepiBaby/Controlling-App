@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { CalendarIcon } from 'lucide-react'
 import { de } from 'date-fns/locale'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Table,
   TableBody,
@@ -455,7 +454,7 @@ function PlattformTabelle({
           <TableHeader>
             <TableRow>
               <TableHead className="w-64">Produkt</TableHead>
-              <TableHead className="w-44">Lagerkosten (€/m³ netto)</TableHead>
+              <TableHead className="w-44">Lagerkosten (€/m³/Woche netto)</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -483,11 +482,11 @@ export function LagerausgabenEinstellungenTabelle() {
   const { categories: alleProdukte, loading: produkteLoading } =
     useKpiCategories('produkte')
 
-  const sortedPlattformen = useMemo(
+  const zentralePlattformId = useMemo(
     () =>
       plattformen
         .filter(p => p.level === 1)
-        .sort((a, b) => a.sort_order - b.sort_order),
+        .sort((a, b) => a.sort_order - b.sort_order)[0]?.id ?? null,
     [plattformen]
   )
 
@@ -505,7 +504,7 @@ export function LagerausgabenEinstellungenTabelle() {
     return <div className="py-8 text-center text-sm text-muted-foreground">Laden…</div>
   }
 
-  if (sortedPlattformen.length === 0) {
+  if (!zentralePlattformId) {
     return (
       <div className="rounded-lg border bg-muted/30 p-8 text-center space-y-3">
         <p className="font-medium">Keine Sales-Plattformen definiert</p>
@@ -523,21 +522,9 @@ export function LagerausgabenEinstellungenTabelle() {
   }
 
   return (
-    <Tabs defaultValue={sortedPlattformen[0].id} className="space-y-4">
-      <TabsList className="w-full h-auto">
-        {sortedPlattformen.map(p => (
-          <TabsTrigger key={p.id} value={p.id} className="flex-1">
-            {p.name}
-          </TabsTrigger>
-        ))}
-      </TabsList>
-
-      {sortedPlattformen.map(p => (
-        <TabsContent key={p.id} value={p.id} className="mt-0 space-y-4">
-          <PlattformEinstellungenForm plattformId={p.id} />
-          <PlattformTabelle plattformId={p.id} produkte={sortedProdukte} />
-        </TabsContent>
-      ))}
-    </Tabs>
+    <div className="space-y-4">
+      <PlattformEinstellungenForm plattformId={zentralePlattformId} />
+      <PlattformTabelle plattformId={zentralePlattformId} produkte={sortedProdukte} />
+    </div>
   )
 }

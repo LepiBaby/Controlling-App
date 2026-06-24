@@ -37,41 +37,47 @@ export async function GET(request: Request) {
   const endMonday = getISOWeekMonday(bisJahr, bisKw)
   const endDate = toDateOnly(new Date(endMonday.getTime() + 6 * 86400000))
 
+  // Ist-Tatsächlich = identische Logik wie der Liquiditätsreport (PROJ-29):
+  // gefiltert nach zahlungsdatum + relevanz liquiditaet/beides, Betrag brutto (= tatsächlicher Cash-Out).
+  // (Die Rentabilitätslogik — leistungsdatum + relevanz rentabilitaet/beides — gilt ausschließlich
+  //  für die Umsatzsteuerermittlung und wird dort getrennt betrachtet, nicht hier.)
+  // ausgaben_kosten_transaktionen speichert die L2-Kategorie in gruppe_id (= Leaf-Ebene des Frontends).
   const { data, error: dbErr } = await supabase
     .from('ausgaben_kosten_transaktionen')
-    .select('untergruppe_id, produkt_id, zahlungsdatum, betrag_netto')
-    .not('untergruppe_id', 'is', null)
+    .select('gruppe_id, produkt_id, zahlungsdatum, betrag_brutto')
+    .not('gruppe_id', 'is', null)
     .not('zahlungsdatum', 'is', null)
+    .in('relevanz', ['liquiditaet', 'beides'])
     .gte('zahlungsdatum', startDate)
     .lte('zahlungsdatum', endDate)
     .limit(20000)
 
   if (dbErr) return NextResponse.json({ error: dbErr.message }, { status: 500 })
 
-  // Aggregate by (untergruppe_id, produkt_id, kw_year, kw_number)
-  const agg = new Map<string, { untergruppe_id: string; produkt_id: string | null; kw_year: number; kw_number: number; betrag: number }>()
+  // Aggregate by (gruppe_id, produkt_id, kw_year, kw_number) to enable per-product display
+  const agg = new Map<string, { gruppe_id: string; produkt_id: string | null; kw_year: number; kw_number: number; betrag: number }>()
 
   for (const row of data ?? []) {
-    const { untergruppe_id, produkt_id, zahlungsdatum, betrag_netto } = row as {
-      untergruppe_id: string
+    const { gruppe_id, produkt_id, zahlungsdatum, betrag_brutto } = row as {
+      gruppe_id: string
       produkt_id: string | null
       zahlungsdatum: string
-      betrag_netto: number | null
+      betrag_brutto: number | null
     }
-    if (!untergruppe_id || !zahlungsdatum || betrag_netto == null) continue
+    if (!gruppe_id || !zahlungsdatum || betrag_brutto == null) continue
 
     const d = new Date(zahlungsdatum + 'T00:00:00Z')
     const { year, week } = getISOWeekInfo(d)
-    const key = `${untergruppe_id}:${produkt_id ?? ''}:${year}:${week}`
+    const key = `${gruppe_id}:${produkt_id ?? ''}:${year}:${week}`
 
     if (!agg.has(key)) {
-      agg.set(key, { untergruppe_id, produkt_id: produkt_id ?? null, kw_year: year, kw_number: week, betrag: 0 })
+      agg.set(key, { gruppe_id, produkt_id: produkt_id ?? null, kw_year: year, kw_number: week, betrag: 0 })
     }
-    agg.get(key)!.betrag += Number(betrag_netto)
+    agg.get(key)!.betrag += Number(betrag_brutto)
   }
 
   const result = [...agg.values()].map(r => ({
-    kategorie_id: r.untergruppe_id,
+    kategorie_id: r.gruppe_id,
     produkt_id: r.produkt_id,
     kw_year: r.kw_year,
     kw_number: r.kw_number,

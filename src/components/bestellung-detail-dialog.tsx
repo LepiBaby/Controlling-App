@@ -496,7 +496,7 @@ export function BestellungDetailDialog({
                     .filter(([, v]) => v > 0)
                     .map(([art, v]) => {
                       const rounded = Math.round(v * 100) / 100
-                      return `${rounded % 1 === 0 ? rounded : rounded.toFixed(1)}× ${art}`
+                      return `${rounded % 1 === 0 ? rounded : rounded.toFixed(2)}× ${art}`
                     })
                     .join(' + ')
                   if (parts) return <Badge variant="outline" className="text-xs font-mono font-normal shrink-0">{parts}</Badge>
@@ -630,8 +630,6 @@ export function BestellungDetailDialog({
                 const showTheoretisch = skuMengen.some(s => s.menge_theoretisch !== null)
                 const showNachMoq = skuMengen.some(s => s.menge_nach_moq !== null)
                 const showBegruendung = skuMengen.some(s => s.begruendung_anpassung)
-                // colSpan for footer "Gesamt" label: SKU + Theoretisch? + NachMOQ? (value goes in Praktisch column)
-                const colSpanGesamt = 1 + (showTheoretisch ? 1 : 0) + (showNachMoq ? 1 : 0)
                 return (
                   <div className="rounded-md border overflow-hidden">
                     <table className="w-full table-auto text-sm">
@@ -730,13 +728,28 @@ export function BestellungDetailDialog({
                       </tbody>
                       <tfoot>
                         <tr className="border-t bg-muted/20">
-                          {/* Span up to (but not including) the last numeric column */}
-                          <td className="px-3 py-2 font-medium text-sm" colSpan={colSpanGesamt + (showKonsolidierungsSpalte ? 1 : 0)}>
-                            Gesamt
-                          </td>
+                          <td className="px-3 py-2 font-medium text-sm">Gesamt</td>
+                          {showTheoretisch && (
+                            <td className="px-3 py-2 text-right font-semibold tabular-nums text-muted-foreground">
+                              {skuMengen.reduce((s, m) => s + (m.menge_theoretisch ?? 0), 0).toLocaleString('de-DE')}
+                            </td>
+                          )}
+                          {showNachMoq && (
+                            <td className="px-3 py-2 text-right font-semibold tabular-nums text-muted-foreground">
+                              {skuMengen.reduce((s, m) => s + (m.menge_nach_moq ?? 0), 0).toLocaleString('de-DE')}
+                            </td>
+                          )}
                           <td className="px-3 py-2 text-right font-semibold tabular-nums">
-                            {skuMengen.reduce((s, m) => s + m.menge_praktisch, 0).toLocaleString('de-DE')}
+                            {skuMengen.reduce((s, m) => {
+                              const snapVal = snapBySkuId.get(m.sku_id)
+                              return s + (showKonsolidierungsSpalte && snapVal !== undefined ? snapVal : m.menge_praktisch)
+                            }, 0).toLocaleString('de-DE')}
                           </td>
+                          {showKonsolidierungsSpalte && (
+                            <td className="px-3 py-2 text-right font-semibold tabular-nums text-blue-600">
+                              {skuMengen.reduce((s, m) => s + m.menge_praktisch, 0).toLocaleString('de-DE')}
+                            </td>
+                          )}
                           {showBegruendung && <td />}
                         </tr>
                       </tfoot>
@@ -750,9 +763,22 @@ export function BestellungDetailDialog({
             {(() => {
               const anz40hq = draft.anzahl_40hq !== undefined ? draft.anzahl_40hq : (b.anzahl_40hq ?? 0)
               const anz20dc = draft.anzahl_20dc !== undefined ? draft.anzahl_20dc : (b.anzahl_20dc ?? 0)
+              const anteil = bestellung.container_anteil
+              const istKonsolidiert = !!(anteil && Object.keys(anteil).length > 0)
+              // When consolidation is active, read exclusively from container_anteil (missing key = 0)
+              // Round to 2 decimal places to match the badge format
+              const round2 = (n: number) => Math.round(n * 100) / 100
+              const eff40hq = round2(istKonsolidiert ? (anteil!['40HQ'] ?? 0) : anz40hq)
+              const eff20dc = round2(istKonsolidiert ? (anteil!['20DC'] ?? 0) : anz20dc)
+              const fmtAnzahl = (n: number) => { const r = round2(n); return r % 1 === 0 ? String(r) : r.toFixed(2) }
               const gesamtmenge = skuMengen.reduce((s, m) => s + m.menge_praktisch, 0)
-              const { hqAmounts, dcAmounts } = perContainerMengen(gesamtmenge, anz40hq, anz20dc, max_40hq, max_20dc)
-              const totalContainer = anz40hq + anz20dc
+              // Physical count for breakdown: use ceil of current effective value (incl. draft edits)
+              const cur40hq = draft.anzahl_40hq !== undefined ? (draft.anzahl_40hq as number) : eff40hq
+              const cur20dc = draft.anzahl_20dc !== undefined ? (draft.anzahl_20dc as number) : eff20dc
+              const phys40hq = istKonsolidiert ? Math.ceil(cur40hq) : anz40hq
+              const phys20dc = istKonsolidiert ? Math.ceil(cur20dc) : anz20dc
+              const { hqAmounts, dcAmounts } = perContainerMengen(gesamtmenge, phys40hq, phys20dc, max_40hq, max_20dc)
+              const totalContainer = phys40hq + phys20dc
               return (
                 <>
                   <Separator />
@@ -767,12 +793,16 @@ export function BestellungDetailDialog({
                           <Input
                             type="number"
                             min="0"
+                            step={istKonsolidiert ? '0.01' : '1'}
                             className="w-24 h-8 text-sm"
-                            value={anz40hq}
-                            onChange={e => setDraft(prev => ({ ...prev, anzahl_40hq: Math.max(0, parseInt(e.target.value) || 0) }))}
+                            value={draft.anzahl_40hq !== undefined ? draft.anzahl_40hq : eff40hq}
+                            onChange={e => {
+                              const v = istKonsolidiert ? parseFloat(e.target.value) : parseInt(e.target.value)
+                              setDraft(prev => ({ ...prev, anzahl_40hq: Math.max(0, isNaN(v) ? 0 : v) }))
+                            }}
                           />
                         ) : (
-                          <p className="text-sm font-medium">{anz40hq}</p>
+                          <p className="text-sm font-medium">{fmtAnzahl(eff40hq)}</p>
                         )}
                         {hqAmounts.map((a, i) => (
                           <p key={i} className="text-xs text-muted-foreground">
@@ -788,12 +818,16 @@ export function BestellungDetailDialog({
                           <Input
                             type="number"
                             min="0"
+                            step={istKonsolidiert ? '0.01' : '1'}
                             className="w-24 h-8 text-sm"
-                            value={anz20dc}
-                            onChange={e => setDraft(prev => ({ ...prev, anzahl_20dc: Math.max(0, parseInt(e.target.value) || 0) }))}
+                            value={draft.anzahl_20dc !== undefined ? draft.anzahl_20dc : eff20dc}
+                            onChange={e => {
+                              const v = istKonsolidiert ? parseFloat(e.target.value) : parseInt(e.target.value)
+                              setDraft(prev => ({ ...prev, anzahl_20dc: Math.max(0, isNaN(v) ? 0 : v) }))
+                            }}
                           />
                         ) : (
-                          <p className="text-sm font-medium">{anz20dc}</p>
+                          <p className="text-sm font-medium">{fmtAnzahl(eff20dc)}</p>
                         )}
                         {dcAmounts.map((a, i) => (
                           <p key={i} className="text-xs text-muted-foreground">

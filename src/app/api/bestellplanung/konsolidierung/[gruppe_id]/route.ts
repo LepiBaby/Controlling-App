@@ -20,13 +20,15 @@ interface Snapshot {
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ gruppe_id: string }> }
 ) {
   const { user, supabase, error } = await requireAuth()
   if (error) return error
 
   const { gruppe_id } = await params
+  const { searchParams } = new URL(request.url)
+  const dissolveOnly = searchParams.get('dissolve_only') === 'true'
 
   // Verify group belongs to user
   const { data: gruppe, error: gruppeErr } = await supabase
@@ -39,7 +41,7 @@ export async function DELETE(
   if (gruppeErr) return NextResponse.json({ error: gruppeErr.message }, { status: 500 })
   if (!gruppe) return NextResponse.json({ error: 'Gruppe nicht gefunden' }, { status: 404 })
 
-  // Load all members with snapshots
+  // Load all members with snapshots (needed for both full restore and dissolve-only)
   const { data: mitglieder, error: mitgliederErr } = await supabase
     .from('bestellungen_konsolidierungsmitglieder')
     .select('bestellung_id, snapshot_vor_konsolidierung')
@@ -48,29 +50,44 @@ export async function DELETE(
 
   if (mitgliederErr) return NextResponse.json({ error: mitgliederErr.message }, { status: 500 })
 
-  // Restore each bestellung from snapshot
   for (const m of (mitglieder ?? []) as Array<{ bestellung_id: string; snapshot_vor_konsolidierung: Snapshot }>) {
     const snap = m.snapshot_vor_konsolidierung
 
-    const { error: restoreErr } = await supabase
-      .from('bestellungen')
-      .update({
-        bestelldatum: snap.bestelldatum,
-        produktionsstart_datum: snap.produktionsstart_datum,
-        produktionsende_datum: snap.produktionsende_datum,
-        shippingdatum: snap.shippingdatum,
-        ankunftsdatum: snap.ankunftsdatum,
-        verfuegbarkeitsdatum: snap.verfuegbarkeitsdatum,
-        anzahl_40hq: snap.anzahl_40hq,
-        anzahl_20dc: snap.anzahl_20dc,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', m.bestellung_id)
-      .eq('user_id', user!.id)
+    if (dissolveOnly) {
+      // Restore only quantities/containers — dates are left as-is so the algorithm can overwrite them
+      const { error: restoreErr } = await supabase
+        .from('bestellungen')
+        .update({
+          anzahl_40hq: snap.anzahl_40hq,
+          anzahl_20dc: snap.anzahl_20dc,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', m.bestellung_id)
+        .eq('user_id', user!.id)
 
-    if (restoreErr) return NextResponse.json({ error: restoreErr.message }, { status: 500 })
+      if (restoreErr) return NextResponse.json({ error: restoreErr.message }, { status: 500 })
+    } else {
+      // Full restore: dates + quantities + containers
+      const { error: restoreErr } = await supabase
+        .from('bestellungen')
+        .update({
+          bestelldatum: snap.bestelldatum,
+          produktionsstart_datum: snap.produktionsstart_datum,
+          produktionsende_datum: snap.produktionsende_datum,
+          shippingdatum: snap.shippingdatum,
+          ankunftsdatum: snap.ankunftsdatum,
+          verfuegbarkeitsdatum: snap.verfuegbarkeitsdatum,
+          anzahl_40hq: snap.anzahl_40hq,
+          anzahl_20dc: snap.anzahl_20dc,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', m.bestellung_id)
+        .eq('user_id', user!.id)
 
-    // Restore SKU mengen from snapshot
+      if (restoreErr) return NextResponse.json({ error: restoreErr.message }, { status: 500 })
+    }
+
+    // Restore SKU mengen from snapshot (both modes)
     for (const sm of snap.sku_mengen ?? []) {
       await supabase.from('bestellungen_sku_mengen').upsert({
         bestellung_id: m.bestellung_id,

@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { Menu, ChevronDown, ChevronRight } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Menu, ChevronDown, ChevronRight, FolderOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Sheet,
@@ -12,6 +12,12 @@ import {
 } from '@/components/ui/sheet'
 import { usePathname } from 'next/navigation'
 import { BereichsSwitcher, getAktivesBereich, BEREICHE } from '@/components/bereichs-switcher'
+import {
+  VERSIONS_NAV_GRUPPEN,
+  buildVersionsHref,
+  getVersionIdFromPath,
+  LANGFRISTIGE_PLANUNG_BASE,
+} from '@/lib/langfristige-planung-nav'
 
 const REPORTING_NAV_GROUPS = [
   {
@@ -71,10 +77,19 @@ const KURZFRISTIGE_PLANUNG_NAV_GROUPS = [
       { href: '/dashboard/kurzfristige-planung/absatzplanung', label: 'Absatzplanung' },
       { href: '/dashboard/kurzfristige-planung/bestellplanung', label: 'Bestellplanung' },
       { href: '/dashboard/kurzfristige-planung/marketingplanung', label: 'Marketing-Planung' },
-      { href: '/dashboard/kurzfristige-planung/einnahmenplanung', label: 'Einnahmenplanung' },
-      { href: '/dashboard/kurzfristige-planung/operative-planung', label: 'Operative Planung' },
-      { href: '/dashboard/kurzfristige-planung/produktinvestitionsplanung', label: 'Produktinvestitionsplanung' },
       { href: '/dashboard/kurzfristige-planung/sales-plattform-planung', label: 'Sales Plattform Planung' },
+    ],
+  },
+  {
+    label: 'Auswertungen',
+    items: [
+      { href: '/dashboard/kurzfristige-planung/einnahmenplanung', label: 'Einnahmen' },
+      { href: '/dashboard/kurzfristige-planung/umsatzausgaben', label: 'Umsatzausgaben' },
+      { href: '/dashboard/kurzfristige-planung/operative-planung', label: 'Operative Ausgaben' },
+      { href: '/dashboard/kurzfristige-planung/produktinvestitionsplanung', label: 'Produktinvestitionsausgaben' },
+      { href: '/dashboard/kurzfristige-planung/finanzierungsausgaben', label: 'Finanzierungsausgaben' },
+      { href: '/dashboard/kurzfristige-planung/steuerausgaben', label: 'Steuerausgaben' },
+      { href: '/dashboard/kurzfristige-planung/liquiditaetsauswertung', label: 'Liquiditätsauswertung' },
     ],
   },
 ]
@@ -88,10 +103,48 @@ const NAV_GROUPS_BY_AREA: Record<string, typeof REPORTING_NAV_GROUPS> = {
 export function NavSheet() {
   const [open, setOpen] = useState(false)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
+  const [versionName, setVersionName] = useState<string | null>(null)
   const pathname = usePathname()
   const aktiv = getAktivesBereich(pathname)
-  const navGroups = NAV_GROUPS_BY_AREA[aktiv] ?? []
   const bereichHref = BEREICHE.find((b) => b.value === aktiv)?.href ?? '/dashboard'
+
+  // Aktive Planversion (nur in der Langfristigen Planung relevant)
+  const versionId = aktiv === 'langfristige-planung' ? getVersionIdFromPath(pathname) : null
+
+  // Versionsname für die Anzeige im Menü laden
+  useEffect(() => {
+    if (!versionId) {
+      setVersionName(null)
+      return
+    }
+    let aktivFetch = true
+    fetch(`/api/langfristige-planung/planversionen/${versionId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (aktivFetch) setVersionName(data?.name ?? null)
+      })
+      .catch(() => {
+        if (aktivFetch) setVersionName(null)
+      })
+    return () => {
+      aktivFetch = false
+    }
+  }, [versionId])
+
+  // Navigationsgruppen: in der Langfristigen Planung nur mit ausgewählter Version,
+  // dann versionsspezifische Pfade. Sonst die statischen Gruppen des Bereichs.
+  const navGroups =
+    aktiv === 'langfristige-planung'
+      ? versionId
+        ? VERSIONS_NAV_GRUPPEN.map((g) => ({
+            label: g.label,
+            items: g.items.map((i) => ({
+              href: buildVersionsHref(versionId, i.slug),
+              label: i.label,
+            })),
+          }))
+        : []
+      : NAV_GROUPS_BY_AREA[aktiv] ?? []
 
   function toggleGroup(label: string) {
     setCollapsed((prev) => ({ ...prev, [label]: !prev[label] }))
@@ -118,6 +171,17 @@ export function NavSheet() {
             Bereich
           </p>
           <BereichsSwitcher className="w-full" />
+          {aktiv === 'langfristige-planung' && versionId && (
+            <a
+              href={LANGFRISTIGE_PLANUNG_BASE}
+              onClick={() => setOpen(false)}
+              className="mt-2 flex items-center gap-2 rounded-md bg-muted/60 px-2.5 py-2 text-sm font-medium hover:bg-muted"
+              title="Zurück zum Dashboard (Version wechseln)"
+            >
+              <FolderOpen className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <span className="truncate">{versionName ?? 'Planversion'}</span>
+            </a>
+          )}
         </div>
         <nav className="flex-1 overflow-y-auto px-3 py-4">
           <div className="flex flex-col gap-4">

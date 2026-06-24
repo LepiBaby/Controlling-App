@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Table,
@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/table'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
 import { useKpiCategories, type KpiCategory } from '@/hooks/use-kpi-categories'
 import {
   useVerkaufsgebuehrEinstellungen,
@@ -39,6 +40,14 @@ function VerkaufsgebuehrEinstellungZeile({
       : ''
   )
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    setLocalValue(
+      einstellung.verkaufsgebuehr_prozent !== null
+        ? einstellung.verkaufsgebuehr_prozent.toString()
+        : ''
+    )
+  }, [einstellung.verkaufsgebuehr_prozent])
 
   async function handleBlur() {
     const parsed = localValue === '' ? null : parseFloat(localValue)
@@ -91,6 +100,75 @@ function VerkaufsgebuehrEinstellungZeile({
   )
 }
 
+// --- „Alle gleichsetzen"-Bereich ---
+
+function AlleGleichsetzenBereich({
+  plattformId,
+  produkte,
+  onBatch,
+}: {
+  plattformId: string
+  produkte: KpiCategory[]
+  onBatch: (plattformId: string, wert: number | null, produktIds: string[]) => Promise<void>
+}) {
+  const { toast } = useToast()
+  const [wertStr, setWertStr] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  async function handleUebernehmen() {
+    const parsed = parseFloat(wertStr)
+    if (isNaN(parsed) || parsed < 0) return
+    setSaving(true)
+    try {
+      await onBatch(
+        plattformId,
+        parsed,
+        produkte.map(p => p.id)
+      )
+      setWertStr('')
+    } catch {
+      toast({
+        title: 'Fehler',
+        description: 'Verkaufsgebühr konnte nicht für alle Produkte gespeichert werden.',
+        variant: 'destructive',
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const disabled = saving || wertStr.trim() === '' || produkte.length === 0
+
+  return (
+    <div className="flex items-end gap-3">
+      <div className="space-y-1.5">
+        <Label htmlFor={`alle-gleichsetzen-${plattformId}`} className="text-sm font-medium">
+          Alle Produkte gleichsetzen
+        </Label>
+        <Input
+          id={`alle-gleichsetzen-${plattformId}`}
+          type="number"
+          min={0}
+          step={0.01}
+          value={wertStr}
+          onChange={e => setWertStr(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && !disabled) handleUebernehmen() }}
+          placeholder="% für alle Produkte"
+          className="w-56"
+          disabled={saving}
+        />
+      </div>
+      <Button
+        variant="secondary"
+        onClick={handleUebernehmen}
+        disabled={disabled}
+      >
+        Übernehmen
+      </Button>
+    </div>
+  )
+}
+
 // --- Tabelle für eine Plattform ---
 
 function PlattformTabelle({
@@ -100,7 +178,7 @@ function PlattformTabelle({
   plattformId: string
   produkte: KpiCategory[]
 }) {
-  const { loading, error, getEinstellung, upsert } = useVerkaufsgebuehrEinstellungen(plattformId)
+  const { loading, error, getEinstellung, upsert, batchUpsert } = useVerkaufsgebuehrEinstellungen(plattformId)
 
   if (loading) {
     return <div className="py-8 text-center text-sm text-muted-foreground">Laden…</div>
@@ -131,26 +209,33 @@ function PlattformTabelle({
   }
 
   return (
-    <div className="rounded-lg border">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-48">Produkt</TableHead>
-            <TableHead className="w-40">Verkaufsgebühr (%)</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {produkte.map(produkt => (
-            <VerkaufsgebuehrEinstellungZeile
-              key={produkt.id}
-              produkt={produkt}
-              plattformId={plattformId}
-              einstellung={getEinstellung(produkt.id)}
-              onSave={upsert}
-            />
-          ))}
-        </TableBody>
-      </Table>
+    <div className="space-y-3">
+      <AlleGleichsetzenBereich
+        plattformId={plattformId}
+        produkte={produkte}
+        onBatch={batchUpsert}
+      />
+      <div className="rounded-lg border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-48">Produkt</TableHead>
+              <TableHead className="w-40">Verkaufsgebühr (%)</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {produkte.map(produkt => (
+              <VerkaufsgebuehrEinstellungZeile
+                key={produkt.id}
+                produkt={produkt}
+                plattformId={plattformId}
+                einstellung={getEinstellung(produkt.id)}
+                onSave={upsert}
+              />
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   )
 }

@@ -1,15 +1,18 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { produktinformationenBasis } from '@/lib/produktinformationen-api'
 
 export interface BestandsverwaltungEinstellung {
   id?: string
   produkt_id: string
   sicherheitsbestand: number | null
-  zielreichweite_monate: number | null
+  zielreichweite_wochen: number | null
 }
 
-export function useProduktinformationenBestandsverwaltung() {
+// versionId optional (PROJ-77): ohne → global; mit → versionsgebunden.
+export function useProduktinformationenBestandsverwaltung(versionId?: string) {
+  const basis = produktinformationenBasis(versionId)
   const [einstellungen, setEinstellungen] = useState<BestandsverwaltungEinstellung[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -17,7 +20,7 @@ export function useProduktinformationenBestandsverwaltung() {
   useEffect(() => {
     setLoading(true)
     setError(null)
-    fetch('/api/produktinformationen/bestandsverwaltung')
+    fetch(`${basis}/bestandsverwaltung`)
       .then(r => {
         if (!r.ok) throw new Error('API-Fehler')
         return r.json()
@@ -30,14 +33,14 @@ export function useProduktinformationenBestandsverwaltung() {
         setError('Fehler beim Laden der Bestandsverwaltungsdaten.')
         setLoading(false)
       })
-  }, [])
+  }, [basis])
 
   const getEinstellung = useCallback(
     (produktId: string): BestandsverwaltungEinstellung =>
       einstellungen.find(e => e.produkt_id === produktId) ?? {
         produkt_id: produktId,
         sicherheitsbestand: null,
-        zielreichweite_monate: null,
+        zielreichweite_wochen: null,
       },
     [einstellungen],
   )
@@ -52,7 +55,7 @@ export function useProduktinformationenBestandsverwaltung() {
         return [...curr, patch]
       })
 
-      const res = await fetch('/api/produktinformationen/bestandsverwaltung', {
+      const res = await fetch(`${basis}/bestandsverwaltung`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patch),
@@ -66,7 +69,7 @@ export function useProduktinformationenBestandsverwaltung() {
         throw new Error('Speichern fehlgeschlagen')
       }
     },
-    [einstellungen],
+    [einstellungen, basis],
   )
 
   return { einstellungen, loading, error, getEinstellung, upsert }

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 
 export type Berechnungsart =
   | 'keine'
+  | 'mittelwert_7'
   | 'mittelwert_14'
   | 'mittelwert_30'
   | 'mittelwert_60'
@@ -16,10 +17,12 @@ export interface RetourenEinstellung {
   berechnungsart: Berechnungsart
   rueckversandkosten_euro_netto: number | null
   retourenhandling_kosten_euro_netto: number | null
+  erstattung_verkaufsgebuehr_prozent: number | null
 }
 
 export const BERECHNUNGSARTEN: Berechnungsart[] = [
   'keine',
+  'mittelwert_7',
   'mittelwert_14',
   'mittelwert_30',
   'mittelwert_60',
@@ -28,6 +31,7 @@ export const BERECHNUNGSARTEN: Berechnungsart[] = [
 
 export const BERECHNUNGSART_LABELS: Record<Berechnungsart, string> = {
   keine: 'Keine',
+  mittelwert_7: 'Mittelwert 7 Tage',
   mittelwert_14: 'Mittelwert 14 Tage',
   mittelwert_30: 'Mittelwert 30 Tage',
   mittelwert_60: 'Mittelwert 60 Tage',
@@ -71,6 +75,7 @@ export function useRetourenEinstellungen(plattformId: string | null) {
           berechnungsart: 'keine',
           rueckversandkosten_euro_netto: null,
           retourenhandling_kosten_euro_netto: null,
+          erstattung_verkaufsgebuehr_prozent: null,
         }
       return (
         einstellungen.find(e => e.produkt_id === produktId) ?? {
@@ -79,6 +84,7 @@ export function useRetourenEinstellungen(plattformId: string | null) {
           berechnungsart: 'keine',
           rueckversandkosten_euro_netto: null,
           retourenhandling_kosten_euro_netto: null,
+          erstattung_verkaufsgebuehr_prozent: null,
         }
       )
     },

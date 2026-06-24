@@ -10,6 +10,7 @@ import type { KpiCategory } from '@/hooks/use-kpi-categories'
 
 export type SalesKategorie =
   | 'bruttoumsatz'
+  | 'rabatte'
   | 'rueckerstattungen'
   | 'verkaufsgebuehr'
   | 'retouren'
@@ -25,10 +26,22 @@ export const SALES_KATEGORIEN: SalesKategorie[] = [
 
 export const KATEGORIE_LABELS: Record<SalesKategorie, string> = {
   bruttoumsatz: 'Bruttoumsatz',
+  rabatte: 'Rabatte',
   rueckerstattungen: 'Rückerstattungen',
   verkaufsgebuehr: 'Verkaufsgebühr',
   retouren: 'Retourenkosten',
   marketing: 'Marketingkosten',
+}
+
+// +1 = in DB gespeicherter Wert ist positiv und bleibt positiv für Anzeige/Summe
+// -1 = in DB gespeicherter Wert ist positiv, wird aber als Abzugsposten negativ dargestellt
+export const KATEGORIE_VORZEICHEN: Record<SalesKategorie, 1 | -1> = {
+  bruttoumsatz: 1,
+  rabatte: -1,
+  rueckerstattungen: -1,
+  verkaufsgebuehr: -1,
+  retouren: -1,
+  marketing: -1,
 }
 
 export interface SalesManuellerWert {
@@ -93,6 +106,10 @@ export function useSalesPlattformPlanung() {
   const [berechneteWerte, setBerechneteWerte] = useState<Map<string, number>>(new Map())
   // key: sppKey(...) → manual override value
   const [manuelleWerte, setManuelleWerte] = useState<Map<string, number>>(new Map())
+  // id → name map for ausgaben_kosten categories (for marketing sub-category names)
+  const [ausgabenKatMap, setAusgabenKatMap] = useState<Map<string, string>>(new Map())
+  // kpi_kategorie_id → platform names assigned in Auszahlungseinstellungen
+  const [marketingKatPlattformMap, setMarketingKatPlattformMap] = useState<Map<string, string[]>>(new Map())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -129,8 +146,9 @@ export function useSalesPlattformPlanung() {
       fetch('/api/sales-plattform-planung').then(r => (r.ok ? r.json() : [])),
       fetch('/api/sales-plattform-planung/historisch').then(r => (r.ok ? r.json() : [])),
       fetch('/api/sales-plattform-planung/berechnet').then(r => (r.ok ? r.json() : [])),
+      fetch('/api/kpi-categories?type=ausgaben_kosten').then(r => (r.ok ? r.json() : [])),
     ])
-      .then(([grundDataRaw, plattRaw, prodRaw, manualRaw, histRaw, calcRaw]) => {
+      .then(([grundDataRaw, plattRaw, prodRaw, manualRaw, histRaw, calcRaw, ausgKatRaw]) => {
         const grundData = grundDataRaw as { planungshorizont_wochen?: number; vergangenheitshorizont_wochen?: number } | null
         setPlanungshorizont(grundData?.planungshorizont_wochen ?? 13)
         setVergangenheitshorizont(grundData?.vergangenheitshorizont_wochen ?? 13)
@@ -158,25 +176,39 @@ export function useSalesPlattformPlanung() {
         }
         setBerechneteWerte(calcMap)
 
+        const ausgKatMapLocal = new Map<string, string>()
+        for (const k of (Array.isArray(ausgKatRaw) ? ausgKatRaw : []) as { id: string; name: string }[]) {
+          ausgKatMapLocal.set(k.id, k.name)
+        }
+        setAusgabenKatMap(ausgKatMapLocal)
+
         return Promise.all(
           plattList.map(plt =>
-            fetch(`/api/auszahlungs-einstellungen?plattform_id=${plt.id}`).then(r =>
-              r.ok ? r.json() : null,
-            ),
+            Promise.all([
+              fetch(`/api/auszahlungs-einstellungen?plattform_id=${plt.id}`).then(r =>
+                r.ok ? r.json() : null,
+              ),
+              fetch(`/api/auszahlungs-marketing-gruppen?plattform_id=${plt.id}`).then(r =>
+                r.ok ? r.json() : [],
+              ),
+            ]).then(([einstellung, marketingGruppen]) => ({ plt, einstellung, marketingGruppen }))
           ),
         )
       })
-      .then(einstellungen => {
+      .then(results => {
         const flagMap = new Map<string, { retouren: boolean; marketing: boolean }>()
-        for (const e of einstellungen) {
-          if (e && e.sales_plattform_id) {
-            flagMap.set(e.sales_plattform_id, {
-              retouren: !!e.retouren_inkludiert,
-              marketing: !!e.marketing_inkludiert,
-            })
+        const katPlattMap = new Map<string, string[]>()
+        for (const { plt, einstellung, marketingGruppen } of results) {
+          const retouren = einstellung ? !!einstellung.retouren_inkludiert : false
+          const marketing = Array.isArray(marketingGruppen) && marketingGruppen.length > 0
+          flagMap.set(plt.id, { retouren, marketing })
+          for (const g of (Array.isArray(marketingGruppen) ? marketingGruppen : []) as { kpi_kategorie_id: string }[]) {
+            if (!katPlattMap.has(g.kpi_kategorie_id)) katPlattMap.set(g.kpi_kategorie_id, [])
+            katPlattMap.get(g.kpi_kategorie_id)!.push(plt.name)
           }
         }
         setAktiveFlags(flagMap)
+        setMarketingKatPlattformMap(katPlattMap)
         setLoading(false)
       })
       .catch(() => {
@@ -187,12 +219,7 @@ export function useSalesPlattformPlanung() {
 
   // ─── Derived flags ────────────────────────────────────────────────────────
 
-  const showRetouren = useMemo(() => {
-    for (const flags of aktiveFlags.values()) {
-      if (flags.retouren) return true
-    }
-    return false
-  }, [aktiveFlags])
+  const showRetouren = true
 
   const showMarketing = useMemo(() => {
     for (const flags of aktiveFlags.values()) {
@@ -200,6 +227,61 @@ export function useSalesPlattformPlanung() {
     }
     return false
   }, [aktiveFlags])
+
+  // ─── Marketing sub-category IDs (derived from data keys) ─────────────────
+
+  const marketingSubIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const map of [historischeWerte, berechneteWerte, manuelleWerte]) {
+      for (const key of map.keys()) {
+        const parts = key.split(':')
+        if (parts.length === 6 && parts[1] === 'marketing') ids.add(parts[3])
+      }
+    }
+    return ids
+  }, [historischeWerte, berechneteWerte, manuelleWerte])
+
+  const marketingUntergruppen = useMemo(
+    () => [...marketingSubIds].map(id => ({ id, name: ausgabenKatMap.get(id) ?? id })),
+    [marketingSubIds, ausgabenKatMap],
+  )
+
+  // key: `${produktId}:${untergruppeId}` for marketing (which products appear under which sub-category)
+  const activeMarketingPairs = useMemo(() => {
+    const pairs = new Set<string>()
+    for (const map of [historischeWerte, berechneteWerte, manuelleWerte]) {
+      for (const key of map.keys()) {
+        const parts = key.split(':')
+        if (parts.length === 6 && parts[1] === 'marketing') pairs.add(`${parts[2]}:${parts[3]}`)
+      }
+    }
+    return pairs
+  }, [historischeWerte, berechneteWerte, manuelleWerte])
+
+  // ─── Active IDs (platforms/products with any data) ────────────────────────
+
+  const activePlatformIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const map of [historischeWerte, berechneteWerte, manuelleWerte]) {
+      for (const key of map.keys()) {
+        const parts = key.split(':')
+        if (parts.length === 6) ids.add(parts[3])
+      }
+    }
+    return ids
+  }, [historischeWerte, berechneteWerte, manuelleWerte])
+
+  // key: `${plattformId}:${produktId}`
+  const activePairs = useMemo(() => {
+    const pairs = new Set<string>()
+    for (const map of [historischeWerte, berechneteWerte, manuelleWerte]) {
+      for (const key of map.keys()) {
+        const parts = key.split(':')
+        if (parts.length === 6) pairs.add(`${parts[3]}:${parts[2]}`)
+      }
+    }
+    return pairs
+  }, [historischeWerte, berechneteWerte, manuelleWerte])
 
   // ─── Value selectors ──────────────────────────────────────────────────────
 
@@ -262,8 +344,12 @@ export function useSalesPlattformPlanung() {
       let sum = 0
       let hasAny = false
       let anyManual = false
-      for (const plt of plattformen) {
-        const { value, isManual } = getPlatformWert(kategorie, plt.id, kw)
+      // Marketing is keyed by marketing sub-category ID, not by sales platform
+      const items = kategorie === 'marketing'
+        ? [...marketingSubIds].map(id => ({ id }))
+        : plattformen
+      for (const item of items) {
+        const { value, isManual } = getPlatformWert(kategorie, item.id, kw)
         if (value !== null) {
           sum += value
           hasAny = true
@@ -272,12 +358,12 @@ export function useSalesPlattformPlanung() {
       }
       return { value: hasAny ? sum : null, isManual: anyManual }
     },
-    [plattformen, getPlatformWert],
+    [plattformen, getPlatformWert, marketingSubIds],
   )
 
   const getSumme = useCallback(
     (kw: PlanungsWoche): number | null => {
-      const kategorien: SalesKategorie[] = ['bruttoumsatz', 'rueckerstattungen', 'verkaufsgebuehr']
+      const kategorien: SalesKategorie[] = ['bruttoumsatz', 'rabatte', 'rueckerstattungen', 'verkaufsgebuehr']
       if (showRetouren) kategorien.push('retouren')
       if (showMarketing) kategorien.push('marketing')
       let sum = 0
@@ -285,7 +371,7 @@ export function useSalesPlattformPlanung() {
       for (const kat of kategorien) {
         const { value } = getKategorieWert(kat, kw)
         if (value !== null) {
-          sum += value
+          sum += value * KATEGORIE_VORZEICHEN[kat]
           hasAny = true
         }
       }
@@ -405,6 +491,11 @@ export function useSalesPlattformPlanung() {
     aktiveFlags,
     showRetouren,
     showMarketing,
+    activePlatformIds,
+    activePairs,
+    marketingUntergruppen,
+    marketingKatPlattformMap,
+    activeMarketingPairs,
     loading,
     error,
     isRefreshing,

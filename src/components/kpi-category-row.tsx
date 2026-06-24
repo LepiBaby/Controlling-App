@@ -10,7 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { KpiAddCategoryForm } from '@/components/kpi-add-category-form'
 import {
   ChevronRight, ChevronDown, Plus, Pencil, Trash2,
-  ArrowUp, ArrowDown, Check, X, GripVertical, SlidersHorizontal, Tag, TrendingDown, Percent, Ban,
+  ArrowUp, ArrowDown, Check, X, GripVertical, SlidersHorizontal, Tag, TrendingDown, Percent, Ban, Lock,
 } from 'lucide-react'
 import type { KpiCategory } from '@/hooks/use-kpi-categories'
 import { cn } from '@/lib/utils'
@@ -78,6 +78,8 @@ export function KpiCategoryRow({
 }: KpiCategoryRowProps) {
   const isSkuRow = category.type === 'produkte' && category.level === 2
   const isSkuParent = category.type === 'produkte' && category.level === 1
+  // PROJ-74 (Erweiterung): feste, gespiegelte Investitionsgruppen sind schreibgeschützt.
+  const isReadOnly = !!category.is_system
 
   const [expanded, setExpanded] = useState(true)
   const [editing, setEditing] = useState(false)
@@ -174,16 +176,22 @@ export function KpiCategoryRow({
           showInvalidRing && 'ring-2 ring-destructive/50 bg-destructive/5',
         )}
       >
-        {/* Drag handle */}
-        <div
-          ref={setDragRef}
-          {...attributes}
-          {...listeners}
-          className="w-5 h-5 flex items-center justify-center text-muted-foreground/40 hover:text-muted-foreground cursor-grab active:cursor-grabbing shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-          title="Ziehen zum Verschieben"
-        >
-          <GripVertical className="h-3.5 w-3.5" />
-        </div>
+        {/* Drag handle — bei schreibgeschützten Systemgruppen ausgeblendet */}
+        {isReadOnly ? (
+          <div className="w-5 h-5 flex items-center justify-center text-muted-foreground/40 shrink-0" title="Feste Gruppe (read-only)">
+            <Lock className="h-3 w-3" />
+          </div>
+        ) : (
+          <div
+            ref={setDragRef}
+            {...attributes}
+            {...listeners}
+            className="w-5 h-5 flex items-center justify-center text-muted-foreground/40 hover:text-muted-foreground cursor-grab active:cursor-grabbing shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+            title="Ziehen zum Verschieben"
+          >
+            <GripVertical className="h-3.5 w-3.5" />
+          </div>
+        )}
 
         {/* Expand/collapse */}
         <button
@@ -224,6 +232,13 @@ export function KpiCategoryRow({
               <X className="h-3.5 w-3.5" />
             </Button>
           </div>
+        ) : isReadOnly ? (
+          <span
+            className="flex-1 text-sm min-w-0 truncate text-foreground/80"
+            title={`${category.name} (feste Gruppe – nicht bearbeitbar)`}
+          >
+            {category.name}
+          </span>
         ) : (
           <span
             className="flex-1 text-sm cursor-pointer min-w-0 truncate"
@@ -240,8 +255,8 @@ export function KpiCategoryRow({
           </span>
         )}
 
-        {/* Action buttons — visible on hover */}
-        {!editing && (
+        {/* Action buttons — visible on hover (entfallen bei schreibgeschützten Systemgruppen) */}
+        {!editing && !isReadOnly && (
           <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
             <Button variant="ghost" size="icon" className="h-6 w-6" onClick={startEdit} title="Umbenennen">
               <Pencil className="h-3 w-3" />

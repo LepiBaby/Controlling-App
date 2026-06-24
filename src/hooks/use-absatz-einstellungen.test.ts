@@ -22,7 +22,7 @@ describe('isGewichtet', () => {
 // ─── BERECHNUNGSARTEN ─────────────────────────────────────────────────────────
 
 describe('BERECHNUNGSARTEN', () => {
-  it('contains exactly 8 entries', () => expect(BERECHNUNGSARTEN).toHaveLength(8))
+  it('contains exactly 9 entries', () => expect(BERECHNUNGSARTEN).toHaveLength(9))
   it('has a label for every entry', () => {
     BERECHNUNGSARTEN.forEach(art => {
       expect(BERECHNUNGSART_LABELS[art]).toBeDefined()

@@ -1,13 +1,13 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { CalendarIcon } from 'lucide-react'
+import { CalendarIcon, X } from 'lucide-react'
 import { de } from 'date-fns/locale'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useKpiCategories } from '@/hooks/use-kpi-categories'
@@ -21,12 +21,16 @@ import {
   getCurrentISOWeekAndYear,
   calculateNextPayoutWeek,
 } from '@/hooks/use-auszahlungs-einstellungen'
+import {
+  useAuszahlungsMarketingGruppen,
+} from '@/hooks/use-auszahlungs-marketing-gruppen'
+import { MultiSelect } from '@/components/multi-select'
 import { useToast } from '@/hooks/use-toast'
 
 /** Montag der ISO-Woche (kw, jahr) als Date-Objekt */
 function getMondayOfISOWeek(kw: number, jahr: number): Date {
-  const jan4 = new Date(jahr, 0, 4) // 4. Jan liegt immer in KW1
-  const dayOfWeek = jan4.getDay() || 7 // Mo=1 … So=7
+  const jan4 = new Date(jahr, 0, 4)
+  const dayOfWeek = jan4.getDay() || 7
   const kw1Monday = new Date(jan4)
   kw1Monday.setDate(jan4.getDate() - (dayOfWeek - 1))
   const result = new Date(kw1Monday)
@@ -48,11 +52,34 @@ function getISOWeekAndYear(date: Date): { kw: number; jahr: number } {
 
 function AuszahlungseinstellungenPlatformForm({ plattformId }: { plattformId: string }) {
   const { einstellung, loading, error, upsert } = useAuszahlungsEinstellungen(plattformId)
+  const { gruppen, loading: gruppenLoading, upsert: upsertGruppe, remove: removeGruppe } =
+    useAuszahlungsMarketingGruppen(plattformId)
+  const { categories: alleAusgabenKats, loading: katsLoading } = useKpiCategories('ausgaben_kosten')
   const { toast } = useToast()
   const [saving, setSaving] = useState(false)
   const [calendarOpen, setCalendarOpen] = useState(false)
 
-  // Berechnete nächste Auszahlungswoche aus gespeicherter Basis + Rhythmus
+  // Marketing-Untergruppen aus dem KPI-Modell
+  const marketingUntergruppen = useMemo(() => {
+    const parent = alleAusgabenKats.find(
+      k => k.level === 1 && k.name.toLowerCase() === 'marketing'
+    )
+    if (!parent) return []
+    return alleAusgabenKats
+      .filter(k => k.level === 2 && k.parent_id === parent.id)
+      .sort((a, b) => a.sort_order - b.sort_order)
+  }, [alleAusgabenKats])
+
+  // IDs der aktuell konfigurierten Marketing-Gruppen
+  const selectedGruppenIds = useMemo(
+    () => gruppen.map(g => g.kpi_kategorie_id),
+    [gruppen]
+  )
+
+  // Nächste Auszahlungswoche: exakt die gespeicherte Basis-KW, automatisch
+  // um einen Rhythmus vorgerückt sobald diese Woche in der Vergangenheit liegt.
+  // verschiebung_wochen wird hier NICHT addiert — es wird nur im Backend für
+  // die Umsatz-Zuordnung verwendet.
   const displayedKw = useMemo(() => {
     if (
       !einstellung?.naechste_auszahlung_basis_kw ||
@@ -70,7 +97,7 @@ function AuszahlungseinstellungenPlatformForm({ plattformId }: { plattformId: st
     )
   }, [einstellung])
 
-  // Das ausgewählte Datum für den Kalender (Montag der angezeigten KW)
+  // Montag der angezeigten KW — für Kalender-Markierung und Button-Text.
   const selectedDate = useMemo(() => {
     if (!displayedKw) return undefined
     return getMondayOfISOWeek(displayedKw.kw, displayedKw.jahr)
@@ -81,8 +108,8 @@ function AuszahlungseinstellungenPlatformForm({ plattformId }: { plattformId: st
     auszahlungsrhythmus: 'woechentlich',
     naechste_auszahlung_basis_kw: null,
     naechste_auszahlung_basis_jahr: null,
+    verschiebung_wochen: 0,
     retouren_inkludiert: false,
-    marketing_inkludiert: false,
   }
 
   async function handleSave(patch: Partial<AuszahlungsEinstellung>) {
@@ -109,6 +136,8 @@ function AuszahlungseinstellungenPlatformForm({ plattformId }: { plattformId: st
       })
       return
     }
+    // Geklicktes Datum direkt als neue Basis speichern.
+    // Angezeigte KW = diese Basis, automatisch vorgerückt wenn sie abgelaufen ist.
     const { kw, jahr } = getISOWeekAndYear(date)
     handleSave({
       naechste_auszahlung_basis_kw: kw,
@@ -116,7 +145,28 @@ function AuszahlungseinstellungenPlatformForm({ plattformId }: { plattformId: st
     })
   }
 
-  if (loading) {
+  async function handleMarketingGruppenChange(newIds: string[]) {
+    const currentIds = selectedGruppenIds
+    const added = newIds.filter(id => !currentIds.includes(id))
+    const removed = currentIds.filter(id => !newIds.includes(id))
+
+    for (const id of added) {
+      try {
+        await upsertGruppe(plattformId, id, true)
+      } catch {
+        toast({ title: 'Fehler', description: 'Marketing-Gruppe konnte nicht hinzugefügt werden.', variant: 'destructive' })
+      }
+    }
+    for (const id of removed) {
+      try {
+        await removeGruppe(plattformId, id)
+      } catch {
+        toast({ title: 'Fehler', description: 'Marketing-Gruppe konnte nicht entfernt werden.', variant: 'destructive' })
+      }
+    }
+  }
+
+  if (loading || gruppenLoading || katsLoading) {
     return <div className="py-8 text-center text-sm text-muted-foreground">Laden…</div>
   }
 
@@ -180,6 +230,7 @@ function AuszahlungseinstellungenPlatformForm({ plattformId }: { plattformId: st
               mode="single"
               selected={selectedDate}
               onSelect={handleDateSelect}
+              defaultMonth={selectedDate}
               locale={de}
               showWeekNumber
             />
@@ -199,32 +250,74 @@ function AuszahlungseinstellungenPlatformForm({ plattformId }: { plattformId: st
         </Popover>
       </div>
 
-      {/* Retouren */}
+      {/* Verschiebung */}
       <div className="flex items-center gap-6">
-        <Label className="w-56 shrink-0 text-sm font-medium" htmlFor={`retouren-${plattformId}`}>
-          Retouren
-        </Label>
-        <Checkbox
-          id={`retouren-${plattformId}`}
-          checked={current.retouren_inkludiert}
-          onCheckedChange={v => handleSave({ retouren_inkludiert: Boolean(v) })}
-          disabled={saving}
-          aria-label="Retourenausgaben inkludiert"
-        />
+        <Label className="w-56 shrink-0 text-sm font-medium">Verschiebung / Zurückstellung</Label>
+        <div className="flex items-center gap-2">
+          <Input
+            type="number"
+            min={0}
+            max={52}
+            step={1}
+            value={current.verschiebung_wochen}
+            onChange={e => {
+              const val = Math.max(0, Math.min(52, parseInt(e.target.value) || 0))
+              handleSave({ verschiebung_wochen: val })
+            }}
+            disabled={saving}
+            className="w-20"
+            aria-label="Verschiebung in Wochen"
+          />
+          <span className="text-sm text-muted-foreground">Wochen</span>
+        </div>
       </div>
 
       {/* Marketing */}
-      <div className="flex items-center gap-6">
-        <Label className="w-56 shrink-0 text-sm font-medium" htmlFor={`marketing-${plattformId}`}>
-          Marketing
-        </Label>
-        <Checkbox
-          id={`marketing-${plattformId}`}
-          checked={current.marketing_inkludiert}
-          onCheckedChange={v => handleSave({ marketing_inkludiert: Boolean(v) })}
-          disabled={saving}
-          aria-label="Marketingausgaben inkludiert"
-        />
+      <div className="flex items-start gap-6">
+        <Label className="w-56 shrink-0 text-sm font-medium pt-2">Marketing</Label>
+        {marketingUntergruppen.length === 0 ? (
+          <p className="text-sm text-muted-foreground pt-2">
+            Keine Marketing-Untergruppen im KPI-Modell gepflegt.{' '}
+            <a href="/dashboard/kpi-modell" className="underline">
+              Zum KPI-Modell
+            </a>
+          </p>
+        ) : (
+          <div className="flex items-start gap-6">
+            {/* Auswahl-Dropdown */}
+            <MultiSelect
+              options={marketingUntergruppen.map(ug => ({ id: ug.id, name: ug.name }))}
+              selected={selectedGruppenIds}
+              onChange={handleMarketingGruppenChange}
+              placeholder="Untergruppen wählen"
+              className="w-48"
+            />
+            {/* Ausgewählte Gruppen mit X + Inkludiert-Checkbox */}
+            {gruppen.length > 0 && (
+              <div className="space-y-2">
+                {gruppen.map(gruppe => {
+                  const kat = marketingUntergruppen.find(ug => ug.id === gruppe.kpi_kategorie_id)
+                  if (!kat) return null
+                  return (
+                    <div key={gruppe.kpi_kategorie_id} className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleMarketingGruppenChange(
+                          selectedGruppenIds.filter(id => id !== gruppe.kpi_kategorie_id)
+                        )}
+                        className="text-muted-foreground hover:text-destructive shrink-0"
+                        aria-label={`${kat.name} entfernen`}
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                      <span className="text-sm truncate">{kat.name}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

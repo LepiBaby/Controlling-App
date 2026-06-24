@@ -9,7 +9,7 @@ export default function KurzfristigePlanungPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <NavSheet />
-            <h1 className="text-lg font-semibold">Controlling App</h1>
+            <h1 className="text-lg font-semibold">Kurzfristige Planung</h1>
           </div>
           <div className="flex items-center gap-4">
             <LogoutButton />
@@ -152,19 +152,45 @@ export default function KurzfristigePlanungPage() {
                 </p>
               </a>
               <a
+                href="/dashboard/kurzfristige-planung/sales-plattform-planung"
+                className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+              >
+                <p className="font-medium">Sales Plattform Planung</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Bruttoumsatz, Rückerstattungen, Verkaufsgebühr und weitere Kategorien je Plattform &amp; Produkt für Vergangenheit und Planung einsehen
+                </p>
+              </a>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              Auswertungen
+            </h2>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <a
                 href="/dashboard/kurzfristige-planung/einnahmenplanung"
                 className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
               >
-                <p className="font-medium">Einnahmenplanung</p>
+                <p className="font-medium">Einnahmen</p>
                 <p className="text-sm text-muted-foreground mt-1">
                   Sonstige Einnahmen je Kategorie für den Planungshorizont manuell erfassen
+                </p>
+              </a>
+              <a
+                href="/dashboard/kurzfristige-planung/umsatzausgaben"
+                className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+              >
+                <p className="font-medium">Umsatzausgaben</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Produkt-, Vertriebs- und Marketingausgaben automatisch berechnet und manuell anpassbar
                 </p>
               </a>
               <a
                 href="/dashboard/kurzfristige-planung/operative-planung"
                 className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
               >
-                <p className="font-medium">Operative Planung</p>
+                <p className="font-medium">Operative Ausgaben</p>
                 <p className="text-sm text-muted-foreground mt-1">
                   Operative Kosten je Kategorie für den Planungshorizont manuell erfassen
                 </p>
@@ -173,18 +199,36 @@ export default function KurzfristigePlanungPage() {
                 href="/dashboard/kurzfristige-planung/produktinvestitionsplanung"
                 className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
               >
-                <p className="font-medium">Produktinvestitionsplanung</p>
+                <p className="font-medium">Produktinvestitionsausgaben</p>
                 <p className="text-sm text-muted-foreground mt-1">
                   Produktinvestitionen je Kategorie für den Planungshorizont manuell erfassen
                 </p>
               </a>
               <a
-                href="/dashboard/kurzfristige-planung/sales-plattform-planung"
+                href="/dashboard/kurzfristige-planung/finanzierungsausgaben"
                 className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
               >
-                <p className="font-medium">Sales Plattform Planung</p>
+                <p className="font-medium">Finanzierungsausgaben</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Bruttoumsatz, Rückerstattungen, Verkaufsgebühr und weitere Kategorien je Plattform &amp; Produkt für Vergangenheit und Planung einsehen
+                  Finanzierungskosten je Kategorie für den Planungshorizont automatisch berechnen und manuell anpassen
+                </p>
+              </a>
+              <a
+                href="/dashboard/kurzfristige-planung/steuerausgaben"
+                className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+              >
+                <p className="font-medium">Steuerausgaben</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Steuerausgaben je Kategorie für den Planungshorizont automatisch berechnen und manuell anpassen
+                </p>
+              </a>
+              <a
+                href="/dashboard/kurzfristige-planung/liquiditaetsauswertung"
+                className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+              >
+                <p className="font-medium">Liquiditätsauswertung</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Einnahmen und alle Ausgaben zusammengeführt: Cashflow und Kontostand je Woche/Monat (Ist &amp; Soll)
                 </p>
               </a>
             </div>

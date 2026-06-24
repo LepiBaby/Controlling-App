@@ -16,14 +16,14 @@ const BEREICHE = [
   {
     value: 'kurzfristige-planung',
     label: 'Kurzfristige Planung',
-    description: 'Kommt in Kürze',
+    description: 'Absatz-, Einnahmen-, Ausgaben- & Bestellplanung',
     icon: CalendarClock,
     href: '/dashboard/kurzfristige-planung',
   },
   {
     value: 'langfristige-planung',
     label: 'Langfristige Planung',
-    description: 'Kommt in Kürze',
+    description: 'Strategische Mehrjahresplanung & Szenarien',
     icon: Target,
     href: '/dashboard/langfristige-planung',
   },

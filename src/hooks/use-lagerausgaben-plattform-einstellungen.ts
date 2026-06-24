@@ -35,7 +35,7 @@ const DEFAULTS: LagerausgabenPlattformEinstellungen = {
 export function useLagerausgabenPlattformEinstellungen(plattformId: string | null) {
   const [einstellungen, setEinstellungen] =
     useState<LagerausgabenPlattformEinstellungen | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(!!plattformId)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {

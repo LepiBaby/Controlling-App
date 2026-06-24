@@ -1,0 +1,82 @@
+'use client'
+
+import { useState, useEffect, useCallback } from 'react'
+
+export type Gruppierung = 'woechentlich' | 'monatlich' | 'quartalsweise'
+
+export interface MarketingPlattformEinstellung {
+  gruppierung: Gruppierung
+  naechste_zahlung_basis_kw: number | null
+  naechste_zahlung_basis_jahr: number | null
+  zahlungsziel_tage: number | null
+}
+
+export const GRUPPIERUNGEN: Gruppierung[] = ['woechentlich', 'monatlich', 'quartalsweise']
+
+export const GRUPPIERUNG_LABELS: Record<Gruppierung, string> = {
+  woechentlich: 'Wöchentlich',
+  monatlich: 'Monatlich',
+  quartalsweise: 'Quartalsweise',
+}
+
+export const GRUPPIERUNG_WOCHEN: Record<Gruppierung, number> = {
+  woechentlich: 1,
+  monatlich: 4,
+  quartalsweise: 13,
+}
+
+const DEFAULTS: MarketingPlattformEinstellung = {
+  gruppierung: 'monatlich',
+  naechste_zahlung_basis_kw: null,
+  naechste_zahlung_basis_jahr: null,
+  zahlungsziel_tage: null,
+}
+
+export function useMarketingPlattformEinstellungen(plattformId: string | null) {
+  const [einstellung, setEinstellung] = useState<MarketingPlattformEinstellung | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!plattformId) return
+    setLoading(true)
+    setError(null)
+    fetch(`/api/marketing-plattform-einstellungen?plattform_id=${plattformId}`)
+      .then(r => {
+        if (!r.ok) throw new Error('API-Fehler')
+        return r.json()
+      })
+      .then((data: MarketingPlattformEinstellung | null) => {
+        setEinstellung(data)
+        setLoading(false)
+      })
+      .catch(() => {
+        setError('Fehler beim Laden der Plattform-Einstellungen.')
+        setLoading(false)
+      })
+  }, [plattformId])
+
+  const upsert = useCallback(
+    async (patch: Partial<MarketingPlattformEinstellung>): Promise<void> => {
+      if (!plattformId) return
+      const previous = einstellung
+      setEinstellung(curr => ({ ...(curr ?? DEFAULTS), ...patch }))
+
+      const res = await fetch('/api/marketing-plattform-einstellungen', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sales_plattform_id: plattformId, ...patch }),
+      })
+
+      if (!res.ok) {
+        setEinstellung(previous)
+        throw new Error('Speichern fehlgeschlagen')
+      }
+    },
+    [einstellung, plattformId]
+  )
+
+  const effektiv = einstellung ?? DEFAULTS
+
+  return { einstellung: effektiv, loading, error, upsert }
+}

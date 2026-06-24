@@ -4,7 +4,6 @@ import { requireAuth } from '@/lib/supabase-server'
 
 const UpsertSchema = z.object({
   volumen_20dc: z.number().positive().nullable().optional(),
-  volumen_40dc: z.number().positive().nullable().optional(),
   volumen_40hq: z.number().positive().nullable().optional(),
 })
 
@@ -14,7 +13,7 @@ export async function GET() {
 
   const { data, error: dbErr } = await supabase
     .from('produktinformationen_container_global')
-    .select('id, volumen_20dc, volumen_40dc, volumen_40hq')
+    .select('id, volumen_20dc, volumen_40hq')
     .eq('user_id', user!.id)
     .maybeSingle()
 
@@ -39,13 +38,12 @@ export async function PUT(request: Request) {
       {
         user_id: user!.id,
         volumen_20dc: parsed.data.volumen_20dc ?? null,
-        volumen_40dc: parsed.data.volumen_40dc ?? null,
         volumen_40hq: parsed.data.volumen_40hq ?? null,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'user_id' }
     )
-    .select('id, volumen_20dc, volumen_40dc, volumen_40hq')
+    .select('id, volumen_20dc, volumen_40hq')
     .single()
 
   if (dbErr || !data) {

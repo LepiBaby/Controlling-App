@@ -97,6 +97,21 @@ describe('PATCH /api/langfristige-planung/[versionId]/kpi-kategorien/[id]', () =
     const res = await PATCH(patchReq({ name: 'X' }), ctx(VERSION_ID, ID))
     expect(res.status).toBe(401)
   })
+
+  it('returns 403 when editing a fixed system group', async () => {
+    mockFrom.mockReturnValueOnce(chain({ data: { id: VERSION_ID }, error: null })) // ensureVersion
+    mockFrom.mockReturnValueOnce(chain({ data: { id: ID, art: 'lp_investition', level: 1, is_system: true }, error: null })) // existing → system
+    const res = await PATCH(patchReq({ name: 'Umbenannt' }), ctx(VERSION_ID, ID))
+    expect(res.status).toBe(403)
+  })
+
+  it('returns 403 when reparenting under a fixed system group', async () => {
+    mockFrom.mockReturnValueOnce(chain({ data: { id: VERSION_ID }, error: null })) // ensureVersion
+    mockFrom.mockReturnValueOnce(chain({ data: { id: ID, art: 'lp_investition', level: 2, is_system: false }, error: null })) // existing → own
+    mockFrom.mockReturnValueOnce(chain({ data: { id: PARENT_ID, level: 1, is_system: true }, error: null })) // parent → system
+    const res = await PATCH(patchReq({ parent_id: PARENT_ID, level: 2 }), ctx(VERSION_ID, ID))
+    expect(res.status).toBe(403)
+  })
 })
 
 describe('DELETE /api/langfristige-planung/[versionId]/kpi-kategorien/[id]', () => {
@@ -127,5 +142,12 @@ describe('DELETE /api/langfristige-planung/[versionId]/kpi-kategorien/[id]', () 
     await unauth()
     const res = await DELETE(req({ method: 'DELETE' }), ctx(VERSION_ID, ID))
     expect(res.status).toBe(401)
+  })
+
+  it('returns 403 when deleting a fixed system group', async () => {
+    mockFrom.mockReturnValueOnce(chain({ data: { id: VERSION_ID }, error: null })) // ensureVersion
+    mockFrom.mockReturnValueOnce(chain({ data: { id: ID, is_system: true }, error: null })) // existing → system
+    const res = await DELETE(req({ method: 'DELETE' }), ctx(VERSION_ID, ID))
+    expect(res.status).toBe(403)
   })
 })

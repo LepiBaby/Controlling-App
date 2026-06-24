@@ -237,6 +237,33 @@ Auf Nutzerwunsch entfällt die Nav-Gruppe **„Stammdaten"**; „KPI-Modell Verw
 ### Änderung: Marketingkanäle ohne Untergruppen, 2026-06-20
 Auf Nutzerwunsch wurde **Marketingkanäle** von Gruppe→Untergruppe (2 Ebenen) auf eine **flache Liste** (nur Ebene 1) umgestellt; nur **Investitionen** behält die 2-Ebenen-Struktur. Frontend: `maxLevel` für `lp_marketingkanal` auf 1, Add-Platzhalter angepasst. Backend: `lp_marketingkanal` zu `FLAT_ARTEN` hinzugefügt (nur Ebene 1, kein Elternknoten — POST/PATCH lehnen Untergruppen ab). Tabellen-CHECK (`level ∈ {1,2}`) bleibt unverändert (flach = Teilmenge), keine Migration nötig. Tests auf `lp_investition` für die Untergruppen-Fälle umgestellt — weiterhin **23/23 grün**.
 
+### Änderung: Feste Produktinvestitions-Übergruppen im Investitionen-Reiter, 2026-06-21
+Auf Nutzerwunsch erhält der Reiter **Investitionen** drei **feste, schreibgeschützte Übergruppen** (Ebene 1), die je Planversion **einmalig als Snapshot** aus dem **globalen KPI-Modell** befüllt werden:
+Gespiegelt werden jeweils die **direkten Kinder** des Quellknotens in der globalen `ausgaben_kosten`-Struktur:
+- **Produktinvestitionen Operations** ← „Produktinvestitionen" › „Operations" (deren Untergruppen)
+- **Produktinvestitionen Einkauf** ← L1-Kategorie **„Produkt"** (deren Untergruppen: Ware, Inspektion, Shipping, Zoll, Einlagerung, Wertverlust Ware) — **nicht** der `produkte`-Stammdatentyp
+- **Produktinvestitionen Sales & Marketing** ← „Produktinvestitionen" › „Sales & Marketing" (deren Untergruppen)
+
+Design-Entscheidungen (mit Nutzer abgestimmt): **Snapshot beim Anlegen** (nicht live), **2 Ebenen** (Übergruppe → Gruppe, gespiegelte Gruppen sind reine Anzeige), und der Nutzer kann **nur neue eigene Übergruppen (Ebene 1)** mit eigenen Gruppen anlegen. Die drei festen Übergruppen und ihre gespiegelten Gruppen sind nicht umbenennbar/löschbar/sortierbar/verschiebbar.
+
+**Datenbank (Migration `add_is_system_to_langfristige_kpi_kategorien`):** Neue Spalte `is_system boolean NOT NULL DEFAULT false` auf `langfristige_kpi_kategorien` (`true` = feste Übergruppe oder gespiegelte Gruppe). Index `(plan_version_id, art, is_system)`. RLS/Policies unverändert.
+
+**Seeding (idempotent):** `src/lib/langfristige-investitionen-snapshot.ts` — `ensureInvestitionenSnapshot(supabase, userId, versionId)` legt die 3 Übergruppen + gespiegelten Gruppen nur an, wenn noch kein System-Investitions-Datensatz existiert. Aufruf bei **Versionserstellung** (`POST …/planversionen`, Fehler geschluckt) **und** lazy bei `GET …/kpi-kategorien?art=lp_investition` (Backfill bestehender Versionen).
+
+**Backend Read-only-Schutz:**
+- `[id]` `PATCH`/`DELETE` auf `is_system`-Datensatz → **403**; Umhängen unter eine System-Übergruppe → **403**.
+- `POST` mit System-Übergruppe als Eltern → **403** (keine eigenen Einträge unter den festen Übergruppen). `is_system` in `SELECT_COLS` ergänzt.
+
+**Frontend:**
+- `KpiCategory` um optionales `is_system` erweitert (additiv; global stets falsy). Hook `use-langfristige-kpi-kategorien` mappt `is_system` und schließt System-Knoten aus allen Umsortier-/Umhäng-Berechnungen aus (eigene Einträge werden hinter den festen Gruppen einsortiert).
+- `kpi-category-row`: System-Knoten ohne Drag-Handle (Lock-Icon), ohne Aktions-Buttons, Name als reiner Text. `kpi-category-tree`: System-Knoten sind kein gültiges Drop-Ziel.
+
+**Snapshot für „Testversion1":** einmalig direkt in der DB geseedet (Operations: Produktentwicklung/Compliance/Sonstiges; Einkauf: Ware/Inspektion/Shipping/Zoll/Einlagerung/Wertverlust Ware; Sales & Marketing: Produktbilder & -videos/Siegel & Badges/Bewertungen/Sonstiges).
+
+**Offen (Folge-Spec):** Verknüpfung der gespiegelten Gruppen mit nachgelagerten Planungs-/Auswertungsdaten (Snapshot speichert nur Namen, keinen Link zur globalen ID).
+
+**Tests:** API-Tests ergänzt (403 bei System-PATCH/DELETE/Umhängen/POST-unter-System) + Helfer-Test (`langfristige-investitionen-snapshot.test.ts`: Idempotenz + Snapshot-Inhalt). **62/62 grün** in den betroffenen Suiten; Typecheck/Lint der geänderten Dateien ohne neue Befunde.
+
 ## QA Test Results
 
 **Getestet:** 2026-06-20 · **Methode:** Code-Audit aller Akzeptanzkriterien + Vitest (API/Logik) + Playwright (Route/Auth/Regression). Interaktionen (Anlegen/Umbenennen/Löschen/Sortieren, Untergruppen, Versionsisolation) sind code-/manuell geprüft — analog zum Vorgehen bei PROJ-75 (versionsgebundene Seiten ohne automatisierte Login-Session in E2E).

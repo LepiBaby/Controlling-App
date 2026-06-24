@@ -1,8 +1,13 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/supabase-server'
+import { ensureInvestitionenSnapshot } from '@/lib/langfristige-investitionen-snapshot'
 
-const SELECT_COLS = 'id, plan_version_id, art, parent_id, name, level, sort_order'
+// Auth-geschützte, pro-Planversion dynamische Route — nie statisch generieren.
+// Überspringt den in Next 16 instabilen Static-Path-Pass (Worker-Crash).
+export const dynamic = 'force-dynamic'
+
+const SELECT_COLS = 'id, plan_version_id, art, parent_id, name, level, sort_order, is_system'
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 const VALID_ARTEN = ['lp_sales_plattform', 'lp_produkt', 'lp_marketingkanal', 'lp_investition'] as const
@@ -57,6 +62,12 @@ export async function GET(request: Request, { params }: RouteContext) {
     return NextResponse.json({ error: 'Ungültiger art-Parameter' }, { status: 400 })
   }
 
+  // Investitionen: feste Produktinvestitions-Übergruppen (Snapshot aus globalem
+  // KPI-Modell) einmalig pro Version anlegen — auch für bereits bestehende Versionen.
+  if (art === 'lp_investition') {
+    await ensureInvestitionenSnapshot(supabase, user!.id, versionId)
+  }
+
   const { data, error: dbErr } = await supabase
     .from('langfristige_kpi_kategorien')
     .select(SELECT_COLS)
@@ -102,7 +113,7 @@ export async function POST(request: Request, { params }: RouteContext) {
   if (parent_id !== null) {
     const { data: parent, error: parentErr } = await supabase
       .from('langfristige_kpi_kategorien')
-      .select('id, level')
+      .select('id, level, is_system')
       .eq('user_id', user!.id)
       .eq('plan_version_id', versionId)
       .eq('art', art)
@@ -111,6 +122,14 @@ export async function POST(request: Request, { params }: RouteContext) {
     if (parentErr) return NextResponse.json({ error: parentErr.message }, { status: 500 })
     if (!parent || parent.level !== 1) {
       return NextResponse.json({ error: 'Ungültige übergeordnete Gruppe.' }, { status: 400 })
+    }
+    // Unter den festen Produktinvestitions-Übergruppen sind nur die gespiegelten
+    // (read-only) Gruppen erlaubt — keine eigenen Einträge.
+    if (parent.is_system) {
+      return NextResponse.json(
+        { error: 'Unter einer festen Produktinvestitions-Übergruppe können keine eigenen Einträge angelegt werden.' },
+        { status: 403 },
+      )
     }
   }
 

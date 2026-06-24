@@ -76,5 +76,55 @@ export function useVerkaufsgebuehrEinstellungen(plattformId: string | null) {
     [einstellungen]
   )
 
-  return { einstellungen, loading, error, getEinstellung, upsert }
+  const batchUpsert = useCallback(
+    async (
+      salesPlattformId: string,
+      verkaufsgebuehrProzent: number | null,
+      produktIds: string[]
+    ): Promise<void> => {
+      const previous = [...einstellungen]
+
+      setEinstellungen(curr => {
+        const result = [...curr]
+        for (const produktId of produktIds) {
+          const idx = result.findIndex(
+            e => e.sales_plattform_id === salesPlattformId && e.produkt_id === produktId
+          )
+          if (idx >= 0) {
+            result[idx] = { ...result[idx], verkaufsgebuehr_prozent: verkaufsgebuehrProzent }
+          } else {
+            result.push({
+              sales_plattform_id: salesPlattformId,
+              produkt_id: produktId,
+              verkaufsgebuehr_prozent: verkaufsgebuehrProzent,
+            })
+          }
+        }
+        return result
+      })
+
+      const res = await fetch('/api/verkaufsgebuehr-einstellungen/batch', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sales_plattform_id: salesPlattformId,
+          verkaufsgebuehr_prozent: verkaufsgebuehrProzent,
+        }),
+      })
+
+      if (!res.ok) {
+        setEinstellungen(previous)
+        throw new Error('Batch-Upsert fehlgeschlagen')
+      }
+
+      const data: VerkaufsgebuehrEinstellung[] = await res.json()
+      setEinstellungen(curr => {
+        const others = curr.filter(e => e.sales_plattform_id !== salesPlattformId)
+        return [...others, ...data]
+      })
+    },
+    [einstellungen]
+  )
+
+  return { einstellungen, loading, error, getEinstellung, upsert, batchUpsert }
 }

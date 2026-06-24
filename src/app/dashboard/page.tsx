@@ -37,7 +37,7 @@ export default async function DashboardPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
               <NavSheet />
-              <h1 className="text-lg font-semibold">Controlling App</h1>
+              <h1 className="text-lg font-semibold">Dashboard</h1>
             </div>
           <div className="flex items-center gap-4">
             <span className="text-sm text-muted-foreground">{user.email}</span>

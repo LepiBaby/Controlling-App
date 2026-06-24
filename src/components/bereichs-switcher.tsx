@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
-const BEREICHE = [
+export const BEREICHE = [
   { value: 'reporting', label: 'Reporting', href: '/dashboard' },
   { value: 'kurzfristige-planung', label: 'Kurzfristige Planung', href: '/dashboard/kurzfristige-planung' },
   { value: 'langfristige-planung', label: 'Langfristige Planung', href: '/dashboard/langfristige-planung' },

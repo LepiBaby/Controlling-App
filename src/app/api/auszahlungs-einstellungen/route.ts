@@ -17,8 +17,8 @@ const putSchema = z
     auszahlungsrhythmus: z.enum(RHYTHMUS_VALUES),
     naechste_auszahlung_basis_kw: z.number().int().min(1).max(53).nullable(),
     naechste_auszahlung_basis_jahr: z.number().int().min(2024).nullable(),
+    verschiebung_wochen: z.number().int().min(0).max(52).default(0),
     retouren_inkludiert: z.boolean(),
-    marketing_inkludiert: z.boolean(),
   })
   .superRefine((data, ctx) => {
     const kwSet = data.naechste_auszahlung_basis_kw !== null
@@ -50,7 +50,7 @@ export async function GET(request: Request) {
   const { data, error: dbErr } = await supabase
     .from('auszahlungs_einstellungen')
     .select(
-      'sales_plattform_id, auszahlungsrhythmus, naechste_auszahlung_basis_kw, naechste_auszahlung_basis_jahr, retouren_inkludiert, marketing_inkludiert'
+      'sales_plattform_id, auszahlungsrhythmus, naechste_auszahlung_basis_kw, naechste_auszahlung_basis_jahr, verschiebung_wochen, retouren_inkludiert'
     )
     .eq('user_id', user!.id)
     .eq('sales_plattform_id', plattformId)
@@ -78,8 +78,8 @@ export async function PUT(request: Request) {
     auszahlungsrhythmus,
     naechste_auszahlung_basis_kw,
     naechste_auszahlung_basis_jahr,
+    verschiebung_wochen,
     retouren_inkludiert,
-    marketing_inkludiert,
   } = parsed.data
 
   const { data, error: dbErr } = await supabase
@@ -90,15 +90,15 @@ export async function PUT(request: Request) {
         auszahlungsrhythmus,
         naechste_auszahlung_basis_kw,
         naechste_auszahlung_basis_jahr,
+        verschiebung_wochen,
         retouren_inkludiert,
-        marketing_inkludiert,
         user_id: user!.id,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'sales_plattform_id,user_id' }
     )
     .select(
-      'sales_plattform_id, auszahlungsrhythmus, naechste_auszahlung_basis_kw, naechste_auszahlung_basis_jahr, retouren_inkludiert, marketing_inkludiert'
+      'sales_plattform_id, auszahlungsrhythmus, naechste_auszahlung_basis_kw, naechste_auszahlung_basis_jahr, verschiebung_wochen, retouren_inkludiert'
     )
     .single()
 

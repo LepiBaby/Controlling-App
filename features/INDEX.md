@@ -92,12 +92,38 @@
 | PROJ-68 | Operative Ausgaben — Kurzfristige Planung (Redesign PROJ-56) | Approved | [PROJ-68-operative-ausgaben.md](PROJ-68-operative-ausgaben.md) | 2026-06-17 |
 | PROJ-69 | Produktinvestitionsausgaben — Kurzfristige Planung (Redesign PROJ-57) | Approved | [PROJ-69-produktinvestitionsausgaben.md](PROJ-69-produktinvestitionsausgaben.md) | 2026-06-17 |
 | PROJ-70 | Finanzierungsausgaben — Kurzfristige Planung | Approved | [PROJ-70-finanzierungsausgaben.md](PROJ-70-finanzierungsausgaben.md) | 2026-06-18 |
-| PROJ-71 | Steuerausgaben — Kurzfristige Planung | Approved | [PROJ-71-steuerausgaben.md](PROJ-71-steuerausgaben.md) | 2026-06-18 |
+| PROJ-71 | Steuerausgaben — Kurzfristige Planung | In Progress | [PROJ-71-steuerausgaben.md](PROJ-71-steuerausgaben.md) | 2026-06-18 |
 | PROJ-72 | Liquiditätsauswertung — Kurzfristige Planung | Approved | [PROJ-72-liquiditaetsauswertung.md](PROJ-72-liquiditaetsauswertung.md) | 2026-06-20 |
 | PROJ-73 | Langfristige Planung — Planversionen & Navigation (Foundation) | In Progress | [PROJ-73-langfristige-planung-planversionen.md](PROJ-73-langfristige-planung-planversionen.md) | 2026-06-20 |
 | PROJ-74 | KPI-Modell Verwaltung — Langfristige Planung | Approved | [PROJ-74-langfristige-kpi-modell-verwaltung.md](PROJ-74-langfristige-kpi-modell-verwaltung.md) | 2026-06-20 |
 | PROJ-75 | Grundeinstellungen — Langfristige Planung | Approved | [PROJ-75-langfristige-grundeinstellungen.md](PROJ-75-langfristige-grundeinstellungen.md) | 2026-06-20 |
+| PROJ-76 | Auszahlungseinstellungen — Langfristige Planung | Approved | [PROJ-76-langfristige-auszahlungseinstellungen.md](PROJ-76-langfristige-auszahlungseinstellungen.md) | 2026-06-20 |
+| PROJ-77 | Produktinformationen — Langfristige Planung | Approved | [PROJ-77-langfristige-produktinformationen.md](PROJ-77-langfristige-produktinformationen.md) | 2026-06-20 |
+| PROJ-78 | Vertriebseinstellungen — Langfristige Planung | Approved | [PROJ-78-langfristige-vertriebseinstellungen.md](PROJ-78-langfristige-vertriebseinstellungen.md) | 2026-06-20 |
+| PROJ-79 | Verkaufsgebühr-Einstellungen — Langfristige Planung | Approved | [PROJ-79-langfristige-verkaufsgebuehr-einstellungen.md](PROJ-79-langfristige-verkaufsgebuehr-einstellungen.md) | 2026-06-20 |
+| PROJ-80 | Marketing-Einstellungen — Langfristige Planung | Approved | [PROJ-80-langfristige-marketing-einstellungen.md](PROJ-80-langfristige-marketing-einstellungen.md) | 2026-06-20 |
+| PROJ-81 | Operative Fixkosten-Einstellungen — Langfristige Planung | Removed | [PROJ-81-langfristige-operative-fixkosten-einstellungen.md](PROJ-81-langfristige-operative-fixkosten-einstellungen.md) | 2026-06-20 |
+| PROJ-82 | Finanzierungseinstellungen — Langfristige Planung | Removed | [PROJ-82-langfristige-finanzierungseinstellungen.md](PROJ-82-langfristige-finanzierungseinstellungen.md) | 2026-06-20 |
+| PROJ-83 | Steuereinstellungen — Langfristige Planung | Approved | [PROJ-83-langfristige-steuereinstellungen.md](PROJ-83-langfristige-steuereinstellungen.md) | 2026-06-20 |
+| PROJ-84 | Absatzplanung — Langfristige Planung | Approved | [PROJ-84-langfristige-absatzplanung.md](PROJ-84-langfristige-absatzplanung.md) | 2026-06-21 |
+| PROJ-85 | Marketing-Planung — Langfristige Planung | Approved | [PROJ-85-langfristige-marketingplanung.md](PROJ-85-langfristige-marketingplanung.md) | 2026-06-21 |
+| PROJ-86 | Bestellplanung — Langfristige Planung | Approved | [PROJ-86-langfristige-bestellplanung.md](PROJ-86-langfristige-bestellplanung.md) | 2026-06-21 |
+| PROJ-87 | Sales-Plattform-Planung — Langfristige Planung | Approved | [PROJ-87-langfristige-sales-plattform-planung.md](PROJ-87-langfristige-sales-plattform-planung.md) | 2026-06-22 |
+| PROJ-88 | Operativekosten Planung — Langfristige Planung | Approved | [PROJ-88-langfristige-operativekosten-planung.md](PROJ-88-langfristige-operativekosten-planung.md) | 2026-06-22 |
+| PROJ-89 | Einnahmenplanung — Langfristige Planung | Approved | [PROJ-89-langfristige-einnahmenplanung.md](PROJ-89-langfristige-einnahmenplanung.md) | 2026-06-22 |
+| PROJ-90 | Finanzierungsausgaben Planung — Langfristige Planung | Approved | [PROJ-90-langfristige-finanzierungsausgaben-planung.md](PROJ-90-langfristige-finanzierungsausgaben-planung.md) | 2026-06-22 |
+| PROJ-91 | Umsatzausgaben Planung — Langfristige Planung | Approved | [PROJ-91-langfristige-umsatzausgaben-planung.md](PROJ-91-langfristige-umsatzausgaben-planung.md) | 2026-06-22 |
+| PROJ-92 | Investitionsausgaben Planung — Langfristige Planung | Approved | [PROJ-92-langfristige-investitionsausgaben-planung.md](PROJ-92-langfristige-investitionsausgaben-planung.md) | 2026-06-22 |
+| PROJ-93 | Steuerausgaben Planung — Langfristige Planung | In Review | [PROJ-93-langfristige-steuerausgaben-planung.md](PROJ-93-langfristige-steuerausgaben-planung.md) | 2026-06-22 |
+| PROJ-94 | Liquiditätsauswertung — Langfristige Planung | Approved | [PROJ-94-langfristige-liquiditaetsauswertung.md](PROJ-94-langfristige-liquiditaetsauswertung.md) | 2026-06-23 |
+| PROJ-95 | Rentabilitätsauswertung — Langfristige Planung | Approved | [PROJ-95-langfristige-rentabilitaetsauswertung.md](PROJ-95-langfristige-rentabilitaetsauswertung.md) | 2026-06-23 |
+| PROJ-96 | Umsatzauswertung — Langfristige Planung | Approved | [PROJ-96-langfristige-umsatzauswertung.md](PROJ-96-langfristige-umsatzauswertung.md) | 2026-06-24 |
+| PROJ-97 | Umsatzkosten-Auswertung — Langfristige Planung | Approved | [PROJ-97-langfristige-umsatzkosten-auswertung.md](PROJ-97-langfristige-umsatzkosten-auswertung.md) | 2026-06-24 |
+| PROJ-98 | Operative Kosten-Auswertung — Langfristige Planung | Approved | [PROJ-98-langfristige-operative-kosten-auswertung.md](PROJ-98-langfristige-operative-kosten-auswertung.md) | 2026-06-24 |
+| PROJ-99 | Investitionsauswertung — Langfristige Planung | Approved | [PROJ-99-langfristige-investitionsauswertung.md](PROJ-99-langfristige-investitionsauswertung.md) | 2026-06-24 |
+| PROJ-100 | Finanzierungsausgaben-Auswertung — Langfristige Planung | Approved | [PROJ-100-langfristige-finanzierungsausgaben-auswertung.md](PROJ-100-langfristige-finanzierungsausgaben-auswertung.md) | 2026-06-24 |
+| PROJ-101 | Kapitalbedarf & Finanzierung — Langfristige Planung | Approved | [PROJ-101-langfristige-kapitalbedarf-finanzierung.md](PROJ-101-langfristige-kapitalbedarf-finanzierung.md) | 2026-06-24 |
 
 <!-- Add features above this line -->
 
-## Next Available ID: PROJ-76
+## Next Available ID: PROJ-102

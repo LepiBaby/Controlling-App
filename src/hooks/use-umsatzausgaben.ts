@@ -17,13 +17,13 @@ export function wertKey(
   return `${kategorieId}:${produktId ?? ''}:${year}:${week}`
 }
 
-// key: "${kategorieId}:${year}:${week}" (Ist-Tatsächlich is at category level)
-export function istTKey(kategorieId: string, year: number, week: number): string {
-  return `${kategorieId}:${year}:${week}`
+// key: "${kategorieId}:${produktId ?? ''}:${year}:${week}"
+export function istTKey(kategorieId: string, produktId: string | null, year: number, week: number): string {
+  return `${kategorieId}:${produktId ?? ''}:${year}:${week}`
 }
 
-function berechneVergangenheitswochen(horizont: number): PlanungsWoche[] {
-  const today = new Date()
+function berechneVergangenheitswochen(horizont: number, referenceDate?: Date): PlanungsWoche[] {
+  const today = referenceDate ?? new Date()
   const result: PlanungsWoche[] = []
   for (let i = horizont; i >= 1; i--) {
     const d = startOfISOWeek(subWeeks(today, i))
@@ -34,8 +34,8 @@ function berechneVergangenheitswochen(horizont: number): PlanungsWoche[] {
   return result
 }
 
-function berechneZukunftswochen(horizont: number): PlanungsWoche[] {
-  const today = new Date()
+function berechneZukunftswochen(horizont: number, referenceDate?: Date): PlanungsWoche[] {
+  const today = referenceDate ?? new Date()
   const result: PlanungsWoche[] = []
   for (let i = 0; i < horizont; i++) {
     const d = startOfISOWeek(addWeeks(today, i))
@@ -52,10 +52,12 @@ interface ManuellerEintrag {
   kw_year: number
   kw_number: number
   betrag_manuell: number | null
+  ist_berechnet: boolean | null
 }
 
 interface IstTatsaechlichEintrag {
   kategorie_id: string
+  produkt_id: string | null
   kw_year: number
   kw_number: number
   betrag: number
@@ -69,7 +71,7 @@ interface BerechneterEintrag {
   wert: number
 }
 
-export function useUmsatzausgaben() {
+export function useUmsatzausgaben(referenceDate?: Date) {
   const [vergangenheitswochen, setVergangenheitswochen] = useState<PlanungsWoche[]>([])
   const [zukunftswochen, setZukunftswochen] = useState<PlanungsWoche[]>([])
   const [kategorien, setKategorien] = useState<KpiCategory[]>([])
@@ -79,6 +81,10 @@ export function useUmsatzausgaben() {
   const [berechneteWerte, setBerechneteWerte] = useState<Map<string, number>>(new Map())
   // Set of L2-kategorie IDs that have any berechnet data (→ show products under them)
   const [katIdsWithProducts, setKatIdsWithProducts] = useState<Set<string>>(new Set())
+  // Set of L2-kategorie IDs that appear in ist-tatsaechlich data
+  const [istTatsaechlichKatIds, setIstTatsaechlichKatIds] = useState<Set<string>>(new Set())
+  // Marketing L2 IDs that are NOT assigned to any sales platform (should be shown in Umsatzausgaben)
+  const [unassignedMarketingL2Ids, setUnassignedMarketingL2Ids] = useState<Set<string> | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -105,8 +111,8 @@ export function useUmsatzausgaben() {
         const planungsHorizont = grundData?.planungshorizont_wochen ?? 13
         const vergangenheitsHorizont = grundData?.vergangenheitshorizont_wochen ?? 4
 
-        const vWochen = berechneVergangenheitswochen(vergangenheitsHorizont)
-        const zWochen = berechneZukunftswochen(planungsHorizont)
+        const vWochen = berechneVergangenheitswochen(vergangenheitsHorizont, referenceDate)
+        const zWochen = berechneZukunftswochen(planungsHorizont, referenceDate)
         setVergangenheitswochen(vWochen)
         setZukunftswochen(zWochen)
 
@@ -114,15 +120,30 @@ export function useUmsatzausgaben() {
           ? `?von_kw=${vWochen[0].week}&von_jahr=${vWochen[0].year}&bis_kw=${vWochen[vWochen.length - 1].week}&bis_jahr=${vWochen[vWochen.length - 1].year}`
           : null
 
-        const [katRaw, prodRaw, valRaw, istRaw, berRaw] = await Promise.all([
+        // Fetch berechnet for all weeks (past + future) so that Versand/Lager/etc. L2 IDs
+        // appear in katIdsWithProducts even when absatz planning only exists in past weeks
+        const allWochen = [...vWochen, ...zWochen]
+        const ersteZukunft = zWochen[0]
+        const berParams = allWochen.length > 0
+          ? `?von_kw=${allWochen[0].week}&von_jahr=${allWochen[0].year}&bis_kw=${allWochen[allWochen.length - 1].week}&bis_jahr=${allWochen[allWochen.length - 1].year}${ersteZukunft ? `&erste_zukunftskw=${ersteZukunft.week}&erste_zukunftsjahr=${ersteZukunft.year}` : ''}`
+          : null
+
+        // Phase 2a: Load berechnet first — the API persists past-week Soll values
+        // to DB as a side-effect; we must wait for it before loading umsatzausgaben-planung
+        // so that Ist-Plan values (= saved Soll) are present in the DB response.
+        const [katRaw, prodRaw, istRaw, berRaw] = await Promise.all([
           fetch('/api/kpi-categories?type=ausgaben_kosten').then(r => r.ok ? r.json() : []),
           fetch('/api/kpi-categories?type=produkte').then(r => r.ok ? r.json() : []),
-          fetch('/api/umsatzausgaben-planung').then(r => r.ok ? r.json() : []),
           istParams
-            ? fetch(`/api/umsatzausgaben-planung/ist-tatsaechlich${istParams}`).then(r => r.ok ? r.json() : [])
-            : Promise.resolve([]),
-          fetch('/api/umsatzausgaben-planung/berechnet').then(r => r.ok ? r.json() : []),
+            ? fetch(`/api/umsatzausgaben-planung/ist-tatsaechlich${istParams}`).then(r => r.ok ? r.json() : { data: [] })
+            : Promise.resolve({ data: [] }),
+          berParams
+            ? fetch(`/api/umsatzausgaben-planung/berechnet${berParams}`).then(r => r.ok ? r.json() : { data: [] })
+            : Promise.resolve({ data: [] }),
         ])
+
+        // Phase 2b: Now load manual values — DB now contains freshly persisted past-week Soll values
+        const valRaw = await fetch('/api/umsatzausgaben-planung').then(r => r.ok ? r.json() : { data: [] })
 
         setKategorien((Array.isArray(katRaw) ? katRaw : []) as KpiCategory[])
         const allProdukte = (Array.isArray(prodRaw) ? prodRaw : []) as KpiCategory[]
@@ -135,24 +156,46 @@ export function useUmsatzausgaben() {
             valueMap.set(wertKey(e.kategorie_id, e.produkt_id, e.kw_year, e.kw_number), e.betrag_manuell)
           }
         }
-        setValues(valueMap)
 
-        const istEntries = (Array.isArray(istRaw) ? istRaw : []) as IstTatsaechlichEintrag[]
+        const istEntries = (Array.isArray(istRaw) ? istRaw : (istRaw?.data ?? [])) as IstTatsaechlichEintrag[]
         const istMap = new Map<string, number>()
+        const istKatIds = new Set<string>()
         for (const e of istEntries) {
-          istMap.set(istTKey(e.kategorie_id, e.kw_year, e.kw_number), e.betrag)
+          istMap.set(istTKey(e.kategorie_id, e.produkt_id, e.kw_year, e.kw_number), e.betrag)
+          istKatIds.add(e.kategorie_id)
         }
         setIstTatsaechlichMap(istMap)
+        setIstTatsaechlichKatIds(istKatIds)
 
-        const berEntries = (Array.isArray(berRaw) ? berRaw : []) as BerechneterEintrag[]
+        const berEntries = (Array.isArray(berRaw) ? berRaw : (berRaw?.data ?? [])) as BerechneterEintrag[]
         const berMap = new Map<string, number>()
         const withProducts = new Set<string>()
         for (const e of berEntries) {
           berMap.set(wertKey(e.kategorie_id, e.produkt_id, e.kw_year, e.kw_number), e.wert)
           withProducts.add(e.kategorie_id)
         }
+        // Also detect per-product L2 categories from manual values
+        for (const e of entries) {
+          if (e.produkt_id !== null) withProducts.add(e.kategorie_id)
+        }
         setBerechneteWerte(berMap)
         setKatIdsWithProducts(withProducts)
+        const unassignedMktIds = new Set<string>((berRaw?.unassigned_marketing_kat_ids ?? []) as string[])
+        setUnassignedMarketingL2Ids(unassignedMktIds)
+
+        // For FUTURE weeks: remove auto-calculated entries from valueMap so they show grey
+        // (from berechneteWerte), not blue (as if manually entered).
+        // Uses the ist_berechnet flag: true/null = auto-calc (remove), false = user manual (keep).
+        // Past weeks are skipped so their values remain available as Ist-Plan.
+        const futureWeekSet = new Set(zWochen.map(kw => `${kw.year}:${kw.week}`))
+        for (const e of entries) {
+          if (!futureWeekSet.has(`${e.kw_year}:${e.kw_number}`)) continue
+          if (e.ist_berechnet === false) continue  // user manually entered → keep as blue
+          const key = wertKey(e.kategorie_id, e.produkt_id, e.kw_year, e.kw_number)
+          valueMap.delete(key)
+        }
+
+        setValues(valueMap)
       } catch {
         setError('Fehler beim Laden der Umsatzausgaben.')
       } finally {
@@ -171,17 +214,11 @@ export function useUmsatzausgaben() {
   )
 
   const getIstTatsaechlich = useCallback(
-    (kategorieId: string, kw: PlanungsWoche): number | null => {
-      const v = istTatsaechlichMap.get(istTKey(kategorieId, kw.year, kw.week))
+    (kategorieId: string, produktId: string | null, kw: PlanungsWoche): number | null => {
+      const v = istTatsaechlichMap.get(istTKey(kategorieId, produktId, kw.year, kw.week))
       return v !== undefined ? v : null
     },
     [istTatsaechlichMap],
-  )
-
-  const getIstPlan = useCallback(
-    (kategorieId: string, produktId: string | null, kw: PlanungsWoche): number | null =>
-      getManuellerWert(kategorieId, produktId, kw),
-    [getManuellerWert],
   )
 
   const getBerechneterWert = useCallback(
@@ -190,6 +227,12 @@ export function useUmsatzausgaben() {
       return v !== undefined ? v : null
     },
     [berechneteWerte],
+  )
+
+  const getIstPlan = useCallback(
+    (kategorieId: string, produktId: string | null, kw: PlanungsWoche): number | null =>
+      getManuellerWert(kategorieId, produktId, kw),
+    [getManuellerWert],
   )
 
   const isManuelleOverride = useCallback(
@@ -246,16 +289,52 @@ export function useUmsatzausgaben() {
   )
 
   const resetAll = useCallback(async (): Promise<void> => {
+    const firstFuture = zukunftswochen[0]
     const snapshot = new Map(values)
-    setValues(new Map())
+    setValues(prev => {
+      const next = new Map(prev)
+      for (const key of next.keys()) {
+        const parts = key.split(':')
+        const yr = Number(parts[parts.length - 2])
+        const wk = Number(parts[parts.length - 1])
+        if (!firstFuture || yr > firstFuture.year || (yr === firstFuture.year && wk >= firstFuture.week)) {
+          next.delete(key)
+        }
+      }
+      return next
+    })
     try {
-      const res = await fetch('/api/umsatzausgaben-planung', { method: 'DELETE' })
+      const params = firstFuture
+        ? `?ab_kw_year=${firstFuture.year}&ab_kw_number=${firstFuture.week}`
+        : ''
+      const res = await fetch(`/api/umsatzausgaben-planung${params}`, { method: 'DELETE' })
       if (!res.ok) throw new Error()
     } catch {
       setValues(snapshot)
       throw new Error('Zurücksetzen fehlgeschlagen')
     }
-  }, [values])
+    // Re-fetch berechnet after delete so displayed values reflect the current calculation
+    const allWochen = [...vergangenheitswochen, ...zukunftswochen]
+    const ersteZukunft = zukunftswochen[0]
+    if (allWochen.length > 0) {
+      const berParams = `?von_kw=${allWochen[0].week}&von_jahr=${allWochen[0].year}&bis_kw=${allWochen[allWochen.length - 1].week}&bis_jahr=${allWochen[allWochen.length - 1].year}${ersteZukunft ? `&erste_zukunftskw=${ersteZukunft.week}&erste_zukunftsjahr=${ersteZukunft.year}` : ''}`
+      fetch(`/api/umsatzausgaben-planung/berechnet${berParams}`)
+        .then(r => r.ok ? r.json() : { data: [] })
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .then((berRaw: any) => {
+          const berEntries = (Array.isArray(berRaw) ? berRaw : (berRaw?.data ?? [])) as BerechneterEintrag[]
+          const berMap = new Map<string, number>()
+          const withProducts = new Set<string>()
+          for (const e of berEntries) {
+            berMap.set(wertKey(e.kategorie_id, e.produkt_id, e.kw_year, e.kw_number), e.wert)
+            withProducts.add(e.kategorie_id)
+          }
+          setBerechneteWerte(berMap)
+          setKatIdsWithProducts(withProducts)
+        })
+        .catch(() => {})
+    }
+  }, [values, zukunftswochen, vergangenheitswochen])
 
   return {
     vergangenheitswochen,
@@ -264,6 +343,9 @@ export function useUmsatzausgaben() {
     kategorien,
     produkte,
     katIdsWithProducts,
+    istTatsaechlichKatIds,
+    istTatsaechlichMap,
+    unassignedMarketingL2Ids,
     values,
     berechneteWerte,
     loading,
