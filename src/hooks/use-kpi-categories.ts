@@ -161,8 +161,15 @@ export function useKpiCategories(type: CategoryType) {
   }, [])
 
   const deleteCategory = useCallback(async (id: string) => {
+    // Erst Server bestätigen lassen, dann lokal entfernen. Sonst verschwindet ein
+    // Eintrag bei einem fehlgeschlagenen DELETE (z.B. blockiert durch verknüpfte
+    // Bestand-Sendungen) nur scheinbar und taucht beim Neuladen wieder auf.
+    const res = await fetch(`/api/kpi-categories/${id}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const body = await res.json().catch(() => null)
+      throw new Error(body?.error ?? 'Löschen fehlgeschlagen.')
+    }
     setCategories(prev => removeWithDescendants(prev, id))
-    await fetch(`/api/kpi-categories/${id}`, { method: 'DELETE' })
   }, [])
 
   const moveCategory = useCallback(async (id: string, direction: 'up' | 'down') => {

@@ -34,13 +34,24 @@ function CategoryTab({ type, maxLevel = 3 }: { type: CategoryType; maxLevel?: 1 
     getDescendantCount,
   } = useKpiCategories(type)
   const [pendingDelete, setPendingDelete] = useState<KpiCategory | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const descendantCount = pendingDelete ? getDescendantCount(pendingDelete.id) : 0
 
   async function confirmDelete() {
     if (!pendingDelete) return
-    await deleteCategory(pendingDelete.id)
-    setPendingDelete(null)
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      await deleteCategory(pendingDelete.id)
+      setPendingDelete(null)
+    } catch (e) {
+      // Dialog offen lassen und Grund anzeigen (z.B. noch verknüpfte Sendungen).
+      setDeleteError(e instanceof Error ? e.message : 'Löschen fehlgeschlagen.')
+    } finally {
+      setDeleting(false)
+    }
   }
 
   return (
@@ -67,7 +78,7 @@ function CategoryTab({ type, maxLevel = 3 }: { type: CategoryType; maxLevel?: 1 
         onUpdateExcludeFromRentabilitaet={type === 'ausgaben_kosten' ? updateExcludeFromRentabilitaet : undefined}
       />
 
-      <AlertDialog open={!!pendingDelete} onOpenChange={open => { if (!open) setPendingDelete(null) }}>
+      <AlertDialog open={!!pendingDelete} onOpenChange={open => { if (!open) { setPendingDelete(null); setDeleteError(null) } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Kategorie löschen?</AlertDialogTitle>
@@ -81,16 +92,20 @@ function CategoryTab({ type, maxLevel = 3 }: { type: CategoryType; maxLevel?: 1 
                     ⚠ Diese Kategorie enthält {descendantCount} Unterkategorie{descendantCount !== 1 ? 'n' : ''}, die ebenfalls gelöscht werden.
                   </p>
                 )}
+                {deleteError && (
+                  <p className="text-destructive">{deleteError}</p>
+                )}
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Abbrechen</AlertDialogCancel>
             <AlertDialogAction
-              onClick={confirmDelete}
+              onClick={e => { e.preventDefault(); confirmDelete() }}
+              disabled={deleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Löschen
+              {deleting ? 'Löschen…' : 'Löschen'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

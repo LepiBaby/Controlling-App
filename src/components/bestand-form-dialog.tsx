@@ -143,7 +143,9 @@ export function BestandFormDialog({
         anpassungen_positiv: parsedAnpassungenPositiv,
         anpassungen_negativ: parsedAnpassungenNegativ,
         warenverluste: parsedWarenverluste,
-        sendungen: parsedSendungen,
+        // Nur Plattformen mit tatsächlicher Menge speichern. Sonst entstehen pro
+        // Plattform 0-Zeilen, die später das Löschen der Plattform blockieren.
+        sendungen: parsedSendungen.filter(s => s.menge > 0),
       })
       onOpenChange(false)
     } catch (e) {

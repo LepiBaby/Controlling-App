@@ -90,10 +90,13 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 
   if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 500 })
 
-  if (sendungen.length > 0) {
+  // Nur Plattformen mit Menge > 0 speichern. 0-Zeilen würden später das Löschen der
+  // Plattform blockieren (bestand_sendungen.plattform_id ist NOT NULL).
+  const sendungenToInsert = sendungen.filter(s => s.menge > 0)
+  if (sendungenToInsert.length > 0) {
     const { error: insertError } = await supabase
       .from('bestand_sendungen')
-      .insert(sendungen.map(s => ({
+      .insert(sendungenToInsert.map(s => ({
         transaktion_id: id,
         plattform_id:   s.plattform_id,
         menge:          s.menge,

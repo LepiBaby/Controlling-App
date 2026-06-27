@@ -93,11 +93,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: insertError?.message ?? 'Fehler beim Anlegen' }, { status: 500 })
   }
 
-  // Insert Sendungen
-  if (sendungen.length > 0) {
+  // Insert Sendungen — nur Plattformen mit Menge > 0. 0-Zeilen würden später das
+  // Löschen der Plattform blockieren (bestand_sendungen.plattform_id ist NOT NULL).
+  const sendungenToInsert = sendungen.filter(s => s.menge > 0)
+  if (sendungenToInsert.length > 0) {
     const { error: sendungenError } = await supabase
       .from('bestand_sendungen')
-      .insert(sendungen.map(s => ({
+      .insert(sendungenToInsert.map(s => ({
         transaktion_id: transaktion.id,
         plattform_id:   s.plattform_id,
         menge:          s.menge,

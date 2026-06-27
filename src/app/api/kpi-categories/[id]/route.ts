@@ -54,9 +54,27 @@ export async function DELETE(request: Request, { params }: RouteContext) {
 
   const { id } = await params
 
-  // Check for linked transactions (future: PROJ-3/4/5 tables)
-  // For now: no transaction tables exist yet, so linked_count is always 0
-  // When transaction tables are added, add checks here before deleting
+  // Sales-Plattformen sind in bestand_sendungen.plattform_id per NOT-NULL-Spalte
+  // referenziert (FK ist ON DELETE SET NULL, was an der NOT-NULL-Sperre scheitern
+  // würde). Statt eines kryptischen DB-Fehlers blockieren wir das Löschen sauber,
+  // solange noch Sendungen verknüpft sind.
+  const { count: sendungenCount, error: countError } = await supabase
+    .from('bestand_sendungen')
+    .select('id', { count: 'exact', head: true })
+    .eq('plattform_id', id)
+
+  if (countError) return NextResponse.json({ error: countError.message }, { status: 500 })
+  if (sendungenCount && sendungenCount > 0) {
+    return NextResponse.json(
+      {
+        error: `Diese Plattform kann nicht gelöscht werden, da ihr noch ${sendungenCount} ${
+          sendungenCount === 1 ? 'Sendung' : 'Sendungen'
+        } in der Bestandsverwaltung zugeordnet ${sendungenCount === 1 ? 'ist' : 'sind'}. ` +
+          'Bitte ordne die betroffenen Sendungen zuerst einer anderen Plattform zu oder lösche sie.',
+      },
+      { status: 409 },
+    )
+  }
 
   const { error: dbError } = await supabase
     .from('kpi_categories')
