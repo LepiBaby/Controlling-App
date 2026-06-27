@@ -20,7 +20,7 @@ export async function GET(request: Request) {
   const [
     { data: produkte,           error: prdErr    },
     { data: skus,               error: skuErr    },
-    { data: allBestand,         error: bestErr   },
+    { data: endbestandRows,     error: bestErr   },
     { data: allPkZeitraeume,    error: pkzErr    },
     { data: allPkWerte,         error: pkwErr    },
     { data: offeneAusgaben,     error: ausErr    },
@@ -45,12 +45,10 @@ export async function GET(request: Request) {
       .eq('type', 'produkte')
       .neq('level', 1),
 
-    // Alle Bestand-Transaktionen bis Stichtag (inkl. Sendungen)
-    supabase
-      .from('bestand_transaktionen')
-      .select('id, sku_id, datum, anfangsbestand, einlagerungen, anpassungen_positiv, anpassungen_negativ, warenverluste, sendungen_manuell, sendungen:bestand_sendungen(menge)')
-      .lte('datum', datum)
-      .order('datum', { ascending: true }),
+    // Endbestand je SKU zum Stichtag — serverseitig per DISTINCT ON ueber die
+    // jeweils neueste Bestand-Transaktion. Unabhaengig von der Gesamtzahl der
+    // Transaktionen (kein 1000-Zeilen-Limit, das aeltere Bestaende einfrieren wuerde).
+    supabase.rpc('lagerwert_endbestand_je_sku', { p_stichtag: datum }),
 
     // Produktkosten-Zeitraeume gültig am Stichtag
     supabase
@@ -134,33 +132,11 @@ export async function GET(request: Request) {
     return null
   }
 
-  const latestBestandBySku = new Map<string, typeof allBestand[0]>()
-  for (const bt of allBestand ?? []) {
-    const existing = latestBestandBySku.get(bt.sku_id)
-    if (!existing || bt.datum > existing.datum) {
-      latestBestandBySku.set(bt.sku_id, bt)
-    }
-  }
-
-  const endbestandBySku = new Map<string, number>()
-  for (const [skuId, bt] of latestBestandBySku) {
-    const sendungenGesamt = (bt.sendungen ?? []).reduce((s: number, snd: { menge: number }) => s + snd.menge, 0)
-    const endbestand =
-      bt.anfangsbestand
-      - sendungenGesamt
-      - (bt.sendungen_manuell ?? 0)
-      + (bt.einlagerungen ?? 0)
-      + (bt.anpassungen_positiv ?? 0)
-      - (bt.anpassungen_negativ ?? 0)
-      - (bt.warenverluste ?? 0)
-    endbestandBySku.set(skuId, endbestand)
-  }
-
   const endbestandByProdukt = new Map<string, number>()
-  for (const [skuId, endbestand] of endbestandBySku) {
-    const produktId = findProduktId(skuId)
+  for (const row of (endbestandRows ?? []) as Array<{ sku_id: string; endbestand: number | string }>) {
+    const produktId = findProduktId(row.sku_id)
     if (!produktId) continue
-    endbestandByProdukt.set(produktId, (endbestandByProdukt.get(produktId) ?? 0) + endbestand)
+    endbestandByProdukt.set(produktId, (endbestandByProdukt.get(produktId) ?? 0) + Number(row.endbestand))
   }
 
   const pkWertByZeitraum = new Map<string, number>()

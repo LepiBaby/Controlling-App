@@ -749,5 +749,15 @@ Tabellen angelegt: `vermoegenswarte_snapshots`, `vermoegenswarte_lagerwerte`, `v
 - **TypeScript:** Clean (nur pre-existing unrelated Error in `use-kpi-categories.test.ts`).
 - **Production Ready:** **JA**. Empfehlung **Approved**. BUG-1, BUG-2, BUG-3 bleiben als Follow-Up-PR-Kandidaten; BUG-5, BUG-6, BUG-8, BUG-9 als Tech-Debt einplanen.
 
+## Bugfix (2026-06-27): Lagerwert-Vorschlag basierte auf eingefrorenem Bestand
+
+**Symptom:** Der Lagerwert-Vorschlag in Schritt 1 des Wizards war systematisch zu hoch (Beispiel SamiBu: 18.900,00 € statt korrekt 15.573,60 €).
+
+**Ursache:** `vorschlaege/route.ts` lud alle `bestand_transaktionen` per `.order('datum', { ascending: true })` **ohne `.limit()`**. PostgREST begrenzt die Antwort auf 1.000 Zeilen — bei aufsteigender Sortierung also die **ältesten** 1.000. Sobald die Bestandshistorie >1.000 Zeilen erreichte (hier ab ~18.05.2026), fielen die neuesten Transaktionen weg, und die „letzte" Bestand-Transaktion je SKU war eingefroren auf einem alten (höheren) Stand → überhöhter Lagerwert. Der Effekt war zeilenzahl-abhängig und verschob sich mit wachsender Historie weiter in die Vergangenheit. (Schärfere Variante des dokumentierten BUG-6.)
+
+**Fix:** Neue Postgres-Funktion `lagerwert_endbestand_je_sku(p_stichtag date)` (Migration `create_lagerwert_endbestand_je_sku_function`) ermittelt den Endbestand je SKU serverseitig per `DISTINCT ON (sku_id) ... ORDER BY datum DESC` — liefert also garantiert die neueste Transaktion je SKU, **unabhängig von der Gesamtzahl der Transaktionen**. Die Endbestand-Formel ist identisch zur bisherigen JS-Logik (ohne Clamping, `coalesce` für Nullable-Felder). Die Route ruft sie via `supabase.rpc(...)` auf; die manuelle „latest per SKU"-Schleife entfiel.
+
+**Verifiziert:** RPC liefert für SamiBu Endbestand 721 (219 + 301 + 201) → 721 × 21,60 € = 15.573,60 €. TypeScript clean.
+
 ## Deployment
 _To be added by /deploy_
