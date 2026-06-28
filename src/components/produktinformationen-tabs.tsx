@@ -1411,8 +1411,10 @@ function AktuellerBestandTab({ produkte, versionId, kpiHref }: TabProps) {
 
 // ─── Geteilte Tab-Leiste (präsentational) ─────────────────────────────────────
 
-// Rendert die 7 Reiter. versionId & kpiHref werden an jeden Reiter durchgereicht;
+// Rendert die Reiter. versionId & kpiHref werden an jeden Reiter durchgereicht;
 // simpleMoq schaltet den MOQ-Reiter auf reine Produktebene (Langfristig, PROJ-77).
+// showAktuellerBestand blendet den Reiter „Aktueller Bestand" ein — nur die
+// langfristige Planung nutzt diesen Startbestand; kurzfristig ist er ohne Funktion.
 function ProduktinformationenTabsInner({
   produkte,
   skusByProdukt,
@@ -1420,6 +1422,7 @@ function ProduktinformationenTabsInner({
   kpiHref,
   simpleMoq = false,
   bestandEinheit = 'Wochen',
+  showAktuellerBestand = false,
 }: {
   produkte: KpiCategory[]
   skusByProdukt: Record<string, KpiCategory[]>
@@ -1427,6 +1430,7 @@ function ProduktinformationenTabsInner({
   kpiHref: string
   simpleMoq?: boolean
   bestandEinheit?: string
+  showAktuellerBestand?: boolean
 }) {
   return (
     <Tabs defaultValue="hersteller">
@@ -1438,7 +1442,9 @@ function ProduktinformationenTabsInner({
         <TabsTrigger value="zahlungskonditionen" className="flex-1">Zahlungskonditionen</TabsTrigger>
         <TabsTrigger value="produktkosten" className="flex-1">Produktkosten</TabsTrigger>
         <TabsTrigger value="bestandsverwaltung" className="flex-1">Bestandsverwaltung</TabsTrigger>
-        <TabsTrigger value="aktueller-bestand" className="flex-1">Aktueller Bestand</TabsTrigger>
+        {showAktuellerBestand && (
+          <TabsTrigger value="aktueller-bestand" className="flex-1">Aktueller Bestand</TabsTrigger>
+        )}
       </TabsList>
 
       <TabsContent value="hersteller">
@@ -1469,9 +1475,11 @@ function ProduktinformationenTabsInner({
         <BestandsverwaltungTab produkte={produkte} versionId={versionId} kpiHref={kpiHref} einheit={bestandEinheit} />
       </TabsContent>
 
-      <TabsContent value="aktueller-bestand">
-        <AktuellerBestandTab produkte={produkte} versionId={versionId} kpiHref={kpiHref} />
-      </TabsContent>
+      {showAktuellerBestand && (
+        <TabsContent value="aktueller-bestand">
+          <AktuellerBestandTab produkte={produkte} versionId={versionId} kpiHref={kpiHref} />
+        </TabsContent>
+      )}
     </Tabs>
   )
 }
@@ -1543,6 +1551,7 @@ export function LangfristigeProduktinformationenTabs({ versionId }: { versionId:
       kpiHref={`/dashboard/langfristige-planung/${versionId}/kpi-modell-verwaltung`}
       simpleMoq
       bestandEinheit="Monate"
+      showAktuellerBestand
     />
   )
 }
