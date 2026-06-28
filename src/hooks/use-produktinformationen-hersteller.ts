@@ -71,7 +71,7 @@ export function useProduktinformationenHersteller(versionId?: string) {
   )
 
   const assignHersteller = useCallback(
-    async (produktId: string, herstellerId: string): Promise<void> => {
+    async (produktId: string, herstellerId: string | null): Promise<void> => {
       const prev = zuordnungen.find(z => z.produkt_id === produktId)
 
       setZuordnungen(curr => {

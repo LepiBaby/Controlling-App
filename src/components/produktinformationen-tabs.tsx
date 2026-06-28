@@ -143,6 +143,7 @@ function HerstellerZeile({
   hersteller,
   herstellerId,
   onAssign,
+  onUnassign,
   onCreateAndAssign,
   onRenameHersteller,
   onDeleteHersteller,
@@ -151,6 +152,7 @@ function HerstellerZeile({
   hersteller: Hersteller[]
   herstellerId: string | null
   onAssign: (herstellerId: string) => Promise<void>
+  onUnassign: () => Promise<void>
   onCreateAndAssign: (name: string) => Promise<void>
   onRenameHersteller: (id: string, name: string) => Promise<void>
   onDeleteHersteller: (id: string) => Promise<void>
@@ -192,6 +194,19 @@ function HerstellerZeile({
       await onAssign(id)
     } catch {
       toast({ title: 'Hersteller konnte nicht zugeordnet werden.', variant: 'destructive' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleUnassign() {
+    setOpen(false)
+    setSearch('')
+    setSaving(true)
+    try {
+      await onUnassign()
+    } catch {
+      toast({ title: 'Hersteller konnte nicht entfernt werden.', variant: 'destructive' })
     } finally {
       setSaving(false)
     }
@@ -279,6 +294,17 @@ function HerstellerZeile({
                       className="text-primary"
                     >
                       Neu erstellen: „{search.trim()}"
+                    </CommandItem>
+                  )}
+                  {herstellerId !== null && search.trim().length === 0 && (
+                    <CommandItem
+                      key="__unassign__"
+                      value="__unassign__"
+                      onSelect={handleUnassign}
+                      className="text-muted-foreground"
+                    >
+                      <X className="mr-2 h-3.5 w-3.5" />
+                      Hersteller entfernen
                     </CommandItem>
                   )}
                   {filtered.map(h =>
@@ -407,6 +433,7 @@ function HerstellerTab({ produkte, versionId, kpiHref }: TabProps) {
               hersteller={hersteller}
               herstellerId={zuordnung?.hersteller_id ?? null}
               onAssign={id => assignHersteller(p.id, id)}
+              onUnassign={() => assignHersteller(p.id, null)}
               onCreateAndAssign={name => createAndAssign(p.id, name)}
               onRenameHersteller={renameHersteller}
               onDeleteHersteller={deleteHersteller}

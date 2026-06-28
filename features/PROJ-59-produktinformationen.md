@@ -783,4 +783,10 @@ Keine kritischen oder hohen Bugs gefunden.
 **Produktionsbereit: JA** — Keine Critical/High-Bugs. Feature entspricht allen Acceptance Criteria (inkl. abgestimmter Abweichungen).
 
 ## Deployment
-_To be added by /deploy_
+- **Deployed:** 2026-06-28 (Vercel Auto-Deploy via Push auf `main`)
+
+### Nachträgliche Erweiterung (2026-06-28)
+**Tab Hersteller — Hersteller-Zuordnung entfernbar:** Ein bereits zugeordneter Hersteller kann jetzt wieder entfernt werden, sodass das Produkt keinen Hersteller hat.
+- `use-produktinformationen-hersteller.ts`: `assignHersteller` akzeptiert `string | null` (null = Zuordnung löschen; API/DB unterstützten `hersteller_id = null` bereits — nullable Schema, `ON DELETE SET NULL`).
+- `produktinformationen-tabs.tsx`: Combobox zeigt Option „Hersteller entfernen" (mit ✕-Icon), sobald ein Hersteller zugeordnet ist und kein Suchtext eingegeben wurde. Optimistisches Update + Rollback/Toast bei Fehler.
+- Gilt für die Kurzfristige Planung; die Langfristige Planung nutzt dieselbe Komponente.
