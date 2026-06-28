@@ -790,3 +790,9 @@ Keine kritischen oder hohen Bugs gefunden.
 - `use-produktinformationen-hersteller.ts`: `assignHersteller` akzeptiert `string | null` (null = Zuordnung löschen; API/DB unterstützten `hersteller_id = null` bereits — nullable Schema, `ON DELETE SET NULL`).
 - `produktinformationen-tabs.tsx`: Combobox zeigt Option „Hersteller entfernen" (mit ✕-Icon), sobald ein Hersteller zugeordnet ist und kein Suchtext eingegeben wurde. Optimistisches Update + Rollback/Toast bei Fehler.
 - Gilt für die Kurzfristige Planung; die Langfristige Planung nutzt dieselbe Komponente.
+
+### Korrektur (2026-06-28) — Tab „Aktueller Bestand" entfernt
+Der Reiter „Aktueller Bestand" wurde über die geteilte Komponente `ProduktinformationenTabsInner` versehentlich auch in der Kurzfristigen Planung gerendert. Dort ist er funktionslos: Die kurzfristige Bestellplanung (und das Lagerbestandsdiagramm) leiten den aktuellen Bestand aus `bestand_transaktionen` (Transaktionshistorie) ab und lesen das Feld `produktinformationen_aktueller_bestand` nicht. Der Tab gehört ausschließlich zur Langfristigen Planung (PROJ-77), wo es keine Transaktionshistorie gibt und der Startbestand manuell gepflegt werden muss.
+- `produktinformationen-tabs.tsx`: Neues Prop `showAktuellerBestand` (Default `false`) blendet `TabsTrigger` + `TabsContent` bedingt ein. Nur `LangfristigeProduktinformationenTabs` setzt das Flag; die Kurzfristige Planung zeigt den Tab nicht mehr an.
+- Datenseitig keine Änderung: globaler Endpunkt und Tabelle bleiben bestehen (evtl. bereits eingetragene Testwerte bleiben wirkungslos liegen).
+- Damit sind kurz- und langfristige Produktinformationen unabhängig voneinander.
