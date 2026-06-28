@@ -181,12 +181,30 @@ export async function GET(request: Request) {
       .select('leistungsdatum, betrag_netto, kategorie_id, gruppe_id, untergruppe_id, abschreibung')
       .not('abschreibung', 'is', null)
       .not('leistungsdatum', 'is', null),
-    supabase
-      .from('bestand_transaktionen')
-      .select('datum, produkt_id, warenverluste, sendungen_manuell, bestand_sendungen(menge, plattform_id)')
-      .gte('datum', vonDate)
-      .lte('datum', bisDate)
-      .not('produkt_id', 'is', null),
+    // Paginiert: über längere Zeiträume können >1000 Bestand-Transaktionen anfallen;
+    // ohne Pagination cappt PostgREST still bei 1000 → Produktkosten/Wertverlust/
+    // manuelle Sendungen werden zu niedrig berechnet (PROJ-102-Befund).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (async (): Promise<{ data: any[] | null; error: any }> => {
+      const PAGE = 1000
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const all: any[] = []
+      let from = 0
+      for (;;) {
+        const { data, error } = await supabase
+          .from('bestand_transaktionen')
+          .select('datum, produkt_id, warenverluste, sendungen_manuell, bestand_sendungen(menge, plattform_id)')
+          .gte('datum', vonDate)
+          .lte('datum', bisDate)
+          .not('produkt_id', 'is', null)
+          .order('id', { ascending: true })
+          .range(from, from + PAGE - 1)
+        if (error) return { data: null, error }
+        if (data) all.push(...data)
+        if (!data || data.length < PAGE) return { data: all, error: null }
+        from += PAGE
+      }
+    })(),
     supabase
       .from('produktkosten_zeitraeume')
       .select('produkt_id, gueltig_von, gueltig_bis, produktkosten_werte(kategorie_id, wert)')

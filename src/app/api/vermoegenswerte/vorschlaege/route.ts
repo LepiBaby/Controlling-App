@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/supabase-paginate'
 import { ABSCHREIBUNG_MONATE, addMonthsWithClamp, roundTo2 } from '@/lib/abschreibung-utils'
 
 export async function GET(request: Request) {
@@ -62,11 +63,15 @@ export async function GET(request: Request) {
       .from('produktkosten_werte')
       .select('zeitraum_id, wert'),
 
-    // Offene Ausgaben ohne Zahlungsdatum für Verbindlichkeiten
-    supabase
-      .from('ausgaben_kosten_transaktionen')
-      .select('betrag_brutto, kategorie_id')
-      .is('zahlungsdatum', null),
+    // Offene Ausgaben ohne Zahlungsdatum für Verbindlichkeiten (paginiert)
+    fetchAllRows((from, to) =>
+      supabase
+        .from('ausgaben_kosten_transaktionen')
+        .select('betrag_brutto, kategorie_id')
+        .is('zahlungsdatum', null)
+        .order('id', { ascending: true })
+        .range(from, to)
+    ),
 
     // Ausgaben-Kategorien Level 1 (um "Produkt"- und "Tilgungen"-Kategorien zu identifizieren)
     supabase
@@ -74,20 +79,28 @@ export async function GET(request: Request) {
       .select('id, name, parent_id, level')
       .eq('type', 'ausgaben_kosten'),
 
-    // Einnahmen (Zahlungsdaten) für Cash-Bestand und Fremdkapital — alle bis Stichtag
-    supabase
-      .from('einnahmen_transaktionen')
-      .select('zahlungsdatum, betrag, kategorie_id')
-      .not('zahlungsdatum', 'is', null)
-      .lte('zahlungsdatum', datum),
+    // Einnahmen (Zahlungsdaten) für Cash-Bestand und Fremdkapital — alle bis Stichtag (paginiert)
+    fetchAllRows((from, to) =>
+      supabase
+        .from('einnahmen_transaktionen')
+        .select('zahlungsdatum, betrag, kategorie_id')
+        .not('zahlungsdatum', 'is', null)
+        .lte('zahlungsdatum', datum)
+        .order('id', { ascending: true })
+        .range(from, to)
+    ),
 
-    // Ausgaben (Zahlungsdatum) für Cash-Bestand — alle bis Stichtag
-    supabase
-      .from('ausgaben_kosten_transaktionen')
-      .select('zahlungsdatum, betrag_brutto')
-      .not('zahlungsdatum', 'is', null)
-      .in('relevanz', ['liquiditaet', 'beides'])
-      .lte('zahlungsdatum', datum),
+    // Ausgaben (Zahlungsdatum) für Cash-Bestand — alle bis Stichtag (paginiert)
+    fetchAllRows((from, to) =>
+      supabase
+        .from('ausgaben_kosten_transaktionen')
+        .select('zahlungsdatum, betrag_brutto')
+        .not('zahlungsdatum', 'is', null)
+        .in('relevanz', ['liquiditaet', 'beides'])
+        .lte('zahlungsdatum', datum)
+        .order('id', { ascending: true })
+        .range(from, to)
+    ),
 
     // Einnahmen-Kategorien (für Fremdkapital-Lookup)
     supabase
@@ -96,10 +109,14 @@ export async function GET(request: Request) {
       .eq('type', 'einnahmen'),
 
     // Alle Ausgaben (kein Datumsfilter — Tilgungen haben oft kein leistungsdatum;
-    // alle drei Kategorie-Ebenen mitladen, da Tilgungen auf Level 2/3 liegen können)
-    supabase
-      .from('ausgaben_kosten_transaktionen')
-      .select('betrag_netto, kategorie_id, gruppe_id, untergruppe_id, abschreibung, leistungsdatum'),
+    // alle drei Kategorie-Ebenen mitladen, da Tilgungen auf Level 2/3 liegen können) (paginiert)
+    fetchAllRows((from, to) =>
+      supabase
+        .from('ausgaben_kosten_transaktionen')
+        .select('betrag_netto, kategorie_id, gruppe_id, untergruppe_id, abschreibung, leistungsdatum')
+        .order('id', { ascending: true })
+        .range(from, to)
+    ),
   ])
 
   if (prdErr)    return NextResponse.json({ error: prdErr.message    }, { status: 500 })

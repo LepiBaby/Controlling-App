@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/supabase-paginate'
 
 const MONATE = 12
 
@@ -67,10 +68,14 @@ export async function GET(request: Request) {
   }
 
   // ─── Transaktionen dieser Kategorie laden ────────────────────────────────
-  const { data: transaktionen, error: dbError } = await supabase
-    .from('ausgaben_kosten_transaktionen')
-    .select('id, leistungsdatum, betrag_netto, gruppe_id, untergruppe_id, produkt_id, beschreibung')
-    .eq('kategorie_id', produktinvestitionenId)
+  const { data: transaktionen, error: dbError } = await fetchAllRows((from, to) =>
+    supabase
+      .from('ausgaben_kosten_transaktionen')
+      .select('id, leistungsdatum, betrag_netto, gruppe_id, untergruppe_id, produkt_id, beschreibung')
+      .eq('kategorie_id', produktinvestitionenId)
+      .order('id', { ascending: true })
+      .range(from, to)
+  )
 
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 })
 

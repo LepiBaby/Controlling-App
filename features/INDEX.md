@@ -123,7 +123,8 @@
 | PROJ-99 | Investitionsauswertung — Langfristige Planung | Approved | [PROJ-99-langfristige-investitionsauswertung.md](PROJ-99-langfristige-investitionsauswertung.md) | 2026-06-24 |
 | PROJ-100 | Finanzierungsausgaben-Auswertung — Langfristige Planung | Approved | [PROJ-100-langfristige-finanzierungsausgaben-auswertung.md](PROJ-100-langfristige-finanzierungsausgaben-auswertung.md) | 2026-06-24 |
 | PROJ-101 | Kapitalbedarf & Finanzierung — Langfristige Planung | Approved | [PROJ-101-langfristige-kapitalbedarf-finanzierung.md](PROJ-101-langfristige-kapitalbedarf-finanzierung.md) | 2026-06-24 |
+| PROJ-102 | Plan-Ist-Vergleich (Reporting) | Deployed | [PROJ-102-plan-ist-vergleich.md](PROJ-102-plan-ist-vergleich.md) | 2026-06-28 |
 
 <!-- Add features above this line -->
 
-## Next Available ID: PROJ-102
+## Next Available ID: PROJ-103

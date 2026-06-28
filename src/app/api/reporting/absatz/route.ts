@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/supabase-paginate'
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
 
@@ -87,15 +88,16 @@ export async function GET(request: Request) {
   const bisDate = monthEnd(bis)
   const perioden = generatePerioden(von, bis, granularitaet)
 
-  // Stage 1: bestand_transaktionen (mit nested bestand_sendungen)
-  let transQuery = supabase
-    .from('bestand_transaktionen')
-    .select('produkt_id, datum, sendungen_manuell, sendungen:bestand_sendungen(plattform_id, menge)')
-    .gte('datum', vonDate)
-    .lte('datum', bisDate)
-
-  if (produkt_ids.length > 0) {
-    transQuery = transQuery.in('produkt_id', produkt_ids)
+  // Stage 1: bestand_transaktionen (mit nested bestand_sendungen) — paginiert,
+  // damit über lange Zeiträume keine Zeilen am PostgREST-Limit verloren gehen.
+  const buildTransQuery = (from: number, to: number) => {
+    let q = supabase
+      .from('bestand_transaktionen')
+      .select('produkt_id, datum, sendungen_manuell, sendungen:bestand_sendungen(plattform_id, menge)')
+      .gte('datum', vonDate)
+      .lte('datum', bisDate)
+    if (produkt_ids.length > 0) q = q.in('produkt_id', produkt_ids)
+    return q.order('id', { ascending: true }).range(from, to)
   }
 
   // Stage 2+3 parallel: Produkt- und Plattform-Namen laden
@@ -104,7 +106,7 @@ export async function GET(request: Request) {
     { data: produktKats, error: katError },
     { data: plattformKats, error: pltError },
   ] = await Promise.all([
-    transQuery,
+    fetchAllRows<TransaktionRow>(buildTransQuery),
     supabase
       .from('kpi_categories')
       .select('id, name, sort_order')

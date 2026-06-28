@@ -48,6 +48,7 @@ const REPORTING_NAV_GROUPS = [
       { href: '/dashboard/reporting/rentabilitaet', label: 'Rentabilitätsreport' },
       { href: '/dashboard/reporting/deckungsbeitrag', label: 'Deckungsbeitragsreport' },
       { href: '/dashboard/reporting/break-even', label: 'Break-Even-Report' },
+      { href: '/dashboard/reporting/plan-ist-vergleich', label: 'Plan-Ist-Vergleich' },
       { href: '/dashboard/reporting/liquiditaet', label: 'Liquiditätsreport' },
       { href: '/dashboard/reporting/umsatzsteuer', label: 'Umsatzsteuer-Report' },
       { href: '/dashboard/reporting/vermoegen', label: 'Vermögensbericht' },

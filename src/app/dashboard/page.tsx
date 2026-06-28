@@ -170,6 +170,13 @@ export default async function DashboardPage() {
                 <p className="text-sm text-muted-foreground mt-1">Kumulierter Umsatz vs. Kosten je Produkt</p>
               </a>
               <a
+                href="/dashboard/reporting/plan-ist-vergleich"
+                className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
+              >
+                <p className="font-medium">Plan-Ist-Vergleich</p>
+                <p className="text-sm text-muted-foreground mt-1">Ist-Rentabilität vs. Soll einer Planversion je Monat</p>
+              </a>
+              <a
                 href="/dashboard/reporting/liquiditaet"
                 className="rounded-lg border bg-card p-4 hover:bg-muted/50 transition-colors"
               >

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/supabase-paginate'
 
 type Quelle = 'einnahmen' | 'ausgaben'
 
@@ -43,19 +44,19 @@ export async function GET(request: Request) {
 
   // ─── Einnahmen-Transaktionen ─────────────────────────────────────────────
   if (includeEinnahmen) {
-    let einnahmenQuery = supabase
-      .from('einnahmen_transaktionen')
-      .select('id, zahlungsdatum, betrag, kategorie_id, gruppe_id, untergruppe_id, sales_plattform_id, produkt_id, beschreibung')
-
-    if (von)                      einnahmenQuery = einnahmenQuery.gte('zahlungsdatum', von)
-    if (bis)                      einnahmenQuery = einnahmenQuery.lte('zahlungsdatum', bis)
-    if (kategorieIds.length)      einnahmenQuery = einnahmenQuery.in('kategorie_id', kategorieIds)
-    if (gruppeIds.length)         einnahmenQuery = einnahmenQuery.in('gruppe_id', gruppeIds)
-    if (untergruppeIds.length)    einnahmenQuery = einnahmenQuery.in('untergruppe_id', untergruppeIds)
-    if (salesPlattformIds.length) einnahmenQuery = einnahmenQuery.in('sales_plattform_id', salesPlattformIds)
-    if (produktIds.length)        einnahmenQuery = einnahmenQuery.in('produkt_id', produktIds)
-
-    const { data: einnahmenData, error: einnahmenError } = await einnahmenQuery
+    const { data: einnahmenData, error: einnahmenError } = await fetchAllRows((from, to) => {
+      let q = supabase
+        .from('einnahmen_transaktionen')
+        .select('id, zahlungsdatum, betrag, kategorie_id, gruppe_id, untergruppe_id, sales_plattform_id, produkt_id, beschreibung')
+      if (von)                      q = q.gte('zahlungsdatum', von)
+      if (bis)                      q = q.lte('zahlungsdatum', bis)
+      if (kategorieIds.length)      q = q.in('kategorie_id', kategorieIds)
+      if (gruppeIds.length)         q = q.in('gruppe_id', gruppeIds)
+      if (untergruppeIds.length)    q = q.in('untergruppe_id', untergruppeIds)
+      if (salesPlattformIds.length) q = q.in('sales_plattform_id', salesPlattformIds)
+      if (produktIds.length)        q = q.in('produkt_id', produktIds)
+      return q.order('id', { ascending: true }).range(from, to)
+    })
     if (einnahmenError) return NextResponse.json({ error: einnahmenError.message }, { status: 500 })
 
     for (const row of einnahmenData ?? []) {
@@ -76,21 +77,21 @@ export async function GET(request: Request) {
 
   // ─── Ausgaben & Kosten-Transaktionen (only those with zahlungsdatum) ─────
   if (includeAusgaben) {
-    let ausgabenQuery = supabase
-      .from('ausgaben_kosten_transaktionen')
-      .select('id, zahlungsdatum, betrag_brutto, kategorie_id, gruppe_id, untergruppe_id, sales_plattform_id, produkt_id, beschreibung')
-      .not('zahlungsdatum', 'is', null)
-      .in('relevanz', ['liquiditaet', 'beides'])
-
-    if (von)                      ausgabenQuery = ausgabenQuery.gte('zahlungsdatum', von)
-    if (bis)                      ausgabenQuery = ausgabenQuery.lte('zahlungsdatum', bis)
-    if (kategorieIds.length)      ausgabenQuery = ausgabenQuery.in('kategorie_id', kategorieIds)
-    if (gruppeIds.length)         ausgabenQuery = ausgabenQuery.in('gruppe_id', gruppeIds)
-    if (untergruppeIds.length)    ausgabenQuery = ausgabenQuery.in('untergruppe_id', untergruppeIds)
-    if (salesPlattformIds.length) ausgabenQuery = ausgabenQuery.in('sales_plattform_id', salesPlattformIds)
-    if (produktIds.length)        ausgabenQuery = ausgabenQuery.in('produkt_id', produktIds)
-
-    const { data: ausgabenData, error: ausgabenError } = await ausgabenQuery
+    const { data: ausgabenData, error: ausgabenError } = await fetchAllRows((from, to) => {
+      let q = supabase
+        .from('ausgaben_kosten_transaktionen')
+        .select('id, zahlungsdatum, betrag_brutto, kategorie_id, gruppe_id, untergruppe_id, sales_plattform_id, produkt_id, beschreibung')
+        .not('zahlungsdatum', 'is', null)
+        .in('relevanz', ['liquiditaet', 'beides'])
+      if (von)                      q = q.gte('zahlungsdatum', von)
+      if (bis)                      q = q.lte('zahlungsdatum', bis)
+      if (kategorieIds.length)      q = q.in('kategorie_id', kategorieIds)
+      if (gruppeIds.length)         q = q.in('gruppe_id', gruppeIds)
+      if (untergruppeIds.length)    q = q.in('untergruppe_id', untergruppeIds)
+      if (salesPlattformIds.length) q = q.in('sales_plattform_id', salesPlattformIds)
+      if (produktIds.length)        q = q.in('produkt_id', produktIds)
+      return q.order('id', { ascending: true }).range(from, to)
+    })
     if (ausgabenError) return NextResponse.json({ error: ausgabenError.message }, { status: 500 })
 
     for (const row of ausgabenData ?? []) {

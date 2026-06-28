@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/supabase-paginate'
 import { ABSCHREIBUNG_MONATE, addMonthsWithClamp, roundTo2 } from '@/lib/abschreibung-utils'
 
 
@@ -31,10 +32,14 @@ export async function GET(request: Request) {
   const untergruppeIds  = searchParams.get('untergruppe_ids')?.split(',').filter(Boolean) ?? []
 
   // ─── Ursprungstransaktionen mit Abschreibung laden ───────────────────────
-  const { data: transaktionen, error: dbError } = await supabase
-    .from('ausgaben_kosten_transaktionen')
-    .select('id, leistungsdatum, betrag_netto, kategorie_id, gruppe_id, untergruppe_id, beschreibung, abschreibung')
-    .not('abschreibung', 'is', null)
+  const { data: transaktionen, error: dbError } = await fetchAllRows((from, to) =>
+    supabase
+      .from('ausgaben_kosten_transaktionen')
+      .select('id, leistungsdatum, betrag_netto, kategorie_id, gruppe_id, untergruppe_id, beschreibung, abschreibung')
+      .not('abschreibung', 'is', null)
+      .order('id', { ascending: true })
+      .range(from, to)
+  )
 
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 })
 

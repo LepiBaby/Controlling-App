@@ -113,6 +113,7 @@ Eine interne Controlling-Plattform für das Finanzreporting eines E-Commerce Unt
 | P1 | PROJ-99: Investitionsauswertung — Langfristige Planung | Planned |
 | P1 | PROJ-100: Finanzierungsausgaben-Auswertung — Langfristige Planung | Planned |
 | P1 | PROJ-101: Kapitalbedarf & Finanzierung — Langfristige Planung | Planned |
+| P1 | PROJ-102: Plan-Ist-Vergleich (Reporting) | Planned |
 
 ## Success Metrics
 - Alle Finanzdaten werden in einer zentralen Plattform erfasst (kein Excel-Chaos)
