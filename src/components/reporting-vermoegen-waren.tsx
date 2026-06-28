@@ -553,7 +553,7 @@ export function ReportingVermoegenWaren({ latest, series, produkt_details }: Pro
           <KpiCard
             id="lagerreichweite"
             title="Lagerreichweite"
-            tooltip="Wie viele Monate der aktuelle Warenbestand bei durchschnittlichem Absatz reicht. Warenkapital ÷ (Ø-Monatssendungen × Produktkosten)."
+            tooltip="Wie viele Monate der Warenbestand bei durchschnittlichem Absatz reicht. Je Produkt: Warenkapital ÷ (Ø-Monatssendungen × Produktkosten); der Gesamtwert ist der nach Warenkapital gewichtete Durchschnitt dieser Produkt-Reichweiten (Produkte ohne Absatz ausgeschlossen)."
             value={fmtMonate(latest.lagerreichweite)}
             selected={selectedKpi === 'lagerreichweite'}
             onSelect={handleSelect}

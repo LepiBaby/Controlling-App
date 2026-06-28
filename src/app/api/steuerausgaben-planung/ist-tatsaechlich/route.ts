@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/supabase-paginate'
 
 function getISOWeekMonday(year: number, week: number): Date {
   const jan4 = new Date(Date.UTC(year, 0, 4))
@@ -44,15 +45,18 @@ export async function GET(request: Request) {
   // Frontend filters to the "Steuern" subtree of KPI categories.
   // Zusätzlich produkt_id für die Einfuhrumsatzsteuer-Aufschlüsselung je Produkt.
   const [{ data, error: dbErr }, kpiCatsRes] = await Promise.all([
-    supabase
-      .from('ausgaben_kosten_transaktionen')
-      .select('gruppe_id, untergruppe_id, produkt_id, zahlungsdatum, betrag_brutto')
-      .not('gruppe_id', 'is', null)
-      .not('zahlungsdatum', 'is', null)
-      .in('relevanz', ['liquiditaet', 'beides'])
-      .gte('zahlungsdatum', startDate)
-      .lte('zahlungsdatum', endDate)
-      .limit(20000),
+    fetchAllRows((from, to) =>
+      supabase
+        .from('ausgaben_kosten_transaktionen')
+        .select('gruppe_id, untergruppe_id, produkt_id, zahlungsdatum, betrag_brutto')
+        .not('gruppe_id', 'is', null)
+        .not('zahlungsdatum', 'is', null)
+        .in('relevanz', ['liquiditaet', 'beides'])
+        .gte('zahlungsdatum', startDate)
+        .lte('zahlungsdatum', endDate)
+        .order('id', { ascending: true })
+        .range(from, to),
+    ),
     supabase
       .from('kpi_categories')
       .select('id, name, parent_id')

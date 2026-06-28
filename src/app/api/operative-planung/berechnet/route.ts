@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/supabase-paginate'
 
 // ─── ISO week helpers ──────────────────────────────────────────────────────────
 
@@ -151,12 +152,15 @@ export async function GET(request: Request) {
     }
 
     // Find manual overrides in future weeks (must not be overwritten)
-    const { data: existingRows } = await supabase
-      .from('operative_planung')
-      .select('kategorie_id, kw_year, kw_number, ist_berechnet')
-      .eq('user_id', user!.id)
-      .or(`kw_year.gt.${ersteZukunftJahr},and(kw_year.eq.${ersteZukunftJahr},kw_number.gte.${ersteZukunftKw})`)
-      .limit(5000)
+    const { data: existingRows } = await fetchAllRows((from, to) =>
+      supabase
+        .from('operative_planung')
+        .select('kategorie_id, kw_year, kw_number, ist_berechnet')
+        .eq('user_id', user!.id)
+        .or(`kw_year.gt.${ersteZukunftJahr},and(kw_year.eq.${ersteZukunftJahr},kw_number.gte.${ersteZukunftKw})`)
+        .order('id', { ascending: true })
+        .range(from, to),
+    )
 
     const manualKeys = new Set<string>()
     for (const r of existingRows ?? []) {

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/supabase-paginate'
 
 // ─── ISO week helpers ─────────────────────────────────────────────────────────
 
@@ -43,10 +44,13 @@ export async function GET() {
   const endStr = toDateOnly(currentMonday)
 
   // 3. Load kpi_categories to classify transaction categories into buckets
-  const { data: allKats, error: katErr } = await supabase
-    .from('kpi_categories')
-    .select('id, name, parent_id, type, ist_abzugsposten, level')
-    .limit(2000)
+  const { data: allKats, error: katErr } = await fetchAllRows((from, to) =>
+    supabase
+      .from('kpi_categories')
+      .select('id, name, parent_id, type, ist_abzugsposten, level')
+      .order('id', { ascending: true })
+      .range(from, to)
+  )
 
   if (katErr) return NextResponse.json({ error: katErr.message }, { status: 500 })
 
@@ -144,16 +148,17 @@ export async function GET() {
   const ausgKatIds = [...vkGebIds, ...retourenIds, ...marketingIds]
 
   const [umsatzResult, ausgabenResult] = await Promise.all([
-    supabase
+    fetchAllRows((from, to) => supabase
       .from('umsatz_transaktionen')
       .select('produkt_id, sales_plattform_id, leistungsdatum, betrag, kategorie_id')
       .gte('leistungsdatum', startStr)
       .lt('leistungsdatum', endStr)
       .not('produkt_id', 'is', null)
       .not('sales_plattform_id', 'is', null)
-      .limit(50000),
+      .order('id', { ascending: true })
+      .range(from, to)),
     ausgKatIds.length > 0
-      ? supabase
+      ? fetchAllRows((from, to) => supabase
           .from('ausgaben_kosten_transaktionen')
           .select('produkt_id, sales_plattform_id, leistungsdatum, betrag_brutto, kategorie_id, gruppe_id, relevanz')
           .gte('leistungsdatum', startStr)
@@ -161,7 +166,8 @@ export async function GET() {
           .not('produkt_id', 'is', null)
           .or(`kategorie_id.in.(${ausgKatIds.join(',')}),gruppe_id.in.(${ausgKatIds.join(',')})`)
           .in('relevanz', ['rentabilitaet', 'beides'])
-          .limit(50000)
+          .order('id', { ascending: true })
+          .range(from, to))
       : Promise.resolve({ data: [], error: null }),
   ])
 

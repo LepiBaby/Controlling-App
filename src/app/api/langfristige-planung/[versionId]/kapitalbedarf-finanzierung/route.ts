@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { requireAuth } from '@/lib/supabase-server'
 import { ensureLangfristigeVersion } from '@/lib/langfristige-version'
 import { ensureKapitalbedarfFinanzierungSeed } from '@/lib/langfristige-kapitalbedarf-finanzierung-seed'
+import { fetchAllRows } from '@/lib/supabase-paginate'
 
 // Auth-geschützte, pro-Planversion dynamische Route — nie statisch generieren.
 // Überspringt den in Next 16 instabilen Static-Path-Pass (Worker-Crash).
@@ -53,14 +54,17 @@ export async function GET(_request: Request, { params }: RouteContext) {
   // Feste Kapitalbedarf-Zeilen einmalig anlegen (idempotent).
   await ensureKapitalbedarfFinanzierungSeed(supabase, user!.id, versionId)
 
-  const { data, error: dbErr } = await supabase
-    .from('langfristige_kapitalbedarf_finanzierung')
-    .select(SELECT_COLS)
-    .eq('user_id', user!.id)
-    .eq('plan_version_id', versionId)
-    .order('bereich', { ascending: true })
-    .order('sort_order', { ascending: true })
-    .limit(2000)
+  const { data, error: dbErr } = await fetchAllRows((from, to) =>
+    supabase
+      .from('langfristige_kapitalbedarf_finanzierung')
+      .select(SELECT_COLS)
+      .eq('user_id', user!.id)
+      .eq('plan_version_id', versionId)
+      .order('bereich', { ascending: true })
+      .order('sort_order', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to)
+  )
 
   if (dbErr) return NextResponse.json({ error: dbErr.message }, { status: 500 })
   return NextResponse.json(data ?? [])
@@ -133,12 +137,15 @@ export async function PUT(request: Request, { params }: RouteContext) {
   }
 
   // Nur Zeilen aktualisieren, die der Version + dem Nutzer gehören.
-  const { data: owned, error: ownErr } = await supabase
-    .from('langfristige_kapitalbedarf_finanzierung')
-    .select('id')
-    .eq('user_id', user!.id)
-    .eq('plan_version_id', versionId)
-    .limit(2000)
+  const { data: owned, error: ownErr } = await fetchAllRows<{ id: string }>((from, to) =>
+    supabase
+      .from('langfristige_kapitalbedarf_finanzierung')
+      .select('id')
+      .eq('user_id', user!.id)
+      .eq('plan_version_id', versionId)
+      .order('id', { ascending: true })
+      .range(from, to)
+  )
   if (ownErr) return NextResponse.json({ error: ownErr.message }, { status: 500 })
   const ownedIds = new Set((owned ?? []).map(r => r.id as string))
 

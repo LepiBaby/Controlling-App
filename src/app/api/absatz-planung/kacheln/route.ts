@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/supabase-paginate'
 
 interface AbsatzEinstellung {
   sales_plattform_id: string
@@ -98,13 +99,15 @@ export async function GET() {
 
   let transaktionen: SkuTransaktion[] = []
   if (skuIds.length > 0) {
-    const { data: txData, error: tErr } = await supabase
-      .from('bestand_transaktionen')
-      .select('sku_id, datum, bestand_sendungen(plattform_id, menge)')
-      .gte('datum', toDateOnly(ninetyDaysAgo))
-      .lt('datum', toDateOnly(today))
-      .in('sku_id', skuIds)
-      .limit(10000)
+    const { data: txData, error: tErr } = await fetchAllRows((from, to) =>
+      supabase
+        .from('bestand_transaktionen')
+        .select('sku_id, datum, bestand_sendungen(plattform_id, menge)')
+        .gte('datum', toDateOnly(ninetyDaysAgo))
+        .lt('datum', toDateOnly(today))
+        .in('sku_id', skuIds)
+        .order('id', { ascending: true })
+        .range(from, to))
 
     if (tErr) return NextResponse.json({ error: tErr.message }, { status: 500 })
     transaktionen = (txData ?? []) as SkuTransaktion[]

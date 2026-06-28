@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/supabase-paginate'
 import { z } from 'zod'
 
 // ─── ISO week utilities ────────────────────────────────────────────────────────
@@ -172,22 +173,28 @@ export async function GET(request: Request) {
     einstellungenRes,
   ] = await Promise.all([
     // Alle bestand_transaktionen bis heute (kein unteres Limit für historische Rekonstruktion)
-    supabase
-      .from('bestand_transaktionen')
-      .select('sku_id, datum, anfangsbestand, einlagerungen, anpassungen_positiv, anpassungen_negativ, warenverluste, sendungen_manuell, bestand_sendungen(menge)')
-      .in('sku_id', skuIds)
-      .lte('datum', todayStr)
-      .order('datum', { ascending: true })
-      .limit(10000),
+    fetchAllRows((from, to) =>
+      supabase
+        .from('bestand_transaktionen')
+        .select('sku_id, datum, anfangsbestand, einlagerungen, anpassungen_positiv, anpassungen_negativ, warenverluste, sendungen_manuell, bestand_sendungen(menge)')
+        .in('sku_id', skuIds)
+        .lte('datum', todayStr)
+        .order('datum', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to),
+    ),
 
     // Absatzplanung für dieses Produkt
-    supabase
-      .from('absatz_planung')
-      .select('sku_id, kw_year, kw_number, absatz_manuell')
-      .eq('user_id', user!.id)
-      .eq('produkt_id', produkt_id)
-      .not('absatz_manuell', 'is', null)
-      .limit(5000),
+    fetchAllRows((from, to) =>
+      supabase
+        .from('absatz_planung')
+        .select('sku_id, kw_year, kw_number, absatz_manuell')
+        .eq('user_id', user!.id)
+        .eq('produkt_id', produkt_id)
+        .not('absatz_manuell', 'is', null)
+        .order('id', { ascending: true })
+        .range(from, to),
+    ),
 
     // SKU-Mengen offener Bestellungen (plan + laufend)
     supabase
@@ -355,13 +362,16 @@ export async function GET(request: Request) {
 
   if (einstellungen.length > 0) {
     const ninetyAgo = addDays(today, -90)
-    const { data: sendungenRows } = await supabase
-      .from('bestand_transaktionen')
-      .select('sku_id, datum, bestand_sendungen(plattform_id, menge)')
-      .in('sku_id', skuIds)
-      .gte('datum', toDateOnly(ninetyAgo))
-      .lt('datum', todayStr)
-      .limit(10000)
+    const { data: sendungenRows } = await fetchAllRows((from, to) =>
+      supabase
+        .from('bestand_transaktionen')
+        .select('sku_id, datum, bestand_sendungen(plattform_id, menge)')
+        .in('sku_id', skuIds)
+        .gte('datum', toDateOnly(ninetyAgo))
+        .lt('datum', todayStr)
+        .order('id', { ascending: true })
+        .range(from, to),
+    )
 
     const dataByKombi = new Map<string, Array<{ datum: string; menge: number }>>()
     for (const t of (sendungenRows ?? []) as Array<{ sku_id: string; datum: string; bestand_sendungen: Array<{ plattform_id: string; menge: number }> }>) {

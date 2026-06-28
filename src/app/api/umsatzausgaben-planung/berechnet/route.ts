@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/supabase-paginate'
 
 // ─── ISO week helpers ──────────────────────────────────────────────────────────
 
@@ -148,10 +149,13 @@ export async function GET(request: Request) {
   const endDateStr = toDateOnly(addDays(bisMonday, 6))
 
   // 2. Load kpi_categories
-  const katsResult = await supabase
-    .from('kpi_categories')
-    .select('id, name, parent_id, type, ist_abzugsposten, level')
-    .limit(2000)
+  const katsResult = await fetchAllRows<KatRow>((from, to) =>
+    supabase
+      .from('kpi_categories')
+      .select('id, name, parent_id, type, ist_abzugsposten, level')
+      .order('id', { ascending: true })
+      .range(from, to),
+  )
 
   if (katsResult.error) return NextResponse.json({ error: katsResult.error.message }, { status: 500 })
 
@@ -231,17 +235,17 @@ export async function GET(request: Request) {
     ustRes, umsatzTransRes,
     bestandTransFullRes, ustEbeneRes, mktEinstRes,
   ] = await Promise.all([
-    supabase.from('absatz_planung')
+    fetchAllRows((from, to) => supabase.from('absatz_planung')
       .select('produkt_id, sales_plattform_id, kw_year, kw_number, absatz_manuell, effektiver_vk_manuell, sku_id')
-      .eq('user_id', user!.id).in('kw_year', planYears).limit(10000),
+      .eq('user_id', user!.id).in('kw_year', planYears).order('id', { ascending: true }).range(from, to)),
     supabase.from('absatz_einstellungen')
       .select('sales_plattform_id, produkt_id, berechnungsart, gewichtung_erstes_drittel, gewichtung_zweites_drittel, gewichtung_drittes_drittel')
       .eq('user_id', user!.id).neq('berechnungsart', 'keine').limit(500),
     skus.length > 0
-      ? supabase.from('bestand_transaktionen')
+      ? fetchAllRows((from, to) => supabase.from('bestand_transaktionen')
           .select('sku_id, datum, bestand_sendungen(plattform_id, menge)')
           .gte('datum', histStartStr).lt('datum', todayStr)
-          .in('sku_id', skus.map(s => s.id)).limit(10000)
+          .in('sku_id', skus.map(s => s.id)).order('id', { ascending: true }).range(from, to))
       : Promise.resolve({ data: [], error: null }),
     supabase.from('versandausgaben_einstellungen')
       .select('sales_plattform_id, produkt_id, versandgebuehr_spediteur, versandgebuehr_3pl')
@@ -270,9 +274,9 @@ export async function GET(request: Request) {
     supabase.from('ersatzteile_kulanz_plattform_einstellungen')
       .select('sales_plattform_id, zahlungsziel_tage, gruppierung, naechste_zahlung_basis_kw, naechste_zahlung_basis_jahr')
       .eq('user_id', user!.id).limit(100),
-    supabase.from('marketing_planung')
+    fetchAllRows((from, to) => supabase.from('marketing_planung')
       .select('produkt_id, kategorie_id, kw_year, kw_number, marketingkosten_pct_manuell')
-      .eq('user_id', user!.id).in('kw_year', planYears).limit(5000),
+      .eq('user_id', user!.id).in('kw_year', planYears).order('id', { ascending: true }).range(from, to)),
     supabase.from('marketing_kategorie_einstellungen')
       .select('kategorie_id, zahlungsziel_tage, gruppierung, naechste_zahlung_basis_kw, naechste_zahlung_basis_jahr, sales_plattform_id')
       .eq('user_id', user!.id).limit(100),
@@ -282,26 +286,27 @@ export async function GET(request: Request) {
     supabase.from('bestellungen')
       .select('id, status, bestelldatum, ankunftsdatum, ankunftsdatum_ist, verfuegbarkeitsdatum, verfuegbarkeitsdatum_ist')
       .eq('user_id', user!.id).in('status', ['plan', 'laufend']).limit(500),
-    supabase.from('bestellungen_produkte')
+    fetchAllRows((from, to) => supabase.from('bestellungen_produkte')
       .select('bestellung_id, produkt_id')
-      .eq('user_id', user!.id).limit(5000),
-    supabase.from('bestellungen_kosten')
+      .eq('user_id', user!.id).order('id', { ascending: true }).range(from, to)),
+    fetchAllRows((from, to) => supabase.from('bestellungen_kosten')
       .select('bestellung_id, kpi_kategorie_id, datum, nettobetrag')
-      .eq('user_id', user!.id).limit(10000),
+      .eq('user_id', user!.id).order('id', { ascending: true }).range(from, to)),
     supabase.from('ust_kategorie_saetze')
       .select('kategorie_id, ebene, ust_satz')
       .eq('user_id', user!.id).limit(1000),
-    supabase.from('umsatz_transaktionen')
+    fetchAllRows((from, to) => supabase.from('umsatz_transaktionen')
       .select('produkt_id, kategorie_id, leistungsdatum, betrag')
       .gte('leistungsdatum', histStartStr).lt('leistungsdatum', todayStr)
-      .not('produkt_id', 'is', null).limit(30000),
+      .not('produkt_id', 'is', null).order('id', { ascending: true }).range(from, to)),
     skus.length > 0
-      ? supabase.from('bestand_transaktionen')
+      ? fetchAllRows((from, to) => supabase.from('bestand_transaktionen')
           .select('sku_id, datum, anfangsbestand, einlagerungen, anpassungen_positiv, anpassungen_negativ, warenverluste, sendungen_manuell, bestand_sendungen(menge)')
           .lte('datum', todayStr)
           .in('sku_id', skus.map(s => s.id))
           .order('datum', { ascending: false })
-          .limit(5000)
+          .order('id', { ascending: true })
+          .range(from, to))
       : Promise.resolve({ data: [], error: null }),
     supabase.from('ust_l1_ebene_auswahl')
       .select('kategorie_id, ebene')
@@ -314,10 +319,11 @@ export async function GET(request: Request) {
   // Second fetch: bestellungen_sku_mengen (needs bestellung IDs from first batch)
   const bestellungIdsForMengen = (bestellungenRes.data ?? []).map((r: BestellungRow) => r.id)
   const skuMengenRes = bestellungIdsForMengen.length > 0
-    ? await supabase.from('bestellungen_sku_mengen')
+    ? await fetchAllRows((from, to) => supabase.from('bestellungen_sku_mengen')
         .select('sku_id, menge_praktisch, bestellung_id')
         .in('bestellung_id', bestellungIdsForMengen)
-        .limit(5000)
+        .order('id', { ascending: true })
+        .range(from, to))
     : { data: [], error: null }
 
   // ── 4. Build lookup maps ─────────────────────────────────────────────────────
@@ -798,12 +804,15 @@ export async function GET(request: Request) {
     }
 
     // Fetch all existing future-week rows (needed to find manual overrides and stale entries)
-    const { data: existingRows } = await supabase
-      .from('umsatzausgaben_planung')
-      .select('kategorie_id, produkt_id, kw_year, kw_number, ist_berechnet')
-      .eq('user_id', user!.id)
-      .or(`kw_year.gt.${ersteZukunftJahr},and(kw_year.eq.${ersteZukunftJahr},kw_number.gte.${ersteZukunftKw})`)
-      .limit(5000)
+    const { data: existingRows } = await fetchAllRows((from, to) =>
+      supabase
+        .from('umsatzausgaben_planung')
+        .select('kategorie_id, produkt_id, kw_year, kw_number, ist_berechnet')
+        .eq('user_id', user!.id)
+        .or(`kw_year.gt.${ersteZukunftJahr},and(kw_year.eq.${ersteZukunftJahr},kw_number.gte.${ersteZukunftKw})`)
+        .order('id', { ascending: true })
+        .range(from, to),
+    )
 
     const manualKeys = new Set<string>()
     for (const r of existingRows ?? []) {

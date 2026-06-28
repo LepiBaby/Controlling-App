@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/supabase-paginate'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -104,13 +105,15 @@ export async function GET() {
   today.setUTCHours(0, 0, 0, 0)
   const ninetyDaysAgo = addDays(today, -90)
 
-  const { data: transaktionen, error: tErr } = await supabase
-    .from('bestand_transaktionen')
-    .select('sku_id, datum, bestand_sendungen(plattform_id, menge)')
-    .gte('datum', toDateOnly(ninetyDaysAgo))
-    .lt('datum', toDateOnly(today))
-    .in('sku_id', skuIds)
-    .limit(10000)
+  const { data: transaktionen, error: tErr } = await fetchAllRows((from, to) =>
+    supabase
+      .from('bestand_transaktionen')
+      .select('sku_id, datum, bestand_sendungen(plattform_id, menge)')
+      .gte('datum', toDateOnly(ninetyDaysAgo))
+      .lt('datum', toDateOnly(today))
+      .in('sku_id', skuIds)
+      .order('id', { ascending: true })
+      .range(from, to))
 
   if (tErr) return NextResponse.json({ error: tErr.message }, { status: 500 })
 

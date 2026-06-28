@@ -64,15 +64,18 @@ Der Report zeigt primär die KPIs des neuesten Snapshots (aktuelle Lage), ergän
 | Lager-Anteil | Lager / Warenkapital |
 | Warenkapitalbindung | Warenkapital − VerbLL |
 | Warenbindungsquote | Warenkapitalbindung / (Warenkapital + Gesamt-Forderungen + Cash − VerbLL − VerbSonstige) |
-| Lagerreichweite | Warenkapital / Σ(Ø-Monatssendungen_Produkt × Produktkosten_Produkt) |
+| Lagerreichweite | Nach Warenkapital gewichteter Durchschnitt der Pro-Produkt-Reichweiten: Σ(Reichweite_Produkt × Warenkapital_Produkt) / Σ Warenkapital_Produkt |
 
 **Lagerreichweite — Detailberechnung (serverseitig):**
 - Für jeden Snapshot-Stichtag: Sendungen je Produkt in den 3 Kalendermonaten vor dem Stichtag aus `bestand_sendungen` + `bestand_transaktionen`
-- Ø-Monatssendungen_Produkt = Σ(Sendungen je Produkt in 3 Monaten) / 3 (in Stück)
+- Ø-Monatssendungen_Produkt = Σ(Sendungen je Produkt) / Anzahl der **verfügbaren Monate** (in Stück). Verfügbar = Monat mit Sendungen > 0; ein Monat ohne Werte oder mit 0 Sendungen gilt als „nicht verfügbar" und wird NICHT in den Divisor gezählt (sonst Verwässerung gerade gestarteter Produkte). Divisor liegt somit zwischen 1 und 3.
 - Produktkosten zum Stichtag: gültiger Zeitraum aus `produktkosten_zeitraeume` (`gueltig_von ≤ Stichtag` UND `gueltig_bis ≥ Stichtag` ODER `gueltig_bis IS NULL`); Summe aller `produktkosten_werte.wert` dieses Zeitraums
-- Lagerreichweite = Warenkapital / Σ(Ø-Monatssendungen_Produkt × Produktkosten_Produkt)
-- Wenn ein Produkt keine Produktkosten hat: wird im Nenner mit 0 gewertet (ignoriert)
+- Warenkapital_Produkt = Σ `lagerwert` + Σ `transitwert` dieses Produkts im Snapshot
+- **Reichweite_Produkt = Warenkapital_Produkt / (Ø-Monatssendungen_Produkt × Produktkosten_Produkt)**
+- **Gesamt-Lagerreichweite = nach Warenkapital gewichteter Durchschnitt:** Σ(Reichweite_Produkt × Warenkapital_Produkt) / Σ Warenkapital_Produkt
+- Ausgeschlossen vom Durchschnitt: Produkte ohne Absatz in den letzten 3 Monaten (Reichweite unendlich), Produkte ohne Produktkosten und Produkte ohne Warenkapital (Gewicht 0)
 - Einheit: Monate (numerisch, 1 Dezimalstelle)
+- Die Pro-Produkt-Reichweite wird zusätzlich im Drill-Down je Produkt ausgewiesen (`produkt_details`)
 
 ### Liquiditäts-KPI-Formeln
 
@@ -590,6 +593,14 @@ Alle benötigten Primitiven bereits installiert: `recharts`, `Card`, `Badge`, `P
 | Keine sensitiven Daten ohne Auth | PASS |
 | Keine Secrets im Code | PASS |
 | Parallele Queries via `Promise.all` | PASS |
+
+### Nachträgliche Korrekturen
+
+- **2026-06-28 — Lagerreichweite falsch (2 Ursachen, fix):**
+  1. **Zeilen-Kappung (Hauptursache):** Die `bestand_transaktionen`-Abfrage nutzte `.limit(10000)`, PostgREST kappt aber jeden Request hart bei `max-rows` (1000). Bei >1000 Transaktionen (Live: 1.153) fehlten die zuletzt eingefügten Zeilen (aktuelle Importe) → Ø-Monatssendungen und Lagerreichweite verfälscht. Behoben durch **seitenweises Laden** via `fetchAllRows` (`src/lib/supabase-paginate.ts`). Symptom: App zeigte 21,6 statt korrekt 18,0 (mit altem Divisor).
+  2. **Divisor:** `getAvgMonatssendungen` teilte pauschal durch 3 Monate. Produkte mit Absatz in nur 1–2 der letzten 3 Monate wurden verwässert. Jetzt Division durch die **Anzahl der verfügbaren Monate** (Monate mit Sendungen > 0); ein Monat mit 0 oder ohne Werte = „nicht verfügbar". Betrifft Gesamt-KPI und Produkt-Detail (beide nutzen dieselbe Funktion).
+  - Ergebnis Live-Daten 27.06.2026: vorher 21,6 (gekappt+÷3) → nach Fix **14,4 Monate** (volle Daten + ÷ aktive Monate), Ø-Monatssendungen 258,0.
+  - **Projektweiter Folge-Fix:** Dieselbe `.limit(>1000)`-Falle wurde in allen weiteren API-Routen behoben — sämtliche `.limit(N>1000)`-Abfragen nutzen nun `fetchAllRows` (Pagination mit stabiler `id`-Sortierung). Helper: `src/lib/supabase-paginate.ts`.
 
 ### Bekannte Einschränkungen (kein Blocker)
 

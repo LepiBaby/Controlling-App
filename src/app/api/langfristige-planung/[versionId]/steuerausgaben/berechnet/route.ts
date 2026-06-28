@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/supabase-paginate'
 import { ensureLangfristigeVersion } from '@/lib/langfristige-version'
 import { GET as salesBerechnetGET } from '../../sales-plattform-planung/berechnet/route'
 import { GET as umsatzausgabenBerechnetGET } from '../../umsatzausgaben/berechnet/route'
@@ -134,7 +135,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
       .eq('user_id', user!.id)
       .eq('plan_version_id', versionId)
       .maybeSingle(),
-    supabase.from('kpi_categories').select('id, name, parent_id, type, level').limit(3000),
+    fetchAllRows((from, to) => supabase.from('kpi_categories').select('id, name, parent_id, type, level').order('id', { ascending: true }).range(from, to)),
     supabase
       .from('langfristige_ust_einstellungen')
       .select('zahlungsfrequenz, zahlungsverschiebung_tage, einfuhrust_satz, einfuhrust_zahlungsziel_tage')
@@ -230,9 +231,9 @@ export async function GET(_request: Request, { params }: RouteContext) {
 
   // ── 3. USt-Sätze + Pflegeebene → satz-basierte Auflösung (wie kurzfristig) ──────
   const [ustSatzResult, ustEbeneResult, investKatResult] = await Promise.all([
-    supabase.from('langfristige_ust_kategorie_saetze').select('kategorie_id, ebene, ust_satz').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(2000),
+    fetchAllRows((from, to) => supabase.from('langfristige_ust_kategorie_saetze').select('kategorie_id, ebene, ust_satz').eq('user_id', user!.id).eq('plan_version_id', versionId).order('id', { ascending: true }).range(from, to)),
     supabase.from('langfristige_ust_ebene_auswahl').select('kategorie_id, ebene').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(1000),
-    supabase.from('langfristige_kpi_kategorien').select('id, parent_id').eq('user_id', user!.id).eq('plan_version_id', versionId).eq('art', 'lp_investition').limit(2000),
+    fetchAllRows((from, to) => supabase.from('langfristige_kpi_kategorien').select('id, parent_id').eq('user_id', user!.id).eq('plan_version_id', versionId).eq('art', 'lp_investition').order('id', { ascending: true }).range(from, to)),
   ])
   const ustRateMap = new Map<string, number>()
   for (const r of (ustSatzResult.data ?? []) as UstSatzRow[]) {
@@ -388,7 +389,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
   // übersprungen. Basis = Ware + Versand + Zoll. Zielmonat = Ankunftsmonat + Zahlungsziel.
   if (einfuhrLeafId && einfuhrSatz > 0) {
     const [bestellResult, fiskalResult, produktNamenResult] = await Promise.all([
-      supabase.from('langfristige_bestellungen').select('id, produkt_id, ankunftsdatum, verfuegbarkeitsdatum, bestelldatum').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(2000),
+      fetchAllRows((from, to) => supabase.from('langfristige_bestellungen').select('id, produkt_id, ankunftsdatum, verfuegbarkeitsdatum, bestelldatum').eq('user_id', user!.id).eq('plan_version_id', versionId).order('id', { ascending: true }).range(from, to)),
       supabase.from('langfristige_einfuhrust_fiskalverzollung').select('produkt_id, fiskalverzollung').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(500),
       supabase.from('langfristige_kpi_kategorien').select('id, name').eq('user_id', user!.id).eq('plan_version_id', versionId).eq('art', 'lp_produkt').eq('level', 1).limit(500),
     ])
@@ -402,13 +403,13 @@ export async function GET(_request: Request, { params }: RouteContext) {
     const relevantIds = bestellungen.filter(b => !fiskalSet.has(b.produkt_id)).map(b => b.id)
 
     if (relevantIds.length > 0 && einfuhrBasisKatIds.size > 0) {
-      const { data: kostData } = await supabase
+      const { data: kostData } = await fetchAllRows((from, to) => supabase
         .from('langfristige_bestellungen_kosten')
         .select('bestellung_id, kpi_kategorie_id, nettobetrag')
         .eq('user_id', user!.id)
         .eq('plan_version_id', versionId)
         .in('bestellung_id', relevantIds)
-        .limit(20000)
+        .order('id', { ascending: true }).range(from, to))
 
       // Basis je Bestellung (nur Ware/Versand/Zoll).
       const basisByBestellung = new Map<string, number>()
@@ -451,12 +452,12 @@ export async function GET(_request: Request, { params }: RouteContext) {
       salesBerechnetGET(innerReq(), innerCtx).then(r => readHandler<Array<{ kategorie: string; produkt_id: string; sales_plattform_id: string; jahr: number; monat: number; wert: number }>>(r)),
       umsatzausgabenBerechnetGET(innerReq(), innerCtx).then(r => readHandler<{ data: Array<{ kategorie_id: string; produkt_id: string; jahr: number; monat: number; wert: number }>; unassigned_marketing_kat_ids?: string[] }>(r)),
       investitionsausgabenBerechnetGET(innerReq(), innerCtx).then(r => readHandler<{ data: Array<{ kategorie_id: string; produkt_id: string; jahr: number; monat: number; wert: number }> }>(r)),
-      supabase.from('langfristige_sales_plattform_planung').select('kategorie, produkt_id, sales_plattform_id, jahr, monat, wert_manuell').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(20000),
-      supabase.from('langfristige_umsatzausgaben_planung').select('kategorie_id, produkt_id, jahr, monat, betrag_manuell').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(20000),
-      supabase.from('langfristige_investitionsausgaben_planung').select('kategorie_id, produkt_id, jahr, monat, betrag_manuell').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(20000),
-      supabase.from('langfristige_einnahmen_planung').select('kategorie_id, jahr, monat, betrag_manuell').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(20000),
-      supabase.from('langfristige_operativekosten_planung').select('kategorie_id, jahr, monat, betrag').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(20000),
-      supabase.from('langfristige_finanzierungsausgaben_planung').select('kategorie_id, jahr, monat, betrag').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(20000),
+      fetchAllRows((from, to) => supabase.from('langfristige_sales_plattform_planung').select('kategorie, produkt_id, sales_plattform_id, jahr, monat, wert_manuell').eq('user_id', user!.id).eq('plan_version_id', versionId).order('id', { ascending: true }).range(from, to)),
+      fetchAllRows((from, to) => supabase.from('langfristige_umsatzausgaben_planung').select('kategorie_id, produkt_id, jahr, monat, betrag_manuell').eq('user_id', user!.id).eq('plan_version_id', versionId).order('id', { ascending: true }).range(from, to)),
+      fetchAllRows((from, to) => supabase.from('langfristige_investitionsausgaben_planung').select('kategorie_id, produkt_id, jahr, monat, betrag_manuell').eq('user_id', user!.id).eq('plan_version_id', versionId).order('id', { ascending: true }).range(from, to)),
+      fetchAllRows((from, to) => supabase.from('langfristige_einnahmen_planung').select('kategorie_id, jahr, monat, betrag_manuell').eq('user_id', user!.id).eq('plan_version_id', versionId).order('id', { ascending: true }).range(from, to)),
+      fetchAllRows((from, to) => supabase.from('langfristige_operativekosten_planung').select('kategorie_id, jahr, monat, betrag').eq('user_id', user!.id).eq('plan_version_id', versionId).order('id', { ascending: true }).range(from, to)),
+      fetchAllRows((from, to) => supabase.from('langfristige_finanzierungsausgaben_planung').select('kategorie_id, jahr, monat, betrag').eq('user_id', user!.id).eq('plan_version_id', versionId).order('id', { ascending: true }).range(from, to)),
       // Zahlungsziele für die B2-Rückrechnung (Vertrieb + Marketing).
       supabase.from('langfristige_versand_plattform_einstellungen').select('zahlungsziel_tage').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(100),
       supabase.from('langfristige_lager_plattform_einstellungen').select('zahlungsziel_tage').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(100),
@@ -470,8 +471,8 @@ export async function GET(_request: Request, { params }: RouteContext) {
     // (re-)generierten langfristige_bestellungen_kosten gelesen werden (kein Race).
     const [kostenGlobalRes, bestellungenFlagRes, bestellKostenAllRes] = await Promise.all([
       supabase.from('langfristige_produktinformationen_kosten_global').select('shipping_zahlungsziel_tage, inspektion_zahlungsziel_tage, einlagerung_zahlungsziel_tage, zoll_zahlungsziel_tage').eq('user_id', user!.id).eq('plan_version_id', versionId).maybeSingle(),
-      supabase.from('langfristige_bestellungen').select('id, produkt_id, ist_erstbestellung, bestelldatum').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(2000),
-      supabase.from('langfristige_bestellungen_kosten').select('bestellung_id, kpi_kategorie_id, datum, nettobetrag').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(20000),
+      fetchAllRows((from, to) => supabase.from('langfristige_bestellungen').select('id, produkt_id, ist_erstbestellung, bestelldatum').eq('user_id', user!.id).eq('plan_version_id', versionId).order('id', { ascending: true }).range(from, to)),
+      fetchAllRows((from, to) => supabase.from('langfristige_bestellungen_kosten').select('bestellung_id, kpi_kategorie_id, datum, nettobetrag').eq('user_id', user!.id).eq('plan_version_id', versionId).order('id', { ascending: true }).range(from, to)),
     ])
 
     // — Sales-Plattform-Planung (A1 + B1): effektiv = manuell ?? berechnet —

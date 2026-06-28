@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/supabase-paginate'
 import { ABSCHREIBUNG_MONATE, addMonthsWithClamp, roundTo2 } from '@/lib/abschreibung-utils'
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
@@ -220,13 +221,16 @@ export async function GET(request: Request) {
   }> = []
 
   if (produktinvestitionenCatId && assignedCatIds.has(produktinvestitionenCatId)) {
-    const { data: piData, error: piErr2 } = await supabase
-      .from('ausgaben_kosten_transaktionen')
-      .select('leistungsdatum, betrag_netto, kategorie_id, gruppe_id, untergruppe_id, produkt_id')
-      .eq('kategorie_id', produktinvestitionenCatId)
-      .is('abschreibung', null)
-      .not('leistungsdatum', 'is', null)
-      .limit(10000)
+    const { data: piData, error: piErr2 } = await fetchAllRows((from, to) =>
+      supabase
+        .from('ausgaben_kosten_transaktionen')
+        .select('leistungsdatum, betrag_netto, kategorie_id, gruppe_id, untergruppe_id, produkt_id')
+        .eq('kategorie_id', produktinvestitionenCatId)
+        .is('abschreibung', null)
+        .not('leistungsdatum', 'is', null)
+        .order('id', { ascending: true })
+        .range(from, to)
+    )
     if (piErr2) return NextResponse.json({ error: piErr2.message }, { status: 500 })
     piRows = piData ?? []
   }

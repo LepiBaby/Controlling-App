@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/supabase-paginate'
 
 // ─── ISO week helpers ─────────────────────────────────────────────────────────
 
@@ -70,12 +71,14 @@ export async function GET(request: Request) {
   const startStr  = startDate.toISOString().slice(0, 10)
   const endStr    = endDate.toISOString().slice(0, 10)
 
-  const { data, error: dbErr } = await supabase
-    .from('einnahmen_transaktionen')
-    .select('kategorie_id, gruppe_id, sales_plattform_id, zahlungsdatum, betrag')
-    .gte('zahlungsdatum', startStr)
-    .lt('zahlungsdatum', endStr)
-    .limit(10000)
+  const { data, error: dbErr } = await fetchAllRows((from, to) =>
+    supabase
+      .from('einnahmen_transaktionen')
+      .select('kategorie_id, gruppe_id, sales_plattform_id, zahlungsdatum, betrag')
+      .gte('zahlungsdatum', startStr)
+      .lt('zahlungsdatum', endStr)
+      .order('id', { ascending: true })
+      .range(from, to))
 
   if (dbErr) return NextResponse.json({ error: dbErr.message }, { status: 500 })
 

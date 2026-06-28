@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/supabase-server'
 import { ensureLangfristigeVersion } from '@/lib/langfristige-version'
+import { fetchAllRows } from '@/lib/supabase-paginate'
 
 // Auth-geschützte, pro-Planversion dynamische Route — nie statisch generieren.
 // Überspringt den in Next 16 instabilen Static-Path-Pass (Worker-Crash).
@@ -77,14 +78,17 @@ export async function GET(_request: Request, { params }: RouteContext) {
       .eq('user_id', user!.id)
       .eq('plan_version_id', versionId)
       .maybeSingle(),
-    supabase
-      .from('langfristige_kpi_kategorien')
-      .select('id, name, parent_id, level')
-      .eq('user_id', user!.id)
-      .eq('plan_version_id', versionId)
-      .eq('art', 'lp_investition')
-      .limit(2000),
-    supabase.from('kpi_categories').select('id, name, parent_id').limit(2000),
+    fetchAllRows((from, to) =>
+      supabase
+        .from('langfristige_kpi_kategorien')
+        .select('id, name, parent_id, level')
+        .eq('user_id', user!.id)
+        .eq('plan_version_id', versionId)
+        .eq('art', 'lp_investition')
+        .order('id', { ascending: true })
+        .range(from, to)
+    ),
+    fetchAllRows((from, to) => supabase.from('kpi_categories').select('id, name, parent_id').order('id', { ascending: true }).range(from, to)),
     supabase.from('langfristige_ust_kategorie_saetze').select('kategorie_id, ebene, ust_satz').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(1000),
     supabase.from('langfristige_ust_ebene_auswahl').select('kategorie_id, ebene').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(500),
   ])
@@ -160,19 +164,25 @@ export async function GET(_request: Request, { params }: RouteContext) {
 
   // 2. Erstbestellungen + deren Bestellkosten der Version (parallel).
   const [bestellungenResult, bestellKostResult] = await Promise.all([
-    supabase
-      .from('langfristige_bestellungen')
-      .select('id, produkt_id, ist_erstbestellung')
-      .eq('user_id', user!.id)
-      .eq('plan_version_id', versionId)
-      .eq('ist_erstbestellung', true)
-      .limit(2000),
-    supabase
-      .from('langfristige_bestellungen_kosten')
-      .select('bestellung_id, kpi_kategorie_id, datum, nettobetrag')
-      .eq('user_id', user!.id)
-      .eq('plan_version_id', versionId)
-      .limit(20000),
+    fetchAllRows((from, to) =>
+      supabase
+        .from('langfristige_bestellungen')
+        .select('id, produkt_id, ist_erstbestellung')
+        .eq('user_id', user!.id)
+        .eq('plan_version_id', versionId)
+        .eq('ist_erstbestellung', true)
+        .order('id', { ascending: true })
+        .range(from, to)
+    ),
+    fetchAllRows((from, to) =>
+      supabase
+        .from('langfristige_bestellungen_kosten')
+        .select('bestellung_id, kpi_kategorie_id, datum, nettobetrag')
+        .eq('user_id', user!.id)
+        .eq('plan_version_id', versionId)
+        .order('id', { ascending: true })
+        .range(from, to)
+    ),
   ])
 
   if (bestellungenResult.error) return NextResponse.json({ error: bestellungenResult.error.message }, { status: 500 })

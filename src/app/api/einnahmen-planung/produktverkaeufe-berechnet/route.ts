@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/supabase-paginate'
 
 // ─── ISO week helpers ─────────────────────────────────────────────────────────
 
@@ -125,9 +126,10 @@ export async function GET(request: Request) {
       .select('planungshorizont_wochen')
       .eq('user_id', user!.id)
       .maybeSingle(),
-    supabase.from('kpi_categories')
+    fetchAllRows((from, to) => supabase.from('kpi_categories')
       .select('id, name, type, level, parent_id')
-      .limit(2000),
+      .order('id', { ascending: true })
+      .range(from, to)),
     supabase.from('auszahlungs_einstellungen')
       .select('sales_plattform_id, auszahlungsrhythmus, naechste_auszahlung_basis_kw, naechste_auszahlung_basis_jahr, verschiebung_wochen, marketing_inkludiert')
       .eq('user_id', user!.id)
@@ -194,12 +196,14 @@ export async function GET(request: Request) {
 
   // ── 4. Load manual SPP overrides for all revenue years ──────────────────────
   const allYears = [...new Set(allRevenueWeeks.map(w => w.year))]
-  const manualResult = await supabase
-    .from('sales_plattform_planung')
-    .select('kategorie, produkt_id, sales_plattform_id, kw_year, kw_number, wert_manuell')
-    .eq('user_id', user!.id)
-    .in('kw_year', allYears)
-    .limit(10000)
+  const manualResult = await fetchAllRows((from, to) =>
+    supabase
+      .from('sales_plattform_planung')
+      .select('kategorie, produkt_id, sales_plattform_id, kw_year, kw_number, wert_manuell')
+      .eq('user_id', user!.id)
+      .in('kw_year', allYears)
+      .order('id', { ascending: true })
+      .range(from, to))
 
   // ── 5. Build effective value map: manual override > berechnet > historisch ───
   // Key: "kategorie:produkt_id:sales_plattform_id:kw_year:kw_number"

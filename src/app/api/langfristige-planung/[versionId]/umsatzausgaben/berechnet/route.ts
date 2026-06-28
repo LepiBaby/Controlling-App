@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/supabase-paginate'
 import { ensureLangfristigeVersion } from '@/lib/langfristige-version'
 import { generiereUndSpeichereLangfristigeBestellkosten } from '../../bestellplanung/bestellungen/[id]/kosten/_kosten-utils'
 import { ladeVersionsDaten } from '../../bestellplanung/_utils'
@@ -124,7 +125,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
       .eq('user_id', user!.id)
       .eq('plan_version_id', versionId)
       .maybeSingle(),
-    supabase.from('kpi_categories').select('id, name, parent_id, type, level').limit(2000),
+    fetchAllRows((from, to) => supabase.from('kpi_categories').select('id, name, parent_id, type, level').order('id', { ascending: true }).range(from, to)),
   ])
 
   if (katsResult.error) return NextResponse.json({ error: katsResult.error.message }, { status: 500 })
@@ -174,22 +175,22 @@ export async function GET(_request: Request, { params }: RouteContext) {
   ] = await Promise.all([
     supabase.from('langfristige_kpi_kategorien').select('id').eq('user_id', user!.id).eq('plan_version_id', versionId).eq('art', 'lp_produkt').limit(500),
     supabase.from('langfristige_kpi_kategorien').select('id').eq('user_id', user!.id).eq('plan_version_id', versionId).eq('art', 'lp_marketingkanal').limit(500),
-    supabase.from('langfristige_absatz_planung').select('sales_plattform_id, produkt_id, jahr, monat, absatz, effektiver_vk').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(20000),
-    supabase.from('langfristige_versand_einstellungen').select('produkt_id, versandgebuehr_spediteur_euro_netto, versandgebuehr_3pl_euro_netto').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(2000),
+    fetchAllRows((from, to) => supabase.from('langfristige_absatz_planung').select('sales_plattform_id, produkt_id, jahr, monat, absatz, effektiver_vk').eq('user_id', user!.id).eq('plan_version_id', versionId).order('id', { ascending: true }).range(from, to)),
+    fetchAllRows((from, to) => supabase.from('langfristige_versand_einstellungen').select('produkt_id, versandgebuehr_spediteur_euro_netto, versandgebuehr_3pl_euro_netto').eq('user_id', user!.id).eq('plan_version_id', versionId).order('id', { ascending: true }).range(from, to)),
     supabase.from('langfristige_versand_plattform_einstellungen').select('gruppierung, zahlungsziel_tage').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(100),
-    supabase.from('langfristige_lager_einstellungen').select('produkt_id, lagerkosten_euro_m3_monat').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(2000),
+    fetchAllRows((from, to) => supabase.from('langfristige_lager_einstellungen').select('produkt_id, lagerkosten_euro_m3_monat').eq('user_id', user!.id).eq('plan_version_id', versionId).order('id', { ascending: true }).range(from, to)),
     supabase.from('langfristige_lager_plattform_einstellungen').select('gruppierung, zahlungsziel_tage').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(100),
-    supabase.from('langfristige_ersatzteile_kulanz_einstellungen').select('produkt_id, quote_prozent, produktkosten_pro_stueck_euro_netto, versandkosten_pro_stueck_euro_netto').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(2000),
+    fetchAllRows((from, to) => supabase.from('langfristige_ersatzteile_kulanz_einstellungen').select('produkt_id, quote_prozent, produktkosten_pro_stueck_euro_netto, versandkosten_pro_stueck_euro_netto').eq('user_id', user!.id).eq('plan_version_id', versionId).order('id', { ascending: true }).range(from, to)),
     supabase.from('langfristige_ersatzteile_kulanz_plattform_einstellungen').select('gruppierung, zahlungsziel_tage').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(100),
     supabase.from('langfristige_retouren_allgemein_produkt_einstellungen').select('produkt_id, retourenquote_prozent, retourenhandling_kosten_euro_netto').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(500),
     supabase.from('langfristige_retouren_allgemein_einstellungen').select('gruppierung, zahlungsziel_tage').eq('user_id', user!.id).eq('plan_version_id', versionId).maybeSingle(),
     supabase.from('langfristige_produktinformationen_containerkapazitaet').select('produkt_id, laenge_cm, breite_cm, hoehe_cm').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(500),
-    supabase.from('langfristige_marketing_planung').select('marketingkanal_id, produkt_id, jahr, monat, marketingkosten_pct').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(20000),
+    fetchAllRows((from, to) => supabase.from('langfristige_marketing_planung').select('marketingkanal_id, produkt_id, jahr, monat, marketingkosten_pct').eq('user_id', user!.id).eq('plan_version_id', versionId).order('id', { ascending: true }).range(from, to)),
     supabase.from('langfristige_marketing_einstellungen').select('marketingkanal_id, sales_plattform_id, gruppierung, zahlungsziel_tage').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(500),
     supabase.from('langfristige_auszahlungs_marketingkanaele').select('marketingkanal_id').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(1000),
     supabase.from('langfristige_ust_kategorie_saetze').select('kategorie_id, ebene, ust_satz').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(1000),
     supabase.from('langfristige_ust_ebene_auswahl').select('kategorie_id, ebene').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(500),
-    supabase.from('langfristige_bestellungen').select('id, produkt_id, menge_praktisch, bestelldatum, produktionsende_datum, shippingdatum, ankunftsdatum, verfuegbarkeitsdatum, anzahl_20dc, anzahl_40hq, container_anteil, ist_erstbestellung').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(2000),
+    fetchAllRows((from, to) => supabase.from('langfristige_bestellungen').select('id, produkt_id, menge_praktisch, bestelldatum, produktionsende_datum, shippingdatum, ankunftsdatum, verfuegbarkeitsdatum, anzahl_20dc, anzahl_40hq, container_anteil, ist_erstbestellung').eq('user_id', user!.id).eq('plan_version_id', versionId).order('id', { ascending: true }).range(from, to)),
   ])
 
   for (const r of [prodResult, kanalResult, absatzResult, versandResult, versandGrpResult, lagerResult, lagerGrpResult, kulanzResult, kulanzGrpResult, retourenProdResult, containerResult, mktPlanResult, mktEinstResult, auszKanalResult, ustSatzResult, ustEbeneResult, bestellungenResult]) {
@@ -368,12 +369,12 @@ export async function GET(_request: Request, { params }: RouteContext) {
     }
   }
 
-  const { data: bestellKostData } = await supabase
+  const { data: bestellKostData } = await fetchAllRows((from, to) => supabase
     .from('langfristige_bestellungen_kosten')
     .select('bestellung_id, kpi_kategorie_id, datum, nettobetrag')
     .eq('user_id', user!.id)
     .eq('plan_version_id', versionId)
-    .limit(20000)
+    .order('id', { ascending: true }).range(from, to))
 
   for (const k of (bestellKostData ?? []) as BestellKostRow[]) {
     const best = bestellungMap.get(k.bestellung_id)

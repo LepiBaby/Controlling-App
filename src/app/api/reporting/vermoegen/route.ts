@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/supabase-paginate'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -76,27 +77,44 @@ export async function GET() {
       .eq('level', 1)
       .limit(200),
 
-    supabase
-      .from('kpi_categories')
-      .select('id, parent_id')
-      .eq('type', 'produkte')
-      .neq('level', 1)
-      .limit(2000),
+    fetchAllRows<{ id: string; parent_id: string | null }>((from, to) =>
+      supabase
+        .from('kpi_categories')
+        .select('id, parent_id')
+        .eq('type', 'produkte')
+        .neq('level', 1)
+        .order('id', { ascending: true })
+        .range(from, to)
+    ),
 
-    supabase
-      .from('bestand_transaktionen')
-      .select('sku_id, datum, sendungen_manuell, sendungen:bestand_sendungen(menge)')
-      .limit(10000),
+    // bestand_transaktionen kann >1000 Zeilen haben — PostgREST kappt jede Antwort
+    // bei max-rows (1000). Ohne Paginierung fehlen die zuletzt eingefügten Zeilen,
+    // was Ø-Monatssendungen und Lagerreichweite verfälscht. Daher seitenweise laden.
+    fetchAllRows<{
+      sku_id: string
+      datum: string
+      sendungen_manuell: number | null
+      sendungen: { menge: number }[] | null
+    }>((from, to) =>
+      supabase
+        .from('bestand_transaktionen')
+        .select('sku_id, datum, sendungen_manuell, sendungen:bestand_sendungen(menge)')
+        .order('id', { ascending: true })
+        .range(from, to)
+    ),
 
     supabase
       .from('produktkosten_zeitraeume')
       .select('id, produkt_id, gueltig_von, gueltig_bis')
       .limit(1000),
 
-    supabase
-      .from('produktkosten_werte')
-      .select('zeitraum_id, wert')
-      .limit(10000),
+    fetchAllRows<{ zeitraum_id: string; wert: number }>((from, to) =>
+      supabase
+        .from('produktkosten_werte')
+        .select('zeitraum_id, wert')
+        .order('id', { ascending: true })
+        .range(from, to)
+    ),
   ])
 
   if (snapErr)  return NextResponse.json({ error: snapErr.message  }, { status: 500 })
@@ -164,12 +182,24 @@ export async function GET() {
     return 0
   }
 
+  // Ø-Monatssendungen je Produkt: Summe der Sendungen geteilt durch die Anzahl
+  // der VERFÜGBAREN Monate (Monate mit Sendungen > 0). Ein Monat ohne Werte oder
+  // mit 0 Sendungen gilt als "nicht verfügbar" und wird nicht in den Divisor
+  // gezählt — sonst würden gerade erst gestartete Produkte künstlich verwässert.
   function getAvgMonatssendungen(produktId: string, datum: string): number {
     const months = prev3Months(datum)
     const monthMap = sendungenByProduktMonth.get(produktId)
     if (!monthMap) return 0
-    const total = months.reduce((s, mo) => s + (monthMap.get(mo) ?? 0), 0)
-    return total / 3
+    let total = 0
+    let verfuegbareMonate = 0
+    for (const mo of months) {
+      const wert = monthMap.get(mo) ?? 0
+      if (wert > 0) {
+        total += wert
+        verfuegbareMonate++
+      }
+    }
+    return verfuegbareMonate === 0 ? 0 : total / verfuegbareMonate
   }
 
   // ── KPIs pro Snapshot berechnen ───────────────────────────────────────────────
@@ -188,15 +218,32 @@ export async function GET() {
     const cash = Number(snap.cash_bestand)
     const anlagevermoegen = Number(snap.anlagevermoegen)
 
-    // Lagerreichweite: Warenkapital / Σ(Ø-Monatssendungen × Produktkosten)
-    let lrNenner = 0
+    // Lagerreichweite: je Produkt = Warenkapital_Produkt / (Ø-Monatssendungen × Produktkosten),
+    // anschließend nach Warenkapital gewichteter Durchschnitt über alle Produkte.
+    // Produkte ohne Absatz in den letzten 3 Monaten (Reichweite rechnerisch
+    // unendlich) werden ausgeschlossen; ebenso Produkte ohne Warenkapital (Gewicht 0).
+    const wkByProdukt = new Map<string, number>()
+    for (const lw of snap.lagerwerte ?? []) {
+      if (lw.produkt_id) wkByProdukt.set(lw.produkt_id, (wkByProdukt.get(lw.produkt_id) ?? 0) + Number(lw.lagerwert))
+    }
+    for (const tw of snap.transitwerte ?? []) {
+      if (tw.produkt_id) wkByProdukt.set(tw.produkt_id, (wkByProdukt.get(tw.produkt_id) ?? 0) + Number(tw.transitwert))
+    }
+    let lrWeightedSum = 0 // Σ(Reichweite_Produkt × Warenkapital_Produkt)
+    let lrWeightSum = 0   // Σ Warenkapital_Produkt (nur einbezogene Produkte)
     let avg_monatssendungen = 0
     for (const produktId of produktIds) {
       const kosten = getProduktkosten(produktId, snap.datum)
       if (kosten <= 0) continue
       const avgSendungen = getAvgMonatssendungen(produktId, snap.datum)
-      lrNenner = r2(lrNenner + avgSendungen * kosten)
       avg_monatssendungen += avgSendungen
+      const monatsverbrauch = avgSendungen * kosten
+      if (monatsverbrauch <= 0) continue // kein Absatz → Reichweite unendlich → ausgeschlossen
+      const wkProdukt = wkByProdukt.get(produktId) ?? 0
+      if (wkProdukt <= 0) continue // kein Warenkapital → Gewicht 0
+      const reichweiteProdukt = wkProdukt / monatsverbrauch
+      lrWeightedSum += reichweiteProdukt * wkProdukt
+      lrWeightSum += wkProdukt
     }
     avg_monatssendungen = r2(avg_monatssendungen)
 
@@ -205,7 +252,7 @@ export async function GET() {
     const warenkapitalbindung = r2(warenkapital - verb_ll)
     const wqNenner = r2(warenkapital + gesamt_forderungen + cash - verb_ll - verb_sonstige)
     const warenbindungsquote = wqNenner === 0 ? null : safeDiv(warenkapitalbindung, wqNenner)
-    const lagerreichweite = lrNenner === 0 ? null : safeDiv(warenkapital, lrNenner)
+    const lagerreichweite = lrWeightSum === 0 ? null : r2(lrWeightedSum / lrWeightSum)
 
     // Liquiditäts-KPIs
     const working_capital = r2(warenkapital + cash + gesamt_forderungen - verb_ll - verb_sonstige)

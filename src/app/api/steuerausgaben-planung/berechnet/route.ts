@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/supabase-paginate'
 
 // ─── ISO week helpers ──────────────────────────────────────────────────────────
 
@@ -158,17 +159,23 @@ export async function GET(request: Request) {
       .or(`ankunftsdatum.lte.${endDate},ankunftsdatum_ist.lte.${endDate}`)
       .limit(500),
 
-    supabase
-      .from('bestellungen_kosten')
-      .select('bestellung_id, kpi_kategorie_id, nettobetrag')
-      .eq('user_id', user!.id)
-      .limit(5000),
+    fetchAllRows((from, to) =>
+      supabase
+        .from('bestellungen_kosten')
+        .select('bestellung_id, kpi_kategorie_id, nettobetrag')
+        .eq('user_id', user!.id)
+        .order('id', { ascending: true })
+        .range(from, to),
+    ),
 
-    supabase
-      .from('bestellungen_produkte')
-      .select('bestellung_id, produkt_id')
-      .eq('user_id', user!.id)
-      .limit(2000),
+    fetchAllRows((from, to) =>
+      supabase
+        .from('bestellungen_produkte')
+        .select('bestellung_id, produkt_id')
+        .eq('user_id', user!.id)
+        .order('id', { ascending: true })
+        .range(from, to),
+    ),
 
     supabase
       .from('einfuhrust_fiskalverzollung')
@@ -176,45 +183,60 @@ export async function GET(request: Request) {
       .eq('user_id', user!.id)
       .limit(200),
 
-    supabase
-      .from('einnahmen_planung')
-      .select('kategorie_id, kw_year, kw_number, betrag_manuell')
-      .eq('user_id', user!.id)
-      .gte('kw_year', vonJahr - 1)
-      .lte('kw_year', bisJahr + 1)
-      .limit(5000),
+    fetchAllRows((from, to) =>
+      supabase
+        .from('einnahmen_planung')
+        .select('kategorie_id, kw_year, kw_number, betrag_manuell')
+        .eq('user_id', user!.id)
+        .gte('kw_year', vonJahr - 1)
+        .lte('kw_year', bisJahr + 1)
+        .order('id', { ascending: true })
+        .range(from, to),
+    ),
 
-    supabase
-      .from('umsatzausgaben_planung')
-      .select('kategorie_id, kw_year, kw_number, betrag_manuell, ist_berechnet')
-      .eq('user_id', user!.id)
-      .gte('kw_year', vonJahr - 1)
-      .lte('kw_year', bisJahr + 1)
-      .limit(5000),
+    fetchAllRows((from, to) =>
+      supabase
+        .from('umsatzausgaben_planung')
+        .select('kategorie_id, kw_year, kw_number, betrag_manuell, ist_berechnet')
+        .eq('user_id', user!.id)
+        .gte('kw_year', vonJahr - 1)
+        .lte('kw_year', bisJahr + 1)
+        .order('id', { ascending: true })
+        .range(from, to),
+    ),
 
-    supabase
-      .from('operative_planung')
-      .select('kategorie_id, kw_year, kw_number, betrag_manuell, ist_berechnet')
-      .eq('user_id', user!.id)
-      .gte('kw_year', vonJahr - 1)
-      .lte('kw_year', bisJahr + 1)
-      .limit(5000),
+    fetchAllRows((from, to) =>
+      supabase
+        .from('operative_planung')
+        .select('kategorie_id, kw_year, kw_number, betrag_manuell, ist_berechnet')
+        .eq('user_id', user!.id)
+        .gte('kw_year', vonJahr - 1)
+        .lte('kw_year', bisJahr + 1)
+        .order('id', { ascending: true })
+        .range(from, to),
+    ),
 
-    supabase
-      .from('produktinvestitions_planung')
-      .select('kategorie_id, kw_year, kw_number, betrag_manuell')
-      .eq('user_id', user!.id)
-      .gte('kw_year', vonJahr - 1)
-      .lte('kw_year', bisJahr + 1)
-      .limit(5000),
+    fetchAllRows((from, to) =>
+      supabase
+        .from('produktinvestitions_planung')
+        .select('kategorie_id, kw_year, kw_number, betrag_manuell')
+        .eq('user_id', user!.id)
+        .gte('kw_year', vonJahr - 1)
+        .lte('kw_year', bisJahr + 1)
+        .order('id', { ascending: true })
+        .range(from, to),
+    ),
 
-    supabase
-      .from('finanzierungs_planung')
-      .select('kategorie_id, kw_year, kw_number, betrag_manuell, ist_berechnet')
-      .eq('user_id', user!.id)
-      .gte('kw_year', vonJahr - 1)
-      .lte('kw_year', bisJahr + 1)
-      .limit(5000),
+    fetchAllRows((from, to) =>
+      supabase
+        .from('finanzierungs_planung')
+        .select('kategorie_id, kw_year, kw_number, betrag_manuell, ist_berechnet')
+        .eq('user_id', user!.id)
+        .gte('kw_year', vonJahr - 1)
+        .lte('kw_year', bisJahr + 1)
+        .order('id', { ascending: true })
+        .range(from, to),
+    ),
 
     supabase
       .from('kpi_categories')
@@ -222,13 +244,16 @@ export async function GET(request: Request) {
       .eq('type', 'ausgaben_kosten')
       .limit(500),
 
-    supabase
-      .from('absatz_planung')
-      .select('sku_id, produkt_id, sales_plattform_id, kw_year, kw_number, absatz_manuell, effektiver_vk_manuell')
-      .eq('user_id', user!.id)
-      .gte('kw_year', vonJahr)
-      .lte('kw_year', bisJahr)
-      .limit(10000),
+    fetchAllRows((from, to) =>
+      supabase
+        .from('absatz_planung')
+        .select('sku_id, produkt_id, sales_plattform_id, kw_year, kw_number, absatz_manuell, effektiver_vk_manuell')
+        .eq('user_id', user!.id)
+        .gte('kw_year', vonJahr)
+        .lte('kw_year', bisJahr)
+        .order('id', { ascending: true })
+        .range(from, to),
+    ),
 
     supabase
       .from('verkaufsgebuehr_einstellungen')
@@ -236,14 +261,17 @@ export async function GET(request: Request) {
       .eq('user_id', user!.id)
       .limit(500),
 
-    supabase
-      .from('sales_plattform_planung')
-      .select('produkt_id, sales_plattform_id, kategorie, kw_year, kw_number, wert_manuell')
-      .eq('user_id', user!.id)
-      .in('kategorie', ['rueckerstattungen', 'rabatte', 'bruttoumsatz', 'verkaufsgebuehr', 'retouren', 'marketing'])
-      .gte('kw_year', vonJahr)
-      .lte('kw_year', bisJahr)
-      .limit(5000),
+    fetchAllRows((from, to) =>
+      supabase
+        .from('sales_plattform_planung')
+        .select('produkt_id, sales_plattform_id, kategorie, kw_year, kw_number, wert_manuell')
+        .eq('user_id', user!.id)
+        .in('kategorie', ['rueckerstattungen', 'rabatte', 'bruttoumsatz', 'verkaufsgebuehr', 'retouren', 'marketing'])
+        .gte('kw_year', vonJahr)
+        .lte('kw_year', bisJahr)
+        .order('id', { ascending: true })
+        .range(from, to),
+    ),
 
     supabase
       .from('ust_l1_ebene_auswahl')
@@ -322,23 +350,29 @@ export async function GET(request: Request) {
       .limit(500),
 
     // B1 Retourenkosten: historical umsatz transactions for retourenquote
-    supabase
-      .from('umsatz_transaktionen')
-      .select('produkt_id, sales_plattform_id, leistungsdatum, betrag, kategorie_id')
-      .gte('leistungsdatum', histStart)
-      .lt('leistungsdatum', todayStr)
-      .not('produkt_id', 'is', null)
-      .not('sales_plattform_id', 'is', null)
-      .limit(30000),
+    fetchAllRows((from, to) =>
+      supabase
+        .from('umsatz_transaktionen')
+        .select('produkt_id, sales_plattform_id, leistungsdatum, betrag, kategorie_id')
+        .gte('leistungsdatum', histStart)
+        .lt('leistungsdatum', todayStr)
+        .not('produkt_id', 'is', null)
+        .not('sales_plattform_id', 'is', null)
+        .order('id', { ascending: true })
+        .range(from, to),
+    ),
 
     // B1 Marketingkosten: planned marketing percentages
-    supabase
-      .from('marketing_planung')
-      .select('produkt_id, kategorie_id, kw_year, kw_number, marketingkosten_pct_manuell')
-      .eq('user_id', user!.id)
-      .gte('kw_year', vonJahr)
-      .lte('kw_year', bisJahr)
-      .limit(2000),
+    fetchAllRows((from, to) =>
+      supabase
+        .from('marketing_planung')
+        .select('produkt_id, kategorie_id, kw_year, kw_number, marketingkosten_pct_manuell')
+        .eq('user_id', user!.id)
+        .gte('kw_year', vonJahr)
+        .lte('kw_year', bisJahr)
+        .order('id', { ascending: true })
+        .range(from, to),
+    ),
 
     // B1 Marketingkosten: which marketing categories are included
     supabase
@@ -355,14 +389,17 @@ export async function GET(request: Request) {
       .limit(100),
 
     // B6: manuell eingetragene Einfuhrumsatzsteuer (ist_berechnet=false) für Vorsteuer-Abzug
-    supabase
-      .from('steuerausgaben_planung')
-      .select('kategorie_id, kw_year, kw_number, betrag_manuell')
-      .eq('user_id', user!.id)
-      .eq('ist_berechnet', false)
-      .gte('kw_year', vonJahr - 1)
-      .lte('kw_year', bisJahr + 1)
-      .limit(5000),
+    fetchAllRows((from, to) =>
+      supabase
+        .from('steuerausgaben_planung')
+        .select('kategorie_id, kw_year, kw_number, betrag_manuell')
+        .eq('user_id', user!.id)
+        .eq('ist_berechnet', false)
+        .gte('kw_year', vonJahr - 1)
+        .lte('kw_year', bisJahr + 1)
+        .order('id', { ascending: true })
+        .range(from, to),
+    ),
 
     // B2 Produktkosten Zahlungsziele (Shipping, Inspektion, Einlagerung, Zoll)
     supabase
@@ -472,35 +509,47 @@ export async function GET(request: Request) {
 
   if (hatZukunftsgrenze && pastEndDate) {
     const [einnahmenActualRes, umsatzActualRes, ausgabenUstRes, einfuhrActualRes] = await Promise.all([
-      supabase
-        .from('einnahmen_transaktionen')
-        .select('kategorie_id, gruppe_id, zahlungsdatum, betrag')
-        .gte('zahlungsdatum', pastStartDate)
-        .lte('zahlungsdatum', pastEndDate)
-        .limit(10000),
-      supabase
-        .from('umsatz_transaktionen')
-        .select('produkt_id, kategorie_id, leistungsdatum, betrag')
-        .not('produkt_id', 'is', null)
-        .gte('leistungsdatum', pastStartDate)
-        .lte('leistungsdatum', pastEndDate)
-        .limit(30000),
-      supabase
-        .from('ausgaben_kosten_transaktionen')
-        .select('kategorie_id, gruppe_id, untergruppe_id, leistungsdatum, ust_betrag, relevanz')
-        .not('leistungsdatum', 'is', null)
-        .gt('ust_betrag', 0)
-        .gte('leistungsdatum', pastStartDate)
-        .lte('leistungsdatum', pastEndDate)
-        .limit(20000),
-      supabase
-        .from('ausgaben_kosten_transaktionen')
-        .select('gruppe_id, kategorie_id, untergruppe_id, leistungsdatum, betrag_brutto')
-        .not('leistungsdatum', 'is', null)
-        .gt('betrag_brutto', 0)
-        .gte('leistungsdatum', pastStartDate)
-        .lte('leistungsdatum', pastEndDate)
-        .limit(5000),
+      fetchAllRows((from, to) =>
+        supabase
+          .from('einnahmen_transaktionen')
+          .select('kategorie_id, gruppe_id, zahlungsdatum, betrag')
+          .gte('zahlungsdatum', pastStartDate)
+          .lte('zahlungsdatum', pastEndDate)
+          .order('id', { ascending: true })
+          .range(from, to),
+      ),
+      fetchAllRows((from, to) =>
+        supabase
+          .from('umsatz_transaktionen')
+          .select('produkt_id, kategorie_id, leistungsdatum, betrag')
+          .not('produkt_id', 'is', null)
+          .gte('leistungsdatum', pastStartDate)
+          .lte('leistungsdatum', pastEndDate)
+          .order('id', { ascending: true })
+          .range(from, to),
+      ),
+      fetchAllRows((from, to) =>
+        supabase
+          .from('ausgaben_kosten_transaktionen')
+          .select('kategorie_id, gruppe_id, untergruppe_id, leistungsdatum, ust_betrag, relevanz')
+          .not('leistungsdatum', 'is', null)
+          .gt('ust_betrag', 0)
+          .gte('leistungsdatum', pastStartDate)
+          .lte('leistungsdatum', pastEndDate)
+          .order('id', { ascending: true })
+          .range(from, to),
+      ),
+      fetchAllRows((from, to) =>
+        supabase
+          .from('ausgaben_kosten_transaktionen')
+          .select('gruppe_id, kategorie_id, untergruppe_id, leistungsdatum, betrag_brutto')
+          .not('leistungsdatum', 'is', null)
+          .gt('betrag_brutto', 0)
+          .gte('leistungsdatum', pastStartDate)
+          .lte('leistungsdatum', pastEndDate)
+          .order('id', { ascending: true })
+          .range(from, to),
+      ),
     ])
     einnahmenActualRows = (einnahmenActualRes.data ?? []) as EinnahmenActualRow[]
     umsatzActualRows = (umsatzActualRes.data ?? []) as UmsatzActualRow[]
@@ -1443,12 +1492,15 @@ export async function GET(request: Request) {
       })
     }
 
-    const { data: existingRows } = await supabase
-      .from('steuerausgaben_planung')
-      .select('kategorie_id, kw_year, kw_number, ist_berechnet')
-      .eq('user_id', user!.id)
-      .or(`kw_year.gt.${ersteZukunftJahr},and(kw_year.eq.${ersteZukunftJahr},kw_number.gte.${ersteZukunftKw})`)
-      .limit(5000)
+    const { data: existingRows } = await fetchAllRows((from, to) =>
+      supabase
+        .from('steuerausgaben_planung')
+        .select('kategorie_id, kw_year, kw_number, ist_berechnet')
+        .eq('user_id', user!.id)
+        .or(`kw_year.gt.${ersteZukunftJahr},and(kw_year.eq.${ersteZukunftJahr},kw_number.gte.${ersteZukunftKw})`)
+        .order('id', { ascending: true })
+        .range(from, to),
+    )
 
     const manualKeys = new Set<string>()
     for (const r of existingRows ?? []) {

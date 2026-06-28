@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/supabase-paginate'
 
 // ─── ISO week helpers ─────────────────────────────────────────────────────────
 
@@ -57,7 +58,7 @@ export async function GET() {
   // 1. Load grundeinstellungen + kpi_categories
   const [grundResult, katsResult] = await Promise.all([
     supabase.from('grundeinstellungen').select('planungshorizont_wochen').eq('user_id', user!.id).maybeSingle(),
-    supabase.from('kpi_categories').select('id, name, parent_id, type, ist_abzugsposten, level').limit(2000),
+    fetchAllRows((from, to) => supabase.from('kpi_categories').select('id, name, parent_id, type, ist_abzugsposten, level').order('id', { ascending: true }).range(from, to)),
   ])
 
   if (katsResult.error) return NextResponse.json({ error: katsResult.error.message }, { status: 500 })
@@ -157,16 +158,16 @@ export async function GET() {
     umsatzTransResult, marketingAusgResult, ustResult,
     auszahlungsMarketingResult, mktKatPlattResult, ustEbeneResult,
   ] = await Promise.all([
-    supabase.from('absatz_planung')
+    fetchAllRows((from, to) => supabase.from('absatz_planung')
       .select('sku_id, produkt_id, sales_plattform_id, kw_year, kw_number, absatz_manuell, effektiver_vk_manuell')
-      .eq('user_id', user!.id).in('kw_year', planYears).limit(10000),
+      .eq('user_id', user!.id).in('kw_year', planYears).order('id', { ascending: true }).range(from, to)),
     supabase.from('absatz_einstellungen')
       .select('sales_plattform_id, produkt_id, berechnungsart, gewichtung_erstes_drittel, gewichtung_zweites_drittel, gewichtung_drittes_drittel')
       .eq('user_id', user!.id).neq('berechnungsart', 'keine').limit(500),
     skus.length > 0
-      ? supabase.from('bestand_transaktionen')
+      ? fetchAllRows((from, to) => supabase.from('bestand_transaktionen')
           .select('sku_id, datum, bestand_sendungen(plattform_id, menge)')
-          .gte('datum', histStartStr).lt('datum', todayStr).in('sku_id', skus.map(s => s.id)).limit(10000)
+          .gte('datum', histStartStr).lt('datum', todayStr).in('sku_id', skus.map(s => s.id)).order('id', { ascending: true }).range(from, to))
       : Promise.resolve({ data: [], error: null }),
     supabase.from('retouren_einstellungen')
       .select('sales_plattform_id, produkt_id, berechnungsart, rueckversandkosten_euro_netto, retourenhandling_kosten_euro_netto, erstattung_verkaufsgebuehr_prozent')
@@ -178,22 +179,22 @@ export async function GET() {
     supabase.from('verkaufsgebuehr_einstellungen')
       .select('sales_plattform_id, produkt_id, verkaufsgebuehr_prozent')
       .eq('user_id', user!.id).limit(500),
-    supabase.from('marketing_planung')
+    fetchAllRows((from, to) => supabase.from('marketing_planung')
       .select('produkt_id, kategorie_id, kw_year, kw_number, marketingkosten_pct_manuell')
-      .eq('user_id', user!.id).in('kw_year', planYears).limit(2000),
+      .eq('user_id', user!.id).in('kw_year', planYears).order('id', { ascending: true }).range(from, to)),
     supabase.from('marketing_einstellungen')
       .select('kategorie_id, produkt_id, berechnungsart, gewichtung_erstes_drittel, gewichtung_zweites_drittel, gewichtung_drittes_drittel')
       .eq('user_id', user!.id).neq('berechnungsart', 'keine').limit(500),
-    supabase.from('umsatz_transaktionen')
+    fetchAllRows((from, to) => supabase.from('umsatz_transaktionen')
       .select('produkt_id, sales_plattform_id, leistungsdatum, betrag, kategorie_id')
       .gte('leistungsdatum', histStartStr).lt('leistungsdatum', todayStr)
-      .not('produkt_id', 'is', null).not('sales_plattform_id', 'is', null).limit(30000),
+      .not('produkt_id', 'is', null).not('sales_plattform_id', 'is', null).order('id', { ascending: true }).range(from, to)),
     marketingKatIdsArr.length > 0
-      ? supabase.from('ausgaben_kosten_transaktionen')
+      ? fetchAllRows((from, to) => supabase.from('ausgaben_kosten_transaktionen')
           .select('produkt_id, kategorie_id, leistungsdatum, betrag_netto')
           .gte('leistungsdatum', histStartStr).lt('leistungsdatum', todayStr)
           .in('kategorie_id', marketingKatIdsArr).in('relevanz', ['rentabilitaet', 'beides'])
-          .not('produkt_id', 'is', null).limit(20000)
+          .not('produkt_id', 'is', null).order('id', { ascending: true }).range(from, to))
       : Promise.resolve({ data: [], error: null }),
     supabase.from('ust_kategorie_saetze')
       .select('kategorie_id, ebene, ust_satz')

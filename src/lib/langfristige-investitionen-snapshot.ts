@@ -1,4 +1,5 @@
 import { requireAuth } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/supabase-paginate'
 
 // PROJ-74 (Erweiterung): Snapshot-Seeding für den Investitionen-Reiter der
 // Langfristigen Planung. Pro Planversion werden EINMALIG drei feste, schreib-
@@ -64,11 +65,14 @@ export async function ensureInvestitionenSnapshot(
   if (existingSystem && existingSystem.length > 0) return
 
   // Globale ausgaben_kosten-Struktur lesen.
-  const { data: akRaw } = await supabase
-    .from('kpi_categories')
-    .select('id, name, parent_id, level, sort_order')
-    .eq('type', 'ausgaben_kosten')
-    .limit(2000)
+  const { data: akRaw } = await fetchAllRows<GlobalKat>((from, to) =>
+    supabase
+      .from('kpi_categories')
+      .select('id, name, parent_id, level, sort_order')
+      .eq('type', 'ausgaben_kosten')
+      .order('id', { ascending: true })
+      .range(from, to)
+  )
 
   const ak = (akRaw ?? []) as GlobalKat[]
 

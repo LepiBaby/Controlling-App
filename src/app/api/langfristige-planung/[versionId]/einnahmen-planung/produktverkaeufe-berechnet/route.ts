@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/supabase-server'
 import { ensureLangfristigeVersion } from '@/lib/langfristige-version'
+import { fetchAllRows } from '@/lib/supabase-paginate'
 
 // Auth-geschützte, pro-Planversion dynamische Route — nie statisch generieren.
 // Überspringt den in Next 16 instabilen Static-Path-Pass (Worker-Crash).
@@ -87,18 +88,24 @@ export async function GET(request: Request, { params }: RouteContext) {
       .eq('user_id', user!.id)
       .eq('plan_version_id', versionId)
       .limit(500),
-    supabase
-      .from('langfristige_auszahlungs_marketingkanaele')
-      .select('sales_plattform_id, marketingkanal_id')
-      .eq('user_id', user!.id)
-      .eq('plan_version_id', versionId)
-      .limit(2000),
-    supabase
-      .from('langfristige_sales_plattform_planung')
-      .select('kategorie, produkt_id, sales_plattform_id, jahr, monat, wert_manuell')
-      .eq('user_id', user!.id)
-      .eq('plan_version_id', versionId)
-      .limit(20000),
+    fetchAllRows((from, to) =>
+      supabase
+        .from('langfristige_auszahlungs_marketingkanaele')
+        .select('sales_plattform_id, marketingkanal_id')
+        .eq('user_id', user!.id)
+        .eq('plan_version_id', versionId)
+        .order('id', { ascending: true })
+        .range(from, to),
+    ),
+    fetchAllRows((from, to) =>
+      supabase
+        .from('langfristige_sales_plattform_planung')
+        .select('kategorie, produkt_id, sales_plattform_id, jahr, monat, wert_manuell')
+        .eq('user_id', user!.id)
+        .eq('plan_version_id', versionId)
+        .order('id', { ascending: true })
+        .range(from, to),
+    ),
   ])
 
   if (auszResult.error) return NextResponse.json({ error: auszResult.error.message }, { status: 500 })

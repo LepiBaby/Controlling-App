@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/supabase-paginate'
 
 function getISOWeekMonday(year: number, week: number): Date {
   const jan4 = new Date(Date.UTC(year, 0, 4))
@@ -44,15 +45,18 @@ export async function GET(request: Request) {
   //   gruppe_id    = L1 operative category (e.g. "Miete")
   //   untergruppe_id = L2 operative subcategory (e.g. "Miete Lager"), usually null
   // Effective leaf category = untergruppe_id if set, else gruppe_id
-  const { data, error: dbErr } = await supabase
-    .from('ausgaben_kosten_transaktionen')
-    .select('gruppe_id, untergruppe_id, zahlungsdatum, betrag_brutto')
-    .not('gruppe_id', 'is', null)
-    .not('zahlungsdatum', 'is', null)
-    .in('relevanz', ['liquiditaet', 'beides'])
-    .gte('zahlungsdatum', startDate)
-    .lte('zahlungsdatum', endDate)
-    .limit(20000)
+  const { data, error: dbErr } = await fetchAllRows((from, to) =>
+    supabase
+      .from('ausgaben_kosten_transaktionen')
+      .select('gruppe_id, untergruppe_id, zahlungsdatum, betrag_brutto')
+      .not('gruppe_id', 'is', null)
+      .not('zahlungsdatum', 'is', null)
+      .in('relevanz', ['liquiditaet', 'beides'])
+      .gte('zahlungsdatum', startDate)
+      .lte('zahlungsdatum', endDate)
+      .order('id', { ascending: true })
+      .range(from, to),
+  )
 
   if (dbErr) return NextResponse.json({ error: dbErr.message }, { status: 500 })
 

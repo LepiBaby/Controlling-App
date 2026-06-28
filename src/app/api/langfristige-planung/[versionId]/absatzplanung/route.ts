@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/supabase-server'
 import { ensureLangfristigeVersion } from '@/lib/langfristige-version'
+import { fetchAllRows } from '@/lib/supabase-paginate'
 
 // Auth-geschützte, pro-Planversion dynamische Route — nie statisch generieren.
 // Überspringt den in Next 16 instabilen Static-Path-Pass (Worker-Crash).
@@ -40,12 +41,15 @@ export async function GET(_request: Request, { params }: RouteContext) {
   const versionError = await ensureLangfristigeVersion(supabase, user!.id, versionId)
   if (versionError) return versionError
 
-  const { data, error: dbErr } = await supabase
-    .from('langfristige_absatz_planung')
-    .select(SELECT_COLS)
-    .eq('user_id', user!.id)
-    .eq('plan_version_id', versionId)
-    .limit(20000)
+  const { data, error: dbErr } = await fetchAllRows((from, to) =>
+    supabase
+      .from('langfristige_absatz_planung')
+      .select(SELECT_COLS)
+      .eq('user_id', user!.id)
+      .eq('plan_version_id', versionId)
+      .order('id', { ascending: true })
+      .range(from, to),
+  )
 
   if (dbErr) return NextResponse.json({ error: dbErr.message }, { status: 500 })
   return NextResponse.json(data ?? [])

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/supabase-paginate'
 
 const putSchema = z.object({
   seite: z.string().min(1).max(100),
@@ -19,11 +20,14 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'seite ist erforderlich' }, { status: 400 })
   }
 
-  const { data, error: dbErr } = await supabase
-    .from('planung_notizen')
-    .select('zellen_schluessel, notiz_text')
-    .eq('seite', seite)
-    .limit(10000)
+  const { data, error: dbErr } = await fetchAllRows<{ zellen_schluessel: string; notiz_text: string }>((from, to) =>
+    supabase
+      .from('planung_notizen')
+      .select('zellen_schluessel, notiz_text')
+      .eq('seite', seite)
+      .order('id', { ascending: true })
+      .range(from, to)
+  )
 
   if (dbErr) return NextResponse.json({ error: dbErr.message }, { status: 500 })
   return NextResponse.json({ data: data ?? [] })

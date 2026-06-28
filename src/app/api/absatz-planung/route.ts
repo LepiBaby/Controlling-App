@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/supabase-paginate'
 
 const putSchema = z.object({
   sku_id: z.string().uuid().nullable().optional(),
@@ -17,11 +18,13 @@ export async function GET() {
   const { user, supabase, error } = await requireAuth()
   if (error) return error
 
-  const { data, error: dbErr } = await supabase
-    .from('absatz_planung')
-    .select('sku_id, produkt_id, sales_plattform_id, kw_year, kw_number, absatz_manuell, effektiver_vk_manuell, ist_manuell')
-    .eq('user_id', user!.id)
-    .limit(5000)
+  const { data, error: dbErr } = await fetchAllRows((from, to) =>
+    supabase
+      .from('absatz_planung')
+      .select('sku_id, produkt_id, sales_plattform_id, kw_year, kw_number, absatz_manuell, effektiver_vk_manuell, ist_manuell')
+      .eq('user_id', user!.id)
+      .order('id', { ascending: true })
+      .range(from, to))
 
   if (dbErr) return NextResponse.json({ error: dbErr.message }, { status: 500 })
   return NextResponse.json({ data: data ?? [] })

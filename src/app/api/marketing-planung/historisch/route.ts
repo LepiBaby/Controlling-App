@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/supabase-paginate'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -186,24 +187,30 @@ export async function GET() {
   // 4. Load ausgaben, umsatz and platform assignments in parallel
   const [ausgabenRes, umsatzRes, katEinstRes] = await Promise.all([
     // Ausgaben — gefiltert nach Marketingkanal (gruppe_id = level-2 Untergruppe)
-    supabase
-      .from('ausgaben_kosten_transaktionen')
-      .select('produkt_id, gruppe_id, leistungsdatum, betrag_netto')
-      .gte('leistungsdatum', startDateStr)
-      .lt('leistungsdatum', todayStr)
-      .in('produkt_id', produktIds)
-      .in('gruppe_id', relevanteKategorieIds)
-      .in('relevanz', ['rentabilitaet', 'beides'])
-      .limit(20000),
+    fetchAllRows((from, to) =>
+      supabase
+        .from('ausgaben_kosten_transaktionen')
+        .select('produkt_id, gruppe_id, leistungsdatum, betrag_netto')
+        .gte('leistungsdatum', startDateStr)
+        .lt('leistungsdatum', todayStr)
+        .in('produkt_id', produktIds)
+        .in('gruppe_id', relevanteKategorieIds)
+        .in('relevanz', ['rentabilitaet', 'beides'])
+        .order('id', { ascending: true })
+        .range(from, to),
+    ),
 
     // Umsatz — inkl. sales_plattform_id für plattformspezifischen Nenner
-    supabase
-      .from('umsatz_transaktionen')
-      .select('produkt_id, sales_plattform_id, leistungsdatum, betrag, kategorie_id')
-      .gte('leistungsdatum', startDateStr)
-      .lt('leistungsdatum', todayStr)
-      .in('produkt_id', produktIds)
-      .limit(20000),
+    fetchAllRows((from, to) =>
+      supabase
+        .from('umsatz_transaktionen')
+        .select('produkt_id, sales_plattform_id, leistungsdatum, betrag, kategorie_id')
+        .gte('leistungsdatum', startDateStr)
+        .lt('leistungsdatum', todayStr)
+        .in('produkt_id', produktIds)
+        .order('id', { ascending: true })
+        .range(from, to),
+    ),
 
     // Sales-Plattform-Zuordnung je Marketingkanal
     supabase

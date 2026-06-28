@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/supabase-server'
 import { ensureLangfristigeVersion } from '@/lib/langfristige-version'
+import { fetchAllRows } from '@/lib/supabase-paginate'
 
 // Auth-geschützte, pro-Planversion dynamische Route — nie statisch generieren.
 // Überspringt den in Next 16 instabilen Static-Path-Pass (Worker-Crash).
@@ -34,13 +35,16 @@ export async function GET(request: Request, { params }: RouteContext) {
     return NextResponse.json({ error: 'seite ist erforderlich' }, { status: 400 })
   }
 
-  const { data, error: dbErr } = await supabase
-    .from('langfristige_planung_notizen')
-    .select('zellen_schluessel, notiz_text')
-    .eq('user_id', user!.id)
-    .eq('plan_version_id', versionId)
-    .eq('seite', seite)
-    .limit(10000)
+  const { data, error: dbErr } = await fetchAllRows((from, to) =>
+    supabase
+      .from('langfristige_planung_notizen')
+      .select('zellen_schluessel, notiz_text')
+      .eq('user_id', user!.id)
+      .eq('plan_version_id', versionId)
+      .eq('seite', seite)
+      .order('id', { ascending: true })
+      .range(from, to),
+  )
 
   if (dbErr) return NextResponse.json({ error: dbErr.message }, { status: 500 })
   return NextResponse.json({ data: data ?? [] })

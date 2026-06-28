@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/supabase-paginate'
 
 function toISOWeek(date: Date): { week: number; year: number } {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
@@ -45,13 +46,16 @@ export async function GET(request: Request) {
   const todayStr = new Date().toISOString().slice(0, 10)
 
   // 2. Aktueller Bestand pro SKU (letzter Abschlussbestand bis heute)
-  const { data: bestandRows } = await supabase
-    .from('bestand_transaktionen')
-    .select('sku_id, anfangsbestand, einlagerungen, anpassungen_positiv, anpassungen_negativ, warenverluste, sendungen_manuell, bestand_sendungen(menge)')
-    .in('sku_id', skuIds)
-    .lte('datum', todayStr)
-    .order('datum', { ascending: true })
-    .limit(10000)
+  const { data: bestandRows } = await fetchAllRows((from, to) =>
+    supabase
+      .from('bestand_transaktionen')
+      .select('sku_id, anfangsbestand, einlagerungen, anpassungen_positiv, anpassungen_negativ, warenverluste, sendungen_manuell, bestand_sendungen(menge)')
+      .in('sku_id', skuIds)
+      .lte('datum', todayStr)
+      .order('datum', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to),
+  )
 
   const currentBestandBySku = new Map<string, number>()
   for (const row of (bestandRows ?? []) as Array<{

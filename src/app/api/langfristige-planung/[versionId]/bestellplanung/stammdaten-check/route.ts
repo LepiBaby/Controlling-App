@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/supabase-server'
 import { ensureLangfristigeVersion } from '@/lib/langfristige-version'
+import { fetchAllRows } from '@/lib/supabase-paginate'
 
 // Auth-geschützte, pro-Planversion dynamische Route — nie statisch generieren.
 export const dynamic = 'force-dynamic'
@@ -51,13 +52,16 @@ export async function GET(_request: Request, { params }: RouteContext) {
     herstellerRes,
     containerGlobalRes,
   ] = await Promise.all([
-    supabase
-      .from('langfristige_absatz_planung')
-      .select('produkt_id')
-      .eq('user_id', userId)
-      .eq('plan_version_id', versionId)
-      .not('absatz', 'is', null)
-      .limit(20000),
+    fetchAllRows((from, to) =>
+      supabase
+        .from('langfristige_absatz_planung')
+        .select('produkt_id')
+        .eq('user_id', userId)
+        .eq('plan_version_id', versionId)
+        .not('absatz', 'is', null)
+        .order('id', { ascending: true })
+        .range(from, to)
+    ),
     supabase
       .from('langfristige_produktinformationen_aktueller_bestand')
       .select('produkt_id, bestand')

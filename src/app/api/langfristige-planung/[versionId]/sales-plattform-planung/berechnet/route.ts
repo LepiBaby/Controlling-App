@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/supabase-paginate'
 import { ensureLangfristigeVersion } from '@/lib/langfristige-version'
 
 // Auth-geschützte, pro-Planversion dynamische Route — nie statisch generieren.
@@ -70,7 +71,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
       .eq('user_id', user!.id)
       .eq('plan_version_id', versionId)
       .maybeSingle(),
-    supabase.from('kpi_categories').select('id, name, parent_id, type, level').limit(2000),
+    fetchAllRows((from, to) => supabase.from('kpi_categories').select('id, name, parent_id, type, level').order('id', { ascending: true }).range(from, to)),
   ])
 
   if (katsResult.error) return NextResponse.json({ error: katsResult.error.message }, { status: 500 })
@@ -113,11 +114,11 @@ export async function GET(_request: Request, { params }: RouteContext) {
   ] = await Promise.all([
     supabase.from('langfristige_kpi_kategorien').select('id').eq('user_id', user!.id).eq('plan_version_id', versionId).eq('art', 'lp_sales_plattform').limit(500),
     supabase.from('langfristige_kpi_kategorien').select('id').eq('user_id', user!.id).eq('plan_version_id', versionId).eq('art', 'lp_produkt').limit(500),
-    supabase.from('langfristige_absatz_planung').select('sales_plattform_id, produkt_id, jahr, monat, absatz, effektiver_vk').eq('user_id', user!.id).eq('plan_version_id', versionId).in('jahr', planJahre).limit(20000),
+    fetchAllRows((from, to) => supabase.from('langfristige_absatz_planung').select('sales_plattform_id, produkt_id, jahr, monat, absatz, effektiver_vk').eq('user_id', user!.id).eq('plan_version_id', versionId).in('jahr', planJahre).order('id', { ascending: true }).range(from, to)),
     supabase.from('langfristige_retouren_allgemein_produkt_einstellungen').select('produkt_id, retourenquote_prozent').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(500),
-    supabase.from('langfristige_retouren_einstellungen').select('sales_plattform_id, produkt_id, erstattung_verkaufsgebuehr_prozent, rueckversandkosten_euro_netto').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(2000),
-    supabase.from('langfristige_verkaufsgebuehr_einstellungen').select('sales_plattform_id, produkt_id, verkaufsgebuehr_prozent').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(2000),
-    supabase.from('langfristige_marketing_planung').select('marketingkanal_id, produkt_id, jahr, monat, marketingkosten_pct').eq('user_id', user!.id).eq('plan_version_id', versionId).in('jahr', planJahre).limit(20000),
+    fetchAllRows((from, to) => supabase.from('langfristige_retouren_einstellungen').select('sales_plattform_id, produkt_id, erstattung_verkaufsgebuehr_prozent, rueckversandkosten_euro_netto').eq('user_id', user!.id).eq('plan_version_id', versionId).order('id', { ascending: true }).range(from, to)),
+    fetchAllRows((from, to) => supabase.from('langfristige_verkaufsgebuehr_einstellungen').select('sales_plattform_id, produkt_id, verkaufsgebuehr_prozent').eq('user_id', user!.id).eq('plan_version_id', versionId).order('id', { ascending: true }).range(from, to)),
+    fetchAllRows((from, to) => supabase.from('langfristige_marketing_planung').select('marketingkanal_id, produkt_id, jahr, monat, marketingkosten_pct').eq('user_id', user!.id).eq('plan_version_id', versionId).in('jahr', planJahre).order('id', { ascending: true }).range(from, to)),
     supabase.from('langfristige_marketing_einstellungen').select('marketingkanal_id, sales_plattform_id').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(500),
     supabase.from('langfristige_auszahlungs_marketingkanaele').select('marketingkanal_id').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(1000),
     supabase.from('langfristige_ust_kategorie_saetze').select('kategorie_id, ebene, ust_satz').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(1000),

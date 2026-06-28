@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/supabase-paginate'
 
 function getISOWeekMonday(year: number, week: number): Date {
   const jan4 = new Date(Date.UTC(year, 0, 4))
@@ -42,15 +43,18 @@ export async function GET(request: Request) {
   // (Die Rentabilitätslogik — leistungsdatum + relevanz rentabilitaet/beides — gilt ausschließlich
   //  für die Umsatzsteuerermittlung und wird dort getrennt betrachtet, nicht hier.)
   // ausgaben_kosten_transaktionen speichert die L2-Kategorie in gruppe_id (= Leaf-Ebene des Frontends).
-  const { data, error: dbErr } = await supabase
-    .from('ausgaben_kosten_transaktionen')
-    .select('gruppe_id, produkt_id, zahlungsdatum, betrag_brutto')
-    .not('gruppe_id', 'is', null)
-    .not('zahlungsdatum', 'is', null)
-    .in('relevanz', ['liquiditaet', 'beides'])
-    .gte('zahlungsdatum', startDate)
-    .lte('zahlungsdatum', endDate)
-    .limit(20000)
+  const { data, error: dbErr } = await fetchAllRows((from, to) =>
+    supabase
+      .from('ausgaben_kosten_transaktionen')
+      .select('gruppe_id, produkt_id, zahlungsdatum, betrag_brutto')
+      .not('gruppe_id', 'is', null)
+      .not('zahlungsdatum', 'is', null)
+      .in('relevanz', ['liquiditaet', 'beides'])
+      .gte('zahlungsdatum', startDate)
+      .lte('zahlungsdatum', endDate)
+      .order('id', { ascending: true })
+      .range(from, to),
+  )
 
   if (dbErr) return NextResponse.json({ error: dbErr.message }, { status: 500 })
 

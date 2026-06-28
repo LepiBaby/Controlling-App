@@ -3,6 +3,7 @@ import type {
   ProduktInput,
   BestehendeBestellungInput,
 } from '@/lib/langfristige-bestelllauf-algorithmus'
+import { fetchAllRows } from '@/lib/supabase-paginate'
 
 type Supabase = Awaited<ReturnType<typeof requireAuth>>['supabase']
 
@@ -77,12 +78,15 @@ export async function ladeVersionsDaten(
     herstellerRes,
     bestellRes,
   ] = await Promise.all([
-    supabase
-      .from('langfristige_absatz_planung')
-      .select('produkt_id, jahr, monat, absatz')
-      .eq('user_id', userId)
-      .eq('plan_version_id', versionId)
-      .limit(20000),
+    fetchAllRows((from, to) =>
+      supabase
+        .from('langfristige_absatz_planung')
+        .select('produkt_id, jahr, monat, absatz')
+        .eq('user_id', userId)
+        .eq('plan_version_id', versionId)
+        .order('id', { ascending: true })
+        .range(from, to),
+    ),
     supabase
       .from('langfristige_produktinformationen_aktueller_bestand')
       .select('produkt_id, bestand')
@@ -125,12 +129,15 @@ export async function ladeVersionsDaten(
       .eq('user_id', userId)
       .eq('plan_version_id', versionId)
       .limit(500),
-    supabase
-      .from('langfristige_bestellungen')
-      .select('id, produkt_id, herkunft, manuell_geaendert, bestelldatum, produktionsstart_datum, produktionsende_datum, shippingdatum, ankunftsdatum, verfuegbarkeitsdatum, menge_theoretisch, menge_praktisch, anzahl_20dc, anzahl_40hq')
-      .eq('user_id', userId)
-      .eq('plan_version_id', versionId)
-      .limit(2000),
+    fetchAllRows((from, to) =>
+      supabase
+        .from('langfristige_bestellungen')
+        .select('id, produkt_id, herkunft, manuell_geaendert, bestelldatum, produktionsstart_datum, produktionsende_datum, shippingdatum, ankunftsdatum, verfuegbarkeitsdatum, menge_theoretisch, menge_praktisch, anzahl_20dc, anzahl_40hq')
+        .eq('user_id', userId)
+        .eq('plan_version_id', versionId)
+        .order('id', { ascending: true })
+        .range(from, to),
+    ),
   ])
 
   // Absatz je Produkt × Monat (Summe über alle Plattformen). Start-Monatswert
@@ -347,13 +354,16 @@ export async function ladeMonatsAbsatz(
   versionId: string,
   produktId: string,
 ): Promise<Map<string, number>> {
-  const { data } = await supabase
-    .from('langfristige_absatz_planung')
-    .select('jahr, monat, absatz')
-    .eq('user_id', userId)
-    .eq('plan_version_id', versionId)
-    .eq('produkt_id', produktId)
-    .limit(20000)
+  const { data } = await fetchAllRows((from, to) =>
+    supabase
+      .from('langfristige_absatz_planung')
+      .select('jahr, monat, absatz')
+      .eq('user_id', userId)
+      .eq('plan_version_id', versionId)
+      .eq('produkt_id', produktId)
+      .order('id', { ascending: true })
+      .range(from, to),
+  )
 
   const map = new Map<string, number>()
   for (const r of (data ?? []) as Array<{ jahr: number; monat: number; absatz: number | null }>) {
@@ -370,15 +380,18 @@ export async function ladeBestellungen(
   userId: string,
   versionId: string,
 ): Promise<unknown[]> {
-  const { data: rows, error } = await supabase
-    .from('langfristige_bestellungen')
-    .select(
-      'id, produkt_id, bestelldatum, produktionsstart_datum, produktionsende_datum, shippingdatum, ankunftsdatum, verfuegbarkeitsdatum, menge_theoretisch, menge_nach_moq, menge_vor_konsolidierung, menge_praktisch, begruendung, herkunft, manuell_geaendert, ist_erstbestellung, anzahl_20dc, anzahl_40hq, container_anteil, notizen, created_at, updated_at',
-    )
-    .eq('user_id', userId)
-    .eq('plan_version_id', versionId)
-    .order('bestelldatum', { ascending: true })
-    .limit(2000)
+  const { data: rows, error } = await fetchAllRows((from, to) =>
+    supabase
+      .from('langfristige_bestellungen')
+      .select(
+        'id, produkt_id, bestelldatum, produktionsstart_datum, produktionsende_datum, shippingdatum, ankunftsdatum, verfuegbarkeitsdatum, menge_theoretisch, menge_nach_moq, menge_vor_konsolidierung, menge_praktisch, begruendung, herkunft, manuell_geaendert, ist_erstbestellung, anzahl_20dc, anzahl_40hq, container_anteil, notizen, created_at, updated_at',
+      )
+      .eq('user_id', userId)
+      .eq('plan_version_id', versionId)
+      .order('bestelldatum', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to),
+  )
 
   if (error) throw new Error(error.message)
   const bestellungen = (rows ?? []) as Array<Record<string, unknown> & { id: string; produkt_id: string }>
