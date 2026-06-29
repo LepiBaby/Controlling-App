@@ -15,6 +15,7 @@
 - **Tests**: 20 unit tests passing for bestellungen routes
 
 ## Enhancement (2026-06-29): Bestellmenge & Bestellkosten bei laufenden Bestellungen editierbar
+**Deployed:** 2026-06-29 (Commit `b735fcc`, Push → `main`, Vercel Auto-Deploy)
 - Bisher waren `menge_praktisch` (SKU-Mengen) und Bestellkosten nur bei Planbestellungen (`status = 'plan'`) bearbeitbar, bei laufenden Bestellungen read-only.
 - Neuer Flag `mengenKostenEditierbar = status === 'plan' || status === 'laufend'` in `src/components/bestellung-detail-dialog.tsx` schaltet jetzt:
   - die SKU-Mengen-Inputs (Praktisch + Konsolidierung) frei,
