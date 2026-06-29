@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { ChevronDown, ChevronRight } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
@@ -14,8 +13,8 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface KachelPlattform {
-  sales_plattform_id: string
+interface KachelProdukt {
+  produkt_id: string
   marketingkosten_pct: number
   berechnungsart: string
   sum_ausgaben_eur: number
@@ -23,9 +22,10 @@ interface KachelPlattform {
 }
 
 interface Kachel {
-  produkt_id: string
+  kategorie_id: string
+  plattform_id: string | null
   hauptwert: number
-  plattformen: KachelPlattform[]
+  produkte: KachelProdukt[]
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -45,20 +45,21 @@ function berechnungsartLabel(art: string): string {
 export function MarketingplanungKacheln() {
   const [kacheln, setKacheln] = useState<Kachel[]>([])
   const [produktNames, setProduktNames] = useState<Map<string, string>>(new Map())
+  const [kanalNames, setKanalNames] = useState<Map<string, string>>(new Map())
   const [plattformNames, setPlattformNames] = useState<Map<string, string>>(new Map())
   const [loading, setLoading] = useState(true)
-  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     Promise.all([
       fetch('/api/marketing-planung/historisch').then(r => (r.ok ? r.json() : [])),
       fetch('/api/kpi-categories?type=produkte').then(r => (r.ok ? r.json() : [])),
+      fetch('/api/kpi-categories?type=ausgaben_kosten').then(r => (r.ok ? r.json() : [])),
       fetch('/api/kpi-categories?type=sales_plattformen').then(r => (r.ok ? r.json() : [])),
     ])
-      .then(([histRaw, prodRaw, plattRaw]) => {
+      .then(([histRaw, prodRaw, ausgabenRaw, plattRaw]) => {
         const histData = (Array.isArray(histRaw) ? histRaw : []) as {
           produkt_id: string
-          sales_plattform_id: string
+          kategorie_id: string
           marketingkosten_pct: number
           sum_ausgaben_eur: number
           sum_umsatz_netto_eur: number
@@ -68,6 +69,12 @@ export function MarketingplanungKacheln() {
           name: string
           level: number
         }[]
+        const ausgabenKats = (Array.isArray(ausgabenRaw) ? ausgabenRaw : []) as {
+          id: string
+          name: string
+          level: number
+          parent_id: string | null
+        }[]
         const plattformen = (Array.isArray(plattRaw) ? plattRaw : []) as {
           id: string
           name: string
@@ -75,39 +82,63 @@ export function MarketingplanungKacheln() {
 
         const produkte = allProdukte.filter(p => p.level === 1)
 
+        // Marketingkanäle = level-2 Untergruppen der "Marketing" ausgaben_kosten-Kategorie
+        const marketingParent = ausgabenKats.find(
+          k => k.level === 1 && k.name.toLowerCase() === 'marketing',
+        )
+        const kanaele = marketingParent
+          ? ausgabenKats.filter(k => k.level === 2 && k.parent_id === marketingParent.id)
+          : []
+
         const pnMap = new Map<string, string>()
         for (const p of produkte) pnMap.set(p.id, p.name)
         setProduktNames(pnMap)
+
+        const knMap = new Map<string, string>()
+        for (const k of kanaele) knMap.set(k.id, k.name)
+        setKanalNames(knMap)
 
         const plMap = new Map<string, string>()
         for (const p of plattformen) plMap.set(p.id, p.name)
         setPlattformNames(plMap)
 
+        // Pro Kanal: Berechnungsarten je Produkt + zugeordnete Sales-Plattform laden
         return Promise.all(
-          plattformen.map(plt =>
-            fetch(`/api/marketing-einstellungen?plattform_id=${plt.id}`).then(r =>
-              r.ok ? r.json() : [],
-            ),
+          kanaele.map(k =>
+            Promise.all([
+              fetch(`/api/marketing-einstellungen?kategorie_id=${k.id}`).then(r =>
+                r.ok ? r.json() : [],
+              ),
+              fetch(`/api/marketing-kategorie-einstellungen?kategorie_id=${k.id}`).then(r =>
+                r.ok ? r.json() : null,
+              ),
+            ]),
           ),
-        ).then(einstellArrays => {
-          // Build berechnungsart map: "plattformId:produktId" → berechnungsart
+        ).then(perKanal => {
+          // berechnungsart map: "kategorieId:produktId" → berechnungsart
           const artMap = new Map<string, string>()
-          for (const list of einstellArrays) {
-            for (const e of Array.isArray(list) ? list : (list?.data ?? [])) {
+          // kanal → sales_plattform_id
+          const plattformMap = new Map<string, string | null>()
+
+          kanaele.forEach((k, i) => {
+            const [einstRaw, katEinstRaw] = perKanal[i]
+            const einstList = Array.isArray(einstRaw) ? einstRaw : (einstRaw?.data ?? [])
+            for (const e of einstList) {
               if (e.berechnungsart && e.berechnungsart !== 'keine') {
-                artMap.set(`${e.sales_plattform_id}:${e.produkt_id}`, e.berechnungsart)
+                artMap.set(`${k.id}:${e.produkt_id}`, e.berechnungsart)
               }
             }
-          }
+            plattformMap.set(k.id, katEinstRaw?.sales_plattform_id ?? null)
+          })
 
-          // Group historisch data by produkt
-          const byProdukt = new Map<string, KachelPlattform[]>()
+          // Historisch-Zeilen nach Kanal gruppieren
+          const byKanal = new Map<string, KachelProdukt[]>()
           for (const h of histData) {
-            const art = artMap.get(`${h.sales_plattform_id}:${h.produkt_id}`)
+            const art = artMap.get(`${h.kategorie_id}:${h.produkt_id}`)
             if (!art) continue
-            if (!byProdukt.has(h.produkt_id)) byProdukt.set(h.produkt_id, [])
-            byProdukt.get(h.produkt_id)!.push({
-              sales_plattform_id: h.sales_plattform_id,
+            if (!byKanal.has(h.kategorie_id)) byKanal.set(h.kategorie_id, [])
+            byKanal.get(h.kategorie_id)!.push({
+              produkt_id: h.produkt_id,
               marketingkosten_pct: h.marketingkosten_pct,
               berechnungsart: art,
               sum_ausgaben_eur: h.sum_ausgaben_eur,
@@ -115,26 +146,31 @@ export function MarketingplanungKacheln() {
             })
           }
 
-          // Build sorted kacheln
-          // hauptwert = Σ(Marketingkosten €) / Σ(Netto-Umsatz €) × 100 — plattformübergreifend
           const produktOrder = produkte.map(p => p.id)
+          const kanalOrder = kanaele.map(k => k.id)
           const built: Kachel[] = []
-          for (const [produktId, plattformenList] of byProdukt.entries()) {
-            if (plattformenList.length === 0) continue
-            const totalAusg  = plattformenList.reduce((s, p) => s + p.sum_ausgaben_eur, 0)
-            const totalUmsatz = plattformenList.reduce((s, p) => s + p.sum_umsatz_netto_eur, 0)
+          for (const [kategorieId, produkteList] of byKanal.entries()) {
+            if (produkteList.length === 0) continue
+            produkteList.sort(
+              (a, b) =>
+                produktOrder.indexOf(a.produkt_id) - produktOrder.indexOf(b.produkt_id),
+            )
+            // hauptwert = Σ(Marketingkosten €) / Σ(Netto-Umsatz €) × 100 — produktübergreifend
+            const totalAusg = produkteList.reduce((s, p) => s + p.sum_ausgaben_eur, 0)
+            const totalUmsatz = produkteList.reduce((s, p) => s + p.sum_umsatz_netto_eur, 0)
             const hauptwert = totalUmsatz > 0
               ? Math.round((totalAusg / totalUmsatz) * 100 * 100) / 100
               : 0
             built.push({
-              produkt_id: produktId,
+              kategorie_id: kategorieId,
+              plattform_id: plattformMap.get(kategorieId) ?? null,
               hauptwert,
-              plattformen: plattformenList,
+              produkte: produkteList,
             })
           }
           built.sort(
             (a, b) =>
-              produktOrder.indexOf(a.produkt_id) - produktOrder.indexOf(b.produkt_id),
+              kanalOrder.indexOf(a.kategorie_id) - kanalOrder.indexOf(b.kategorie_id),
           )
           setKacheln(built)
           setLoading(false)
@@ -143,20 +179,11 @@ export function MarketingplanungKacheln() {
       .catch(() => setLoading(false))
   }, [])
 
-  function toggleCard(produktId: string) {
-    setExpandedCards(prev => {
-      const next = new Set(prev)
-      if (next.has(produktId)) next.delete(produktId)
-      else next.add(produktId)
-      return next
-    })
-  }
-
   if (loading) {
     return (
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {Array.from({ length: 4 }).map((_, i) => (
-          <Skeleton key={i} className="h-36 w-full rounded-lg" />
+          <Skeleton key={i} className="h-40 w-full rounded-lg" />
         ))}
       </div>
     )
@@ -168,33 +195,42 @@ export function MarketingplanungKacheln() {
     <TooltipProvider delayDuration={200}>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {kacheln.map(k => {
-          const isExpanded = expandedCards.has(k.produkt_id)
-          const produktName = produktNames.get(k.produkt_id) ?? k.produkt_id
-          const hasMultiplePlattformen = k.plattformen.length > 1
+          const kanalName = kanalNames.get(k.kategorie_id) ?? k.kategorie_id
+          const plattformName = k.plattform_id
+            ? (plattformNames.get(k.plattform_id) ?? null)
+            : null
 
-          // Unique berechnungsarten → platform names for badges
-          const artToPlattformen = new Map<string, string[]>()
-          for (const plt of k.plattformen) {
-            if (!artToPlattformen.has(plt.berechnungsart))
-              artToPlattformen.set(plt.berechnungsart, [])
-            artToPlattformen
-              .get(plt.berechnungsart)!
-              .push(plattformNames.get(plt.sales_plattform_id) ?? plt.sales_plattform_id)
+          // Unique berechnungsarten → Produktnamen für Header-Badges
+          const artToProdukte = new Map<string, string[]>()
+          for (const prd of k.produkte) {
+            if (!artToProdukte.has(prd.berechnungsart))
+              artToProdukte.set(prd.berechnungsart, [])
+            artToProdukte
+              .get(prd.berechnungsart)!
+              .push(produktNames.get(prd.produkt_id) ?? prd.produkt_id)
           }
-          const hasMultipleMethods = artToPlattformen.size > 1
+          const hasMultipleMethods = artToProdukte.size > 1
 
           return (
-            <Card key={k.produkt_id}>
+            <Card key={k.kategorie_id}>
               <CardHeader className="pb-1 pt-4 px-4">
                 <div className="flex items-start justify-between gap-2">
                   <CardTitle
                     className="text-sm font-medium text-muted-foreground truncate"
-                    title={produktName}
+                    title={kanalName}
                   >
-                    {produktName}
+                    {kanalName}
                   </CardTitle>
                   <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
-                    {Array.from(artToPlattformen.entries()).map(([art, plattNamen]) => (
+                    {plattformName && (
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] px-1.5 py-0 font-normal"
+                      >
+                        {plattformName}
+                      </Badge>
+                    )}
+                    {Array.from(artToProdukte.entries()).map(([art, prdNamen]) => (
                       <Tooltip key={art}>
                         <TooltipTrigger asChild>
                           <Badge
@@ -205,7 +241,7 @@ export function MarketingplanungKacheln() {
                           </Badge>
                         </TooltipTrigger>
                         <TooltipContent side="bottom">
-                          <p className="text-xs">{plattNamen.join(', ')}</p>
+                          <p className="text-xs">{prdNamen.join(', ')}</p>
                         </TooltipContent>
                       </Tooltip>
                     ))}
@@ -214,68 +250,42 @@ export function MarketingplanungKacheln() {
               </CardHeader>
 
               <CardContent className="px-4 pb-4 space-y-3">
-                {/* Main value */}
+                {/* Hauptwert — aktueller % über alle Produkte */}
                 <div className="text-center py-1">
                   <div className="text-3xl font-bold tabular-nums leading-tight">
                     {formatPct(k.hauptwert)}&thinsp;%
                   </div>
-                  {hasMultiplePlattformen && (
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                      Ø aller Sales Channels
-                    </div>
-                  )}
-                  {!hasMultiplePlattformen && (
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                      {plattformNames.get(k.plattformen[0].sales_plattform_id) ??
-                        k.plattformen[0].sales_plattform_id}
-                    </div>
-                  )}
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    Ø aller Produkte
+                  </div>
                 </div>
 
-                {/* Sales channel breakdown — only when multiple platforms */}
-                {hasMultiplePlattformen && (
-                  <div className="border-t pt-2">
-                    <button
-                      type="button"
-                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground w-full"
-                      onClick={() => toggleCard(k.produkt_id)}
-                    >
-                      {isExpanded ? (
-                        <ChevronDown className="h-3 w-3 shrink-0" />
-                      ) : (
-                        <ChevronRight className="h-3 w-3 shrink-0" />
-                      )}
-                      Nach Sales Channel
-                    </button>
-
-                    {isExpanded && (
-                      <div className="mt-2 space-y-1.5">
-                        {k.plattformen.map(p => (
-                          <div
-                            key={p.sales_plattform_id}
-                            className="flex justify-between items-baseline text-xs"
-                          >
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <span className="font-medium truncate">
-                                {plattformNames.get(p.sales_plattform_id) ??
-                                  p.sales_plattform_id}
-                              </span>
-                              {hasMultipleMethods && (
-                                <Badge
-                                  variant="outline"
-                                  className="text-[9px] px-1 py-0 shrink-0 font-normal"
-                                >
-                                  {berechnungsartLabel(p.berechnungsart)}
-                                </Badge>
-                              )}
-                            </div>
-                            <span className="tabular-nums font-medium shrink-0 ml-1">
-                              {formatPct(p.marketingkosten_pct)}&thinsp;%
-                            </span>
-                          </div>
-                        ))}
+                {/* Produkt-Aufschlüsselung */}
+                {k.produkte.length > 0 && (
+                  <div className="border-t pt-2 space-y-1.5">
+                    {k.produkte.map(prd => (
+                      <div
+                        key={prd.produkt_id}
+                        className="flex justify-between items-baseline text-xs"
+                      >
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="font-medium truncate">
+                            {produktNames.get(prd.produkt_id) ?? prd.produkt_id}
+                          </span>
+                          {hasMultipleMethods && (
+                            <Badge
+                              variant="outline"
+                              className="text-[9px] px-1 py-0 shrink-0 font-normal"
+                            >
+                              {berechnungsartLabel(prd.berechnungsart)}
+                            </Badge>
+                          )}
+                        </div>
+                        <span className="tabular-nums font-medium shrink-0 ml-1">
+                          {formatPct(prd.marketingkosten_pct)}&thinsp;%
+                        </span>
                       </div>
-                    )}
+                    ))}
                   </div>
                 )}
               </CardContent>
