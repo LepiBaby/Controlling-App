@@ -21,7 +21,7 @@ export async function PUT(
 
   const { id, kostenId } = await params
 
-  // Verify bestellung belongs to user and is in 'plan' status
+  // Verify bestellung belongs to user and is in 'plan' or 'laufend' status
   const { data: bestellung, error: bErr } = await supabase
     .from('bestellungen')
     .select('id, status')
@@ -30,8 +30,8 @@ export async function PUT(
     .maybeSingle()
 
   if (bErr || !bestellung) return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 })
-  if (bestellung.status !== 'plan') {
-    return NextResponse.json({ error: 'Kosten können nur bei Planbestellungen bearbeitet werden' }, { status: 403 })
+  if (bestellung.status !== 'plan' && bestellung.status !== 'laufend') {
+    return NextResponse.json({ error: 'Kosten können nur bei Plan- und laufenden Bestellungen bearbeitet werden' }, { status: 403 })
   }
 
   const body = await request.json().catch(() => null)

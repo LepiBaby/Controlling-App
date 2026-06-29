@@ -45,22 +45,28 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     verfuegbarkeitsdatum: string | null; verfuegbarkeitsdatum_ist: string | null
     anzahl_40hq: number; anzahl_20dc: number
   }
-  await generiereUndSpeichereBestellkosten(supabase, user!.id, [{
-    id: b.id,
-    bestelldatum: b.bestelldatum,
-    produktionsende_datum: b.produktionsende_datum,
-    produktionsende_datum_ist: b.produktionsende_datum_ist,
-    shippingdatum: b.shippingdatum,
-    shippingdatum_ist: b.shippingdatum_ist,
-    ankunftsdatum: b.ankunftsdatum,
-    ankunftsdatum_ist: b.ankunftsdatum_ist,
-    verfuegbarkeitsdatum: b.verfuegbarkeitsdatum,
-    verfuegbarkeitsdatum_ist: b.verfuegbarkeitsdatum_ist,
-    anzahl_40hq: b.anzahl_40hq,
-    anzahl_20dc: b.anzahl_20dc,
-    produkt_ids,
-    sku_mengen: [],
-  }])
+  // Regeneration is best-effort: a hiccup here must not blank out the already
+  // saved costs (which would surface as "HTTP 500" in the UI).
+  try {
+    await generiereUndSpeichereBestellkosten(supabase, user!.id, [{
+      id: b.id,
+      bestelldatum: b.bestelldatum,
+      produktionsende_datum: b.produktionsende_datum,
+      produktionsende_datum_ist: b.produktionsende_datum_ist,
+      shippingdatum: b.shippingdatum,
+      shippingdatum_ist: b.shippingdatum_ist,
+      ankunftsdatum: b.ankunftsdatum,
+      ankunftsdatum_ist: b.ankunftsdatum_ist,
+      verfuegbarkeitsdatum: b.verfuegbarkeitsdatum,
+      verfuegbarkeitsdatum_ist: b.verfuegbarkeitsdatum_ist,
+      anzahl_40hq: b.anzahl_40hq,
+      anzahl_20dc: b.anzahl_20dc,
+      produkt_ids,
+      sku_mengen: [],
+    }])
+  } catch (err) {
+    console.error('[GET .../kosten] Auto-Kostengenerierung fehlgeschlagen:', err)
+  }
 
   const { data: kosten, error: kErr } = await supabase
     .from('bestellungen_kosten')
@@ -110,8 +116,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     .maybeSingle()
 
   if (bErr || !bestellung) return NextResponse.json({ error: 'Nicht gefunden' }, { status: 404 })
-  if (bestellung.status !== 'plan') {
-    return NextResponse.json({ error: 'Kosten können nur bei Planbestellungen manuell angelegt werden' }, { status: 403 })
+  if (bestellung.status !== 'plan' && bestellung.status !== 'laufend') {
+    return NextResponse.json({ error: 'Kosten können nur bei Plan- und laufenden Bestellungen manuell angelegt werden' }, { status: 403 })
   }
 
   const body = await request.json().catch(() => null)

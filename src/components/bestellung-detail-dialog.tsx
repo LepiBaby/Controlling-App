@@ -312,6 +312,10 @@ export function BestellungDetailDialog({
 
   const isEditable = b.status === 'plan'
   const isLaufend = bestellung.status === 'laufend'
+  // Bestellmenge & Bestellkosten sind auch bei laufenden Bestellungen editierbar
+  // (Datumsfelder bleiben über die IST-Datum-Logik gesteuert).
+  const mengenKostenEditierbar = b.status === 'plan' || b.status === 'laufend'
+  const mengenDirty = skuMengen.some((s, i) => s.menge_praktisch !== b.sku_mengen[i]?.menge_praktisch)
   const produktNamen = bestellung.produkte.map(p => p.produkt_name).join(', ')
   const aktuellStatus = isLaufend ? berechneAktuellenStatus(bestellung) : null
   const statusColor = aktuellStatus ? (STATUS_COLORS[aktuellStatus] ?? 'bg-gray-100 text-gray-700') : ''
@@ -677,7 +681,7 @@ export function BestellungDetailDialog({
                               )}
                               {/* Praktisch: snapshot value (read-only) when consolidated, editable otherwise */}
                               <td className="px-3 py-2 text-right">
-                                {isEditable && !showKonsolidierungsSpalte ? (
+                                {mengenKostenEditierbar && !showKonsolidierungsSpalte ? (
                                   <Input
                                     type="number"
                                     min="0"
@@ -697,7 +701,7 @@ export function BestellungDetailDialog({
                               {/* Konsolidierung: absolute menge_praktisch (total after consolidation), editable, blue */}
                               {showKonsolidierungsSpalte && (
                                 <td className="px-3 py-2 text-right">
-                                  {isEditable ? (
+                                  {mengenKostenEditierbar ? (
                                     <Input
                                       type="number"
                                       min="0"
@@ -890,7 +894,7 @@ export function BestellungDetailDialog({
             )}
 
             {/* Bestellkosten */}
-            <BestellkostenTabelle bestellungId={bestellung.id} readOnly={!isEditable} />
+            <BestellkostenTabelle bestellungId={bestellung.id} readOnly={!mengenKostenEditierbar} />
 
             {/* Notizen (only for plan) */}
             {isEditable && (
@@ -966,8 +970,9 @@ export function BestellungDetailDialog({
                   onClick={async () => {
                     setSaving(true)
                     try {
-                      await onUpdate(b.id, draft)
-                      toast({ title: 'Ist-Daten gespeichert' })
+                      const skuPatch = skuMengen.map(s => ({ sku_id: s.sku_id, menge_praktisch: s.menge_praktisch }))
+                      await onUpdate(b.id, { ...draft, sku_mengen: skuMengen as SkuMenge[], _sku_patch: skuPatch } as Partial<Bestellung>)
+                      toast({ title: 'Gespeichert' })
                       setDraft({})
                       onOpenChange(false)
                     } catch {
@@ -976,9 +981,9 @@ export function BestellungDetailDialog({
                       setSaving(false)
                     }
                   }}
-                  disabled={saving || Object.keys(draft).length === 0}
+                  disabled={saving || (Object.keys(draft).length === 0 && !mengenDirty)}
                 >
-                  {saving ? 'Speichert…' : 'Ist-Daten speichern'}
+                  {saving ? 'Speichert…' : 'Speichern'}
                 </Button>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
@@ -992,9 +997,9 @@ export function BestellungDetailDialog({
                       <AlertDialogTitle>Bestellung abschließen?</AlertDialogTitle>
                       <AlertDialogDescription>
                         Die Bestellung wird als abgeschlossen markiert und aus den laufenden Bestellungen entfernt.
-                        {Object.keys(draft).length > 0 && (
+                        {(Object.keys(draft).length > 0 || mengenDirty) && (
                           <span className="block mt-2 text-amber-600 font-medium">
-                            Achtung: Nicht gespeicherte Ist-Daten gehen verloren.
+                            Achtung: Nicht gespeicherte Änderungen gehen verloren.
                           </span>
                         )}
                       </AlertDialogDescription>

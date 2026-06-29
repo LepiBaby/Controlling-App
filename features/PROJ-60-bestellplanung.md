@@ -14,6 +14,18 @@
   - `POST /api/bestellplanung/planbestelllauf/anwenden` — applies accepted changes + creates new plan bestellungen
 - **Tests**: 20 unit tests passing for bestellungen routes
 
+## Enhancement (2026-06-29): Bestellmenge & Bestellkosten bei laufenden Bestellungen editierbar
+- Bisher waren `menge_praktisch` (SKU-Mengen) und Bestellkosten nur bei Planbestellungen (`status = 'plan'`) bearbeitbar, bei laufenden Bestellungen read-only.
+- Neuer Flag `mengenKostenEditierbar = status === 'plan' || status === 'laufend'` in `src/components/bestellung-detail-dialog.tsx` schaltet jetzt:
+  - die SKU-Mengen-Inputs (Praktisch + Konsolidierung) frei,
+  - die `<BestellkostenTabelle>` editierbar (`readOnly={!mengenKostenEditierbar}`).
+- Der Footer-Button bei laufenden Bestellungen ("Ist-Daten speichern" → "Speichern") persistiert jetzt zusätzlich die geänderten `sku_mengen` (vorher nur `draft`/IST-Daten). Aktiviert, sobald IST-Daten **oder** Mengen geändert wurden (`mengenDirty`).
+- Backend: Status-Gate in den Kosten-Routen von `!== 'plan'` auf `!== 'plan' && !== 'laufend'` gelockert:
+  - `POST /api/bestellplanung/bestellungen/[id]/kosten`
+  - `PUT/DELETE .../kosten/[kostenId]` (PUT; DELETE hatte nie ein Status-Gate)
+- Mengen-Persistenz via `PUT .../bestellungen/[id]` benötigte keine Änderung — die Route akzeptierte `sku_mengen` bereits statusunabhängig.
+- Abgeschlossene Bestellungen bleiben vollständig read-only.
+
 ## Dependencies
 - Requires: PROJ-1 (Authentifizierung) — nur eingeloggte Nutzer
 - Requires: PROJ-2 (KPI-Modell Verwaltung) — Produkte (`level = 1`) und SKUs (`level = 2`)
