@@ -103,6 +103,10 @@ export interface AlgorithmusInput {
   produkte: ProduktInput[]
   absatzplanung: Array<{ produkt_id: string; sku_id?: string; kw_year: number; kw_number: number; menge: number }>
   bestehendeBestellungen: BestehendeBestellungInput[]
+  // 'initial' (Standard): Algorithmus-Planbestellungen werden neu bewertet → Empfehlungen (Schritt 1).
+  // 'rerun': zweiter Lauf nach den Entscheidungen aus Schritt 1 — ALLE übergebenen Bestellungen
+  //          gelten als fix (Zulauf), es werden keine Empfehlungen erzeugt, nur neue Planbestellungen.
+  modus?: 'initial' | 'rerun'
 }
 
 // ─── Output Types ─────────────────────────────────────────────────────────────
@@ -825,6 +829,8 @@ export function runPlanbestelllauf(input: AlgorithmusInput): PlanbestelllaufErge
     return { aenderungen_bestehende: [], neue_planbestellungen: [] }
   }
 
+  const isRerun = (input.modus ?? 'initial') === 'rerun'
+
   const aktuelleKw = dateToIsoWeek(heute)
   const horizonEndKw = addKw(aktuelleKw, planungshorizont_wochen)
 
@@ -832,12 +838,15 @@ export function runPlanbestelllauf(input: AlgorithmusInput): PlanbestelllaufErge
 
   // Kalkulatorischer Bestand: laufende Bestellungen (feste Commitments) und manuell angelegte
   // Planbestellungen (Erstplanbestellungen) als fixe Zugänge einbeziehen.
-  // Algorithmus-Planbestellungen werden bewusst ausgeschlossen, damit der Algorithmus sie neu
-  // bewertet und via buildAenderungen Empfehlungen erzeugen kann.
+  // Algorithmus-Planbestellungen werden im 'initial'-Lauf bewusst ausgeschlossen, damit der
+  // Algorithmus sie neu bewertet und via buildAenderungen Empfehlungen erzeugen kann.
+  // Im 'rerun'-Lauf (nach den Entscheidungen aus Schritt 1) gelten ALLE übergebenen Bestellungen
+  // als fix — der Nutzer hat über sie bereits entschieden; es werden nur noch neue Bestellungen
+  // darauf aufgerechnet.
   const alleOffenBySku = new Map<string, Array<{ kw: KwRef; menge: number }>>()
   for (const b of bestehendeBestellungen) {
     if (!b.ankunftsdatum) continue
-    const isFixed = b.status === 'laufend' || (b.status === 'plan' && b.herkunft === 'manuell')
+    const isFixed = isRerun || b.status === 'laufend' || (b.status === 'plan' && b.herkunft === 'manuell')
     if (!isFixed) continue
     const ankunftKw = dateToIsoWeek(new Date(b.ankunftsdatum + 'T00:00:00Z'))
     for (const sm of b.sku_mengen) {
@@ -849,13 +858,17 @@ export function runPlanbestelllauf(input: AlgorithmusInput): PlanbestelllaufErge
   const produktById = new Map<string, ProduktInput>()
   for (const p of produkte) produktById.set(p.produkt_id, p)
 
+  // Im 'rerun' werden keine bestehenden Planbestellungen neu bewertet (der Nutzer hat in Schritt 1
+  // bereits entschieden) — die planOrdersByProdukt-Map bleibt leer, es entstehen keine Empfehlungen.
   const planOrdersByProdukt = new Map<string, BestehendeBestellungInput[]>()
-  for (const b of bestehendeBestellungen) {
-    if (b.status !== 'plan') continue
-    if (b.herkunft === 'manuell') continue  // Erstplanbestellungen bleiben unverändert
-    for (const pid of b.produkt_ids) {
-      if (!planOrdersByProdukt.has(pid)) planOrdersByProdukt.set(pid, [])
-      planOrdersByProdukt.get(pid)!.push(b)
+  if (!isRerun) {
+    for (const b of bestehendeBestellungen) {
+      if (b.status !== 'plan') continue
+      if (b.herkunft === 'manuell') continue  // Erstplanbestellungen bleiben unverändert
+      for (const pid of b.produkt_ids) {
+        if (!planOrdersByProdukt.has(pid)) planOrdersByProdukt.set(pid, [])
+        planOrdersByProdukt.get(pid)!.push(b)
+      }
     }
   }
 
@@ -903,7 +916,9 @@ export function runPlanbestelllauf(input: AlgorithmusInput): PlanbestelllaufErge
 
   // Erstplanbestellungen (herkunft = 'manuell') erscheinen als keine_aenderung,
   // damit sie im Wizard-Schritt 1 sichtbar sind aber nie verändert werden.
+  // Im 'rerun' werden keine Empfehlungen/Änderungseinträge erzeugt.
   for (const b of bestehendeBestellungen) {
+    if (isRerun) break
     if (b.status !== 'plan' || b.herkunft !== 'manuell') continue
     const existingTotal = b.sku_mengen.reduce((s, m) => s + m.menge_praktisch, 0)
     const produkt = b.produkt_ids.length > 0 ? produktById.get(b.produkt_ids[0]) : undefined

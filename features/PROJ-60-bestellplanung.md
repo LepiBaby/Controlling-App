@@ -41,6 +41,20 @@
 - **Fix:** Neue Ableitung `effektiveNeueBestellungen = neueBestellungen.map(b => bearbeitet.get(b.temp_id) ?? b)` und Übergabe dieser Liste an `<KonsolidierungsSchritt>`. Matching erfolgt weiterhin über `temp_id`; das Objekt ist typgleich (`NeuePlanbestellung`), daher greifen Mengen-, Datums- und Container-Werte gleichermaßen.
 - Reine UI-/State-Änderung; keine DB- oder API-Änderung.
 
+## Enhancement (2026-06-30): Zweiter Algorithmus-Lauf zwischen Schritt 1 und Schritt 2
+**Deployed:** 2026-06-30 (Push → `main`, Vercel Auto-Deploy)
+- **Problem:** Der Planbestelllauf lief nur **einmal**. Die neuen Planbestellungen (Schritt 2) wurden unter der Annahme berechnet, dass die bestehenden Algorithmus-Planbestellungen durch ihre optimalen Vorschläge **ersetzt** werden. Lehnte der Nutzer in Schritt 1 eine Empfehlung ab (Bestellung so behalten), wurden die neuen Bestellungen in Schritt 2 trotzdem auf Basis des nicht akzeptierten Vorschlags gerechnet — die Entscheidungen aus Schritt 1 flossen nicht zurück.
+- **Lösung:** Beim Übergang **Schritt 1 → Schritt 2** wird der Algorithmus ein **zweites Mal** ausgeführt (`modus='rerun'`), der die Entscheidungen aus Schritt 1 berücksichtigt:
+  - **abgelehnte** Empfehlung → bestehende Planbestellung mit **alten** Werten = fixer Zulauf,
+  - **akzeptierte** Änderung → mit **neuen** Werten = fixer Zulauf,
+  - akzeptiertes **„kein Bedarf"** → Bestellung entfällt.
+  Im `rerun` werden ALLE übergebenen Bestellungen als fix behandelt (keine erneute Neubewertung, keine Empfehlungen) — es werden nur die zusätzlich nötigen neuen Planbestellungen darauf aufgerechnet. Analog dazu, wie laufende/manuelle Bestellungen schon immer als fix gelten.
+- **Umsetzung:**
+  - `src/lib/planbestelllauf-algorithmus.ts`: neuer `modus`-Parameter (`'initial' | 'rerun'`); im `rerun` gelten alle bestehenden Bestellungen als fix, `planOrdersByProdukt` bleibt leer, keine Änderungseinträge.
+  - `src/app/api/bestellplanung/planbestelllauf/route.ts`: optionaler Body `{ modus: 'rerun', entscheidungen: { geloeschte_ids, geaenderte } }`; wendet die Entscheidungen auf die bestehenden Bestellungen an.
+  - `src/hooks/use-planbestelllauf.ts`: neue Methode `ausfuehrenRerun(entscheidungen)` — aktualisiert nur `neue_planbestellungen` (+ Stammdaten), erhält `aenderungen_bestehende` aus dem 1. Lauf (wird beim Anwenden gebraucht).
+  - `src/components/planbestelllauf-wizard.tsx`: „Weiter →" in Schritt 1 löst `handleWeiterZuSchritt2` aus (Ladezustand „Berechne neue Planbestellungen…"), startet den 2. Lauf, setzt Auswahl/Bearbeitungen auf das neue Ergebnis zurück und wechselt zu Schritt 2.
+
 ## Dependencies
 - Requires: PROJ-1 (Authentifizierung) — nur eingeloggte Nutzer
 - Requires: PROJ-2 (KPI-Modell Verwaltung) — Produkte (`level = 1`) und SKUs (`level = 2`)

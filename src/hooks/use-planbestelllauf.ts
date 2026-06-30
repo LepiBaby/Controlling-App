@@ -120,6 +120,33 @@ export function usePlanbestelllauf() {
     }
   }, [])
 
+  // Zweiter Lauf nach den Entscheidungen aus Schritt 1: berechnet die neuen Planbestellungen
+  // neu (unter Berücksichtigung der behaltenen/geänderten bestehenden Planbestellungen).
+  // Aktualisiert NUR neue_planbestellungen + Stammdaten; aenderungen_bestehende aus dem 1. Lauf
+  // bleiben erhalten (werden beim Anwenden noch benötigt).
+  const ausfuehrenRerun = useCallback(
+    async (entscheidungen: {
+      geloeschte_ids: string[]
+      geaenderte: Array<{ bestellung_id: string; verfuegbarkeitsdatum: string | null; sku_mengen: Array<{ sku_id: string; menge_praktisch: number }> }>
+    }): Promise<PlanbestelllaufErgebnis> => {
+      const res = await fetch('/api/bestellplanung/planbestelllauf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ modus: 'rerun', entscheidungen }),
+      })
+      if (!res.ok) throw new Error('Neuberechnung fehlgeschlagen.')
+      const data: PlanbestelllaufErgebnis = await res.json()
+      setErgebnis(prev => prev ? {
+        ...prev,
+        neue_planbestellungen: data.neue_planbestellungen,
+        produkt_stammdaten: data.produkt_stammdaten ?? prev.produkt_stammdaten,
+        container_global: data.container_global ?? prev.container_global,
+      } : data)
+      return data
+    },
+    [],
+  )
+
   const anwenden = useCallback(
     async (
       akzeptierteAenderungen: PlanbestelllaufAenderung[],
@@ -153,5 +180,5 @@ export function usePlanbestelllauf() {
     setError(null)
   }, [])
 
-  return { loading, ergebnis, error, applying, ausfuehren, anwenden, reset }
+  return { loading, ergebnis, error, applying, ausfuehren, ausfuehrenRerun, anwenden, reset }
 }

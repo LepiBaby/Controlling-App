@@ -49,9 +49,25 @@ function calcTagesdurchschnitt(
 
 // ─── Main Handler ─────────────────────────────────────────────────────────────
 
-export async function POST() {
+interface RerunEntscheidungen {
+  geloeschte_ids?: string[]
+  geaenderte?: Array<{
+    bestellung_id: string
+    verfuegbarkeitsdatum?: string | null
+    sku_mengen?: Array<{ sku_id: string; menge_praktisch: number }>
+  }>
+}
+
+export async function POST(request: Request) {
   const { user, supabase, error } = await requireAuth()
   if (error) return error
+
+  // Optionaler Body: 2. Lauf (rerun) nach den Entscheidungen aus Schritt 1.
+  // Ohne Body läuft der normale initiale Lauf (Empfehlungen + neue Planbestellungen).
+  const body = await request.json().catch(() => ({})) as { modus?: 'rerun'; entscheidungen?: RerunEntscheidungen }
+  const isRerun = body?.modus === 'rerun'
+  const geloeschteIds = new Set(body?.entscheidungen?.geloeschte_ids ?? [])
+  const geaendertById = new Map((body?.entscheidungen?.geaenderte ?? []).map(g => [g.bestellung_id, g]))
 
   const today = new Date()
   today.setUTCHours(0, 0, 0, 0)
@@ -229,6 +245,27 @@ export async function POST() {
     }))
   }
 
+  // ─── 8b. Rerun: Entscheidungen aus Schritt 1 anwenden ────────────────────────
+  // Gelöschte Bestellungen entfernen, akzeptierte Änderungen mit neuen Werten überschreiben.
+  // Alle verbleibenden Bestellungen werden im Algorithmus (modus='rerun') als fix behandelt.
+  if (isRerun) {
+    bestehendeBestellungen = bestehendeBestellungen
+      .filter(b => !geloeschteIds.has(b.bestellung_id))
+      .map(b => {
+        const aend = geaendertById.get(b.bestellung_id)
+        if (!aend) return b
+        const neueMengeBySku = new Map((aend.sku_mengen ?? []).map(s => [s.sku_id, s.menge_praktisch]))
+        return {
+          ...b,
+          ankunftsdatum: aend.verfuegbarkeitsdatum ?? b.ankunftsdatum,
+          verfuegbarkeitsdatum: aend.verfuegbarkeitsdatum ?? b.verfuegbarkeitsdatum,
+          sku_mengen: b.sku_mengen.map(sm =>
+            neueMengeBySku.has(sm.sku_id) ? { ...sm, menge_praktisch: neueMengeBySku.get(sm.sku_id)! } : sm,
+          ),
+        }
+      })
+  }
+
   // ─── 9. Assemble ProduktInput array ──────────────────────────────────────────
   const lieferzeitMap = new Map((lieferzeitRows ?? []).map(r => [r.produkt_id, r]))
   const bestandsvMap = new Map((bestandsvRes.data ?? []).map((r: { produkt_id: string; sicherheitsbestand: number | null; zielreichweite_wochen: number | null }) => [r.produkt_id, r]))
@@ -289,6 +326,7 @@ export async function POST() {
     produkte,
     absatzplanung,
     bestehendeBestellungen,
+    modus: isRerun ? 'rerun' : 'initial',
   }
 
   const ergebnis = runPlanbestelllauf(input)

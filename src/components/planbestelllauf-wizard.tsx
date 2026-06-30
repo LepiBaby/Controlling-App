@@ -563,6 +563,7 @@ function Schritt1({
   getLieferzeit,
   getMaxKapazitaet,
   onWeiter,
+  weiterLoading,
 }: {
   aenderungen: PlanbestelllaufAenderung[]
   akzeptiert: Set<string>
@@ -572,6 +573,7 @@ function Schritt1({
   getLieferzeit: (produktId: string) => LieferzeitIntervals | null | undefined
   getMaxKapazitaet: (produktId: string) => { max_40hq: number | null; max_20dc: number | null }
   onWeiter: () => void
+  weiterLoading?: boolean
 }) {
   if (aenderungen.length === 0) return null
 
@@ -640,7 +642,9 @@ function Schritt1({
       </div>
 
       <div className="flex justify-end">
-        <Button size="sm" onClick={onWeiter}>Weiter →</Button>
+        <Button size="sm" onClick={onWeiter} disabled={weiterLoading}>
+          {weiterLoading ? 'Berechne neue Planbestellungen…' : 'Weiter →'}
+        </Button>
       </div>
     </div>
   )
@@ -888,7 +892,7 @@ interface PlanbestelllaufWizardProps {
 
 export function PlanbestelllaufWizard({ open, onOpenChange, onComplete }: PlanbestelllaufWizardProps) {
   const { toast } = useToast()
-  const { loading, ergebnis, error, applying, ausfuehren, anwenden, reset } = usePlanbestelllauf()
+  const { loading, ergebnis, error, applying, ausfuehren, ausfuehrenRerun, anwenden, reset } = usePlanbestelllauf()
   const { getLieferzeit } = useProduktinformationenLieferzeit()
   const { getMaxKapazitaet } = useProduktinformationenContainer()
   const { konsolidieren, aufheben } = useKonsolidierung()
@@ -900,6 +904,7 @@ export function PlanbestelllaufWizard({ open, onOpenChange, onComplete }: Planbe
   const [bearbeitetAenderungen, setBearbeitetAenderungen] = useState<Map<string, EditierteNeueDaten>>(new Map())
   const [konsolidierungsGruppen, setKonsolidierungsGruppen] = useState<WizardKonsolidierungsGruppe[]>([])
   const [bestehendeKonsolidierungsGruppenIds, setBestehendeKonsolidierungsGruppenIds] = useState<string[]>([])
+  const [rerunLoading, setRerunLoading] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -909,6 +914,7 @@ export function PlanbestelllaufWizard({ open, onOpenChange, onComplete }: Planbe
     setBearbeitet(new Map())
     setBearbeitetAenderungen(new Map())
     setKonsolidierungsGruppen([])
+    setRerunLoading(false)
     reset()
 
     ausfuehren()
@@ -1050,6 +1056,51 @@ export function PlanbestelllaufWizard({ open, onOpenChange, onComplete }: Planbe
   const containerGlobal = ergebnis?.container_global ?? { volumen_20dc: null, volumen_40hq: null }
   const selectedCount = ausgewaehlt.size
 
+  // Übergang Schritt 1 → Schritt 2: zweiter Algorithmus-Lauf, der die Entscheidungen aus Schritt 1
+  // berücksichtigt (behaltene/geänderte bestehende Planbestellungen als fix). Schritt 2 wird mit
+  // dem neu berechneten Ergebnis befüllt.
+  const handleWeiterZuSchritt2 = async () => {
+    const geloeschte_ids: string[] = []
+    const geaenderte: Array<{ bestellung_id: string; verfuegbarkeitsdatum: string | null; sku_mengen: Array<{ sku_id: string; menge_praktisch: number }> }> = []
+
+    for (const a of aenderungen) {
+      if (a.herkunft === 'manuell') continue          // Erstplanbestellungen bleiben immer fix
+      if (a.aenderungsart === 'keine_aenderung') continue
+      if (!akzeptiert.has(a.bestellung_id)) continue   // abgelehnt → bestehende Werte behalten
+      if (a.aenderungsart === 'kein_bedarf') {
+        geloeschte_ids.push(a.bestellung_id)
+        continue
+      }
+      if (a.aenderungsart === 'bestelldatum' || a.aenderungsart === 'menge' || a.aenderungsart === 'bestelldatum_und_menge') {
+        const neu = bearbeitetAenderungen.get(a.bestellung_id) ?? a.neue_daten
+        geaenderte.push({
+          bestellung_id: a.bestellung_id,
+          verfuegbarkeitsdatum: neu?.verfuegbarkeitsdatum ?? null,
+          sku_mengen: (neu?.sku_mengen ?? []).map(s => ({ sku_id: s.sku_id, menge_praktisch: s.menge_praktisch })),
+        })
+      }
+    }
+
+    setRerunLoading(true)
+    try {
+      const data = await ausfuehrenRerun({ geloeschte_ids, geaenderte })
+      // Auswahl + Bearbeitungen auf das neu berechnete Ergebnis zurücksetzen (temp_ids ändern sich)
+      setAusgewaehlt(new Set(data.neue_planbestellungen.map(b => b.temp_id)))
+      const m = new Map<string, NeuePlanbestellung>()
+      data.neue_planbestellungen.forEach(b => m.set(b.temp_id, { ...b }))
+      setBearbeitet(m)
+    } catch {
+      toast({
+        title: 'Hinweis',
+        description: 'Neuberechnung fehlgeschlagen – es werden die ursprünglichen Vorschläge angezeigt.',
+        variant: 'destructive',
+      })
+    } finally {
+      setRerunLoading(false)
+      setStep(2)
+    }
+  }
+
   const getTitle = () => {
     if (step === 0) return 'Planbestelllauf wird durchgeführt…'
     if (step === 1) {
@@ -1100,7 +1151,8 @@ export function PlanbestelllaufWizard({ open, onOpenChange, onComplete }: Planbe
               onAenderungChange={updateAenderung}
               getLieferzeit={getLieferzeit}
               getMaxKapazitaet={getMaxKapazitaet}
-              onWeiter={() => setStep(2)}
+              onWeiter={handleWeiterZuSchritt2}
+              weiterLoading={rerunLoading}
             />
           )}
 
