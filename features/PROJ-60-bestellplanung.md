@@ -2,7 +2,7 @@
 
 ## Status: In Progress
 **Created:** 2026-06-05
-**Last Updated:** 2026-06-05
+**Last Updated:** 2026-06-30
 
 ## Implementation Notes (Backend)
 - **DB Migration applied**: 4 tables — `bestellungen`, `bestellungen_produkte`, `bestellungen_sku_mengen`, `bestellungen_konsolidierungen` — all with RLS enabled
@@ -26,6 +26,14 @@
   - `PUT/DELETE .../kosten/[kostenId]` (PUT; DELETE hatte nie ein Status-Gate)
 - Mengen-Persistenz via `PUT .../bestellungen/[id]` benötigte keine Änderung — die Route akzeptierte `sku_mengen` bereits statusunabhängig.
 - Abgeschlossene Bestellungen bleiben vollständig read-only.
+
+## Bugfix (2026-06-30): Laufende Bestellungen im kalkulatorischen Bestand berücksichtigen
+**Deployed:** 2026-06-30 (Push → `main`, Vercel Auto-Deploy)
+- **Problem:** Im Planbestelllauf-Algorithmus (`simulateProdukt` in `src/lib/planbestelllauf-algorithmus.ts`) berücksichtigte der **kalkulatorische Bestand** (`kalk`) — das Auslöse-Signal gegen den Meldebestand — die Mengen aus **laufenden/offenen Bestellungen nicht**. Nur die vom Algorithmus im selben Lauf neu erzeugten Planbestellungen erhöhten `kalk`. Bestehende Zuläufe flossen ausschließlich in den echten projizierten Bestand (`skuActualStock`) ein.
+- **Folge:** Das Signal löste zu früh aus (Bestand wirkte niedriger als real), wodurch die erste Planbestellung ein zu frühes Bestelldatum bekam und insgesamt eine zu lange Bestellkette entstand. Die berechneten **Mengen** waren korrekt (sie rechnen gegen `skuActualStock`, der den Zulauf enthält) — falsch war nur das **Timing/die Auslösung**.
+- **Fix:** `kalk` wird jetzt als **Lagerbestandsposition** initialisiert — aktueller Bestand **plus** alle fest zugesagten, noch nicht eingetroffenen Zuläufe (laufende Bestellungen + manuelle Planbestellungen), analog dazu, dass neu erzeugte Bestellungen sofort bei Auslösung auf `kalk` gebucht werden. Kein Doppelzählen: bestehende Zuläufe gehen einmal beim Init in `kalk`, die Wochenschleife addiert sie weiterhin nur zu `skuActualStock`.
+- **Wirkung (FlexiCo, Live-Daten):** Erste Bestellung verschiebt sich von 30.06. auf 20.07.2026; Bestellkette schrumpft von 5+ auf 3 Bestellungen. Mengen der ersten Bestellung unverändert plausibel (Beige 156 / Grau 150 / Grün 150).
+- Reine Berechnungsänderung an einer Stelle; keine DB-, API- oder UI-Änderung.
 
 ## Dependencies
 - Requires: PROJ-1 (Authentifizierung) — nur eingeloggte Nutzer

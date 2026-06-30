@@ -510,10 +510,16 @@ function simulateProdukt(
   alleOffenDeliveriesBySku: Map<string, Array<{ kw: KwRef; menge: number }>>,
   tempIdCounter: { n: number },
 ): OrderResult[] {
-  // Kalkulatorischer Bestand: startet mit aktuellem Bestand, Lieferungen werden wochenweise addiert
+  // Kalkulatorischer Bestand = Lagerbestandsposition: startet mit aktuellem Bestand PLUS allen
+  // fest zugesagten, noch offenen Zuläufen (laufende Bestellungen + manuelle Planbestellungen).
+  // So löst das Signal nicht zu früh aus, wenn bereits Ware unterwegs ist — analog zu neu im Lauf
+  // erzeugten Planbestellungen, die ebenfalls sofort (bei Auslösung) auf kalk gebucht werden.
   const skuKalkulatorisch = new Map<string, number>()
   for (const sku of produkt.skus) {
-    skuKalkulatorisch.set(sku.sku_id, sku.aktueller_bestand)
+    const offeneZulaeufe = (alleOffenDeliveriesBySku.get(sku.sku_id) ?? [])
+      .filter(d => !kwBefore(d.kw, aktuelleKw))
+      .reduce((sum, d) => sum + d.menge, 0)
+    skuKalkulatorisch.set(sku.sku_id, sku.aktueller_bestand + offeneZulaeufe)
   }
 
   // Actual projected stock for theoretical demand (restbestand at ankunft)
