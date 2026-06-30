@@ -1381,15 +1381,17 @@ export async function GET(request: Request) {
     }
 
     // B actual: Vorsteuer aus echten ausgaben_kosten_transaktionen (B1–B5)
+    // Nur Ist-Transaktionen mit Relevanz „Rentabilität" oder „beides" zählen als Vorsteuer.
+    // Einfuhrumsatzsteuer-Transaktionen (Relevanz „Liquidität") werden hier NICHT erfasst –
+    // sie werden ausschließlich über den dedizierten B6-Abzug (betrag_brutto) einmalig abgezogen,
+    // sonst käme es zur Doppelzählung der Einfuhrumsatzsteuer.
     for (const row of ausgabenUstRows) {
       if (!row.leistungsdatum || !row.ust_betrag) continue
       const betrag = Number(row.ust_betrag)
       if (betrag <= 0) continue
       const relevanz = row.relevanz ?? null
-      const isEinfuhr = einfuhrKatId != null && (row.gruppe_id === einfuhrKatId || row.kategorie_id === einfuhrKatId || row.untergruppe_id === einfuhrKatId)
       const isRentab = relevanz === 'rentabilitaet' || relevanz === 'beides'
-      const isEinfuhrLiquid = isEinfuhr && relevanz === 'liquiditaet'
-      if (!isRentab && !isEinfuhrLiquid) continue
+      if (!isRentab) continue
       const { year, week } = getISOWeekInfo(new Date(row.leistungsdatum + 'T00:00:00Z'))
       if (!isPastKw(year, week)) continue
       addNetUst(year, week, -betrag, 'vorsteuer')

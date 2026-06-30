@@ -2,7 +2,19 @@
 
 ## Status: In Progress
 **Created:** 2026-06-18
-**Last Updated:** 2026-06-23 (Enhancement: Aufschlüsselungen/Drill-down für Einfuhrumsatzsteuer (je Produkt) und Umsatzsteuer (Umsatzsteuer/Vorsteuer/Einfuhrumsatzsteuer) — siehe unten; Build grün, Unit-Tests grün; QA für Erweiterung ausstehend)
+**Last Updated:** 2026-06-30 (Fix: Doppelzählung der Einfuhrumsatzsteuer in der UST-Berechnung beseitigt — siehe Notiz unten)
+
+## Implementation Notes (Fix 2026-06-30: Einfuhrumsatzsteuer-Doppelzählung)
+
+**Problem:** In der `berechnet`-Route wurde die Einfuhrumsatzsteuer aus den Ist-Transaktionen **doppelt** als Vorsteuer-Minderung gezogen:
+1. Im Vorsteuer-Block (B, „B actual") über `ust_betrag` — wegen einer Sonderregel, die Einfuhr-Transaktionen mit `relevanz = 'liquiditaet'` zusätzlich einbezog (`isEinfuhrLiquid`).
+2. Im dedizierten Einfuhr-Abzug (B6 Ist-Tatsächlich) über `betrag_brutto`.
+
+Da die Einfuhr-Transaktionen `ust_betrag = betrag_brutto` führten, wurde die Einfuhrumsatzsteuer zweimal abgezogen (Beispiel KW30/2026 = Q2-Quartalszahlung: 2×14.150,50 € statt 1×).
+
+**Fix (auf Wunsch des Nutzers):** Der Vorsteuer-Block (B actual) berücksichtigt nur noch Ist-Transaktionen mit `relevanz = 'rentabilitaet'` oder `'beides'`. Die `isEinfuhrLiquid`-Sonderregel (relevanz `liquiditaet`) wurde entfernt. Die Einfuhrumsatzsteuer wird damit **ausschließlich** über den B6-Abzug (`betrag_brutto`) **einmalig** berücksichtigt. B6 (Plan, Manuell, Ist-Tatsächlich) bleibt unverändert.
+
+**Hinweis:** Die Unit-Tests in `berechnet/route.test.ts` sind aktuell durch ein **vorbestehendes** Mock-Setup-Problem (Reihenfolge der `mockReturnValueOnce`-Queries passt nicht mehr zur erweiterten Query-Liste der Route) rot — unabhängig von diesem Fix (identisches Verhalten vor und nach der Änderung). Build/Typecheck/Lint der Route sind grün.
 
 ## Implementation Notes (Enhancement 2026-06-23: Aufschlüsselungen / Drill-down)
 
