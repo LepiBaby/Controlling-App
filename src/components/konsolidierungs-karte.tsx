@@ -399,6 +399,17 @@ export function KonsolidierungsKarte({
     ? `border-l-4 ${gruppefarbe}`
     : ''
 
+  // Obere Container-Auslastung: nach einer Konsolidierung mit der (ggf. angepassten)
+  // Konsolidierungsmenge rechnen, sonst mit der MOQ-Menge. So spiegelt die Prozentanzeige
+  // oben auf der Karte Mengenänderungen aus der Konsolidierung sofort wider.
+  const stueckvolumen = karte.stueckvolumen_m3 ?? 0
+  const auslastungVolumen = karte.konsolidierungsErgebnis
+    ? karte.konsolidierungsErgebnis.neue_sku_mengen.reduce((s, e) => s + e.neue_menge_praktisch, 0) * stueckvolumen
+    : karte.volumen_moq_m3
+  const auslastungLabel = karte.konsolidierungsErgebnis
+    ? 'Containerverteilung nach Konsolidierungsmenge'
+    : 'Containerverteilung nach MOQ-Menge'
+
   return (
     <Collapsible open={expanded} onOpenChange={setExpanded}>
       <div className={`rounded-md border bg-card transition-colors ${borderClass}`}>
@@ -509,13 +520,13 @@ export function KonsolidierungsKarte({
             )}
           </div>
 
-          {/* Container utilization (MOQ-based) */}
+          {/* Container utilization — nach Konsolidierung mit Konsolidierungsmenge, sonst MOQ-Menge */}
           <div className="pl-6">
             <ContainerAuslastung
-              volumen_m3={karte.volumen_moq_m3}
+              volumen_m3={auslastungVolumen}
               volumen_20dc_m3={volumen_20dc_m3}
               volumen_40hq_m3={volumen_40hq_m3}
-              label="Containerverteilung nach MOQ-Menge"
+              label={auslastungLabel}
             />
           </div>
         </div>

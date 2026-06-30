@@ -55,6 +55,12 @@
   - `src/hooks/use-planbestelllauf.ts`: neue Methode `ausfuehrenRerun(entscheidungen)` — aktualisiert nur `neue_planbestellungen` (+ Stammdaten), erhält `aenderungen_bestehende` aus dem 1. Lauf (wird beim Anwenden gebraucht).
   - `src/components/planbestelllauf-wizard.tsx`: „Weiter →" in Schritt 1 löst `handleWeiterZuSchritt2` aus (Ladezustand „Berechne neue Planbestellungen…"), startet den 2. Lauf, setzt Auswahl/Bearbeitungen auf das neue Ergebnis zurück und wechselt zu Schritt 2.
 
+## Bugfix (2026-06-30): Container-Auslastung oben auf der Karte folgt der Konsolidierungsmenge
+**Deployed:** 2026-06-30 (Push → `main`, Vercel Auto-Deploy)
+- **Problem:** Im Konsolidierungs-Schritt zeigt jede Karte oben eine Container-Auslastung (`ContainerAuslastung` in `src/components/konsolidierungs-karte.tsx`). Diese rechnete fix mit `volumen_moq_m3` (MOQ-Menge). Passte der Nutzer im Detail die **Konsolidierungsmenge** an, aktualisierte sich zwar die Prozentanzeige im Detailbereich („Container (nach Konsolidierung)"), die obere Auslastungsanzeige blieb aber unverändert.
+- **Fix:** Liegt ein Konsolidierungsergebnis vor, rechnet die obere Anzeige jetzt mit der (ggf. angepassten) Konsolidierungsmenge (`Σ neue_menge_praktisch × stueckvolumen_m3`) statt mit der MOQ-Menge; Label entsprechend „Containerverteilung nach Konsolidierungsmenge". Reaktiv über `handleMengeChange` → `gruppen` → `alleKarten` → `karte.konsolidierungsErgebnis`.
+- Reine UI-Anzeigeänderung; keine DB-/API-/Algorithmus-Änderung.
+
 ## Dependencies
 - Requires: PROJ-1 (Authentifizierung) — nur eingeloggte Nutzer
 - Requires: PROJ-2 (KPI-Modell Verwaltung) — Produkte (`level = 1`) und SKUs (`level = 2`)
