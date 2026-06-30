@@ -99,6 +99,44 @@ function addTage(isoDate: string, tage: number): string {
   return d.toISOString().slice(0, 10)
 }
 
+/**
+ * Berechnet die Container-Verteilung (container_anteil, volle_40hq, rest_container) einer
+ * bestehenden Konsolidierungsgruppe NEU — auf Basis der aktuellen (ggf. manuell angepassten)
+ * Mengen. Verändert KEINE Mengen. Wird genutzt, wenn der Nutzer im Wizard die
+ * Konsolidierungsmenge editiert, damit Badge/Auslastung/Container-Anzeige konsistent bleiben.
+ */
+export function berechneContainerVerteilung(
+  orders: Array<{ bestellung_id: string; gesamtmenge: number; stueckvolumen_m3: number | null }>,
+  volumen_20dc_m3: number,
+  volumen_40hq_m3: number,
+): Record<string, { container_anteil: Record<string, number>; volle_40hq: number; rest_container: Array<'20DC' | '40HQ'> }> {
+  const perOrder = orders.map(o => {
+    const stv = o.stueckvolumen_m3 ?? 0
+    const gesamt_m3 = o.gesamtmenge * stv
+    const volle_40hq = volumen_40hq_m3 > 0 ? Math.floor(gesamt_m3 / volumen_40hq_m3) : 0
+    const rest_m3 = gesamt_m3 - volle_40hq * volumen_40hq_m3
+    return { bestellung_id: o.bestellung_id, volle_40hq, rest_m3 }
+  })
+
+  const gesamt_rest_m3 = perOrder.reduce((sum, d) => sum + d.rest_m3, 0)
+  const { container: rest_container } = bestimmeContainerFuerRestvolumen(
+    gesamt_rest_m3, volumen_20dc_m3, volumen_40hq_m3,
+  )
+
+  const result: Record<string, { container_anteil: Record<string, number>; volle_40hq: number; rest_container: Array<'20DC' | '40HQ'> }> = {}
+  for (const d of perOrder) {
+    const volumen_anteil = gesamt_rest_m3 > 0 ? d.rest_m3 / gesamt_rest_m3 : 0
+    const container_anteil: Record<string, number> = {}
+    if (d.volle_40hq > 0) container_anteil['40HQ'] = (container_anteil['40HQ'] ?? 0) + d.volle_40hq
+    if (rest_container.length > 0 && gesamt_rest_m3 > 0) {
+      const restContainerArt = rest_container[0] as string
+      container_anteil[restContainerArt] = (container_anteil[restContainerArt] ?? 0) + volumen_anteil
+    }
+    result[d.bestellung_id] = { container_anteil, volle_40hq: d.volle_40hq, rest_container }
+  }
+  return result
+}
+
 export function berechneKonsolidierung(
   bestellungen: KonsolidierungsBestellungInput[],
   stammdatenById: Map<string, ProduktStammdaten>,

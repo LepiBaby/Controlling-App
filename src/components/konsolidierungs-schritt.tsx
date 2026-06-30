@@ -9,6 +9,7 @@ import type { NeuePlanbestellung, ProduktStammdaten } from '@/hooks/use-planbest
 import { KonsolidierungsKarte, type KarteData } from '@/components/konsolidierungs-karte'
 import {
   berechneKonsolidierung,
+  berechneContainerVerteilung,
   type KonsolidierungsBestellungErgebnis,
 } from '@/lib/konsolidierungs-algorithmus'
 
@@ -276,6 +277,13 @@ export function KonsolidierungsSchritt({
     return map
   }, [gruppen])
 
+  // Stückvolumen je Bestellung (für die Neuberechnung der Container-Verteilung bei Mengenänderung)
+  const stueckvolumenById = useMemo(() => {
+    const map = new Map<string, number | null>()
+    for (const k of alleKarten) map.set(k.id, k.stueckvolumen_m3)
+    return map
+  }, [alleKarten])
+
   const toggle = useCallback((id: string) => {
     setAusgewaehlt(prev => {
       const next = new Set(prev)
@@ -407,23 +415,44 @@ export function KonsolidierungsSchritt({
     setGruppen(prev => {
       const updated = prev.map(g => {
         if (!g.mitglieder_ids.includes(karteId)) return g
+
+        // 1. Geänderte Menge übernehmen
+        const patched = g.ergebnisse.map(e => {
+          if (e.bestellung_id !== karteId) return e
+          return {
+            ...e,
+            neue_sku_mengen: e.neue_sku_mengen.map(s =>
+              s.sku_id === skuId ? { ...s, neue_menge_praktisch: neueMenge } : s
+            ),
+          }
+        })
+
+        // 2. Container-Verteilung der ganzen Gruppe aus den aktuellen Mengen neu berechnen,
+        //    damit Badge, Auslastung und Container-Anzeige konsistent mitlaufen.
+        const verteilung = berechneContainerVerteilung(
+          patched.map(e => ({
+            bestellung_id: e.bestellung_id,
+            gesamtmenge: e.neue_sku_mengen.reduce((s, m) => s + m.neue_menge_praktisch, 0),
+            stueckvolumen_m3: stueckvolumenById.get(e.bestellung_id) ?? null,
+          })),
+          containerGlobal.volumen_20dc ?? 0,
+          containerGlobal.volumen_40hq ?? 0,
+        )
+
         return {
           ...g,
-          ergebnisse: g.ergebnisse.map(e => {
-            if (e.bestellung_id !== karteId) return e
-            return {
-              ...e,
-              neue_sku_mengen: e.neue_sku_mengen.map(s =>
-                s.sku_id === skuId ? { ...s, neue_menge_praktisch: neueMenge } : s
-              ),
-            }
+          ergebnisse: patched.map(e => {
+            const v = verteilung[e.bestellung_id]
+            return v
+              ? { ...e, container_anteil: v.container_anteil, volle_40hq: v.volle_40hq, rest_container: v.rest_container }
+              : e
           }),
         }
       })
       onGruppenChange(updated)
       return updated
     })
-  }, [onGruppenChange])
+  }, [onGruppenChange, stueckvolumenById, containerGlobal])
 
   const handleAufheben = useCallback(() => {
     setGruppen(prev => {

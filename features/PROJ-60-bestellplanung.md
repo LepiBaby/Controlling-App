@@ -61,6 +61,12 @@
 - **Fix:** Liegt ein Konsolidierungsergebnis vor, rechnet die obere Anzeige jetzt mit der (ggf. angepassten) Konsolidierungsmenge (`Σ neue_menge_praktisch × stueckvolumen_m3`) statt mit der MOQ-Menge; Label entsprechend „Containerverteilung nach Konsolidierungsmenge". Reaktiv über `handleMengeChange` → `gruppen` → `alleKarten` → `karte.konsolidierungsErgebnis`.
 - Reine UI-Anzeigeänderung; keine DB-/API-/Algorithmus-Änderung.
 
+## Bugfix (2026-06-30): Container-Badge & -Verteilung folgen der angepassten Konsolidierungsmenge
+**Deployed:** 2026-06-30 (Push → `main`, Vercel Auto-Deploy)
+- **Problem:** Das Container-Badge neben dem Namen (z. B. „0,44× 20DC", aus `container_anteil`) sowie `volle_40hq`/`rest_container` wurden bei der Konsolidierung **einmalig** berechnet. Beim manuellen Anpassen der Konsolidierungsmenge (`handleMengeChange`) wurde nur `neue_menge_praktisch` gepatcht — Badge und Container-Aufteilung blieben auf dem alten Wert.
+- **Fix:** Neue reine Helper-Funktion `berechneContainerVerteilung(orders, vol20, vol40)` in `src/lib/konsolidierungs-algorithmus.ts` berechnet `container_anteil`/`volle_40hq`/`rest_container` aus den **aktuellen** Mengen neu (ohne die Mengen zu verändern). `handleMengeChange` ruft sie nach jeder Mengenänderung für die ganze Gruppe auf. Dadurch laufen Badge, obere Auslastung und Container-Detailanzeige konsistent mit. Die korrigierten Anteile fließen über `onGruppenChange` auch in den Anwenden-Schritt.
+- Reine UI-/State-Änderung (plus pure Helper-Funktion); keine DB-/API-Änderung.
+
 ## Dependencies
 - Requires: PROJ-1 (Authentifizierung) — nur eingeloggte Nutzer
 - Requires: PROJ-2 (KPI-Modell Verwaltung) — Produkte (`level = 1`) und SKUs (`level = 2`)
