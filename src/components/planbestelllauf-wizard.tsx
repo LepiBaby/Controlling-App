@@ -1042,6 +1042,9 @@ export function PlanbestelllaufWizard({ open, onOpenChange, onComplete }: Planbe
     setBearbeitetAenderungen(prev => new Map(prev).set(id, updated))
 
   const neueBestellungen = ergebnis?.neue_planbestellungen ?? []
+  // Auf Schritt 3 (Konsolidierung) die auf Schritt 2 manuell bearbeiteten Bestellungen
+  // (Menge, Datum, Container) verwenden — nicht die unveränderten Algorithmus-Originale.
+  const effektiveNeueBestellungen = neueBestellungen.map(b => bearbeitet.get(b.temp_id) ?? b)
   const aenderungen = ergebnis?.aenderungen_bestehende ?? []
   const stammdaten: ProduktStammdaten[] = ergebnis?.produkt_stammdaten ?? []
   const containerGlobal = ergebnis?.container_global ?? { volumen_20dc: null, volumen_40hq: null }
@@ -1147,7 +1150,7 @@ export function PlanbestelllaufWizard({ open, onOpenChange, onComplete }: Planbe
           {/* Step 3 */}
           {step === 3 && (
             <KonsolidierungsSchritt
-              neueBestellungen={neueBestellungen}
+              neueBestellungen={effektiveNeueBestellungen}
               ausgewaehlteNeueIds={ausgewaehlt}
               stammdaten={stammdaten}
               containerGlobal={containerGlobal}

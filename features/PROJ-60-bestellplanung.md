@@ -35,6 +35,12 @@
 - **Wirkung (FlexiCo, Live-Daten):** Erste Bestellung verschiebt sich von 30.06. auf 20.07.2026; Bestellkette schrumpft von 5+ auf 3 Bestellungen. Mengen der ersten Bestellung unverändert plausibel (Beige 156 / Grau 150 / Grün 150).
 - Reine Berechnungsänderung an einer Stelle; keine DB-, API- oder UI-Änderung.
 
+## Bugfix (2026-06-30): Manuell bearbeitete Werte (Schritt 2) in die Konsolidierung (Schritt 3) übernehmen
+**Deployed:** 2026-06-30 (Push → `main`, Vercel Auto-Deploy)
+- **Problem:** Im Planbestelllauf-Wizard (`src/components/planbestelllauf-wizard.tsx`) werden auf **Schritt 2** manuell gepflegte Werte neuer Planbestellungen (praktische Menge, Datum, Container) in der `bearbeitet`-Map gehalten. **Schritt 3** (`<KonsolidierungsSchritt>`) bekam aber `neueBestellungen` — die unveränderten Algorithmus-Originale aus `ergebnis.neue_planbestellungen`. Dadurch wurden alle manuellen Änderungen in der Konsolidierung ignoriert.
+- **Fix:** Neue Ableitung `effektiveNeueBestellungen = neueBestellungen.map(b => bearbeitet.get(b.temp_id) ?? b)` und Übergabe dieser Liste an `<KonsolidierungsSchritt>`. Matching erfolgt weiterhin über `temp_id`; das Objekt ist typgleich (`NeuePlanbestellung`), daher greifen Mengen-, Datums- und Container-Werte gleichermaßen.
+- Reine UI-/State-Änderung; keine DB- oder API-Änderung.
+
 ## Dependencies
 - Requires: PROJ-1 (Authentifizierung) — nur eingeloggte Nutzer
 - Requires: PROJ-2 (KPI-Modell Verwaltung) — Produkte (`level = 1`) und SKUs (`level = 2`)
