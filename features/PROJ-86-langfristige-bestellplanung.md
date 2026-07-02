@@ -723,5 +723,16 @@ Die Verifikation erfolgte über die etablierte Repo-Praxis: **Vitest Integration
 - `langfristige-bestellung-formular-dialog.tsx`: Container-Eingaben nicht mehr auf ganze Zahlen gerundet (`Math.round` entfernt); `step="any"` an den beiden Container-Inputs.
 - Die Bestellkosten-Kalkulation (`@/lib/bestellkosten-generierung`) unterstützte Dezimalwerte bereits (Betrag = `anzahl × Container-Kostensatz`, Formatierung via `fmtAnzahl`) — keine Änderung nötig.
 
+## Nachträgliche Änderung (2026-07-02): Bestehende Bestellungen direkt bearbeitbar
+
+**Anforderung:** Der Detail-Dialog angelegter Bestellungen war seit dem Umbau am 2026-06-21 **read-only** (nur Bestellkosten + Löschen). Bestehende Bestellungen sollen — insbesondere um Container nachträglich auf Kommazahlen zu setzen — wieder bearbeitbar sein, und zwar **direkt/inline** (kein „Bearbeiten"-Umschalter).
+
+**Umgesetzt (`langfristiger-bestellung-detail-dialog.tsx`):**
+- Kein Bearbeiten-Toggle mehr — **alle Felder sind beim Öffnen direkt editierbar**: die 6 Datumsfelder, die praktische Menge und die Container (40HQ/20DC, Kommazahlen via `step="any"`).
+- Footer: **„Speichern"** (PUT via `onUpdate` → `useLangfristigeBestellungen.update`; setzt `manuell_geaendert = true`, Toast-Bestätigung) + „Schließen" + „Löschen".
+- Bei **konsolidierten** Bestellungen bleiben Menge & Container gesperrt (algorithmusgesteuert); Datumsfelder sind editierbar.
+- `read-only`-Bausteine `DatumReadonly`/`fmtDatum` entfernt; Hauptkomponente reicht `onUpdate` (`handleBestellungAktualisieren`) durch und synchronisiert den offenen Dialog auf die gespeicherten Werte.
+- **DB-Nachzug:** Container-Spalten von `numeric` → `double precision` (Migration `proj86_langfristige_bestellungen_container_float`). Grund: PostgREST liefert `numeric` als String, das Frontend erwartet `number`; `double precision` unterstützt Kommazahlen und wird als JSON-`number` serialisiert.
+
 ## Deployment
 _To be added by /deploy_

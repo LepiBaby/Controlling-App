@@ -249,6 +249,13 @@ export function LangfristigeBestellplanung({ versionId }: { versionId: string })
     toast({ title: 'Bestellung hinzugefügt' })
   }
 
+  async function handleBestellungAktualisieren(id: string, patch: Partial<LangfristigeBestellung>) {
+    // update() wirft bei Fehler → Detail-Dialog fängt ab und zeigt Toast.
+    const merged = await update(id, patch)
+    // Offenen Detail-Dialog auf die aktualisierten Werte synchronisieren.
+    setDetailBestellung((curr) => (curr && curr.id === id ? merged : curr))
+  }
+
   async function handleToggleErstbestellung(b: LangfristigeBestellung) {
     try {
       await update(b.id, { ist_erstbestellung: !b.ist_erstbestellung })
@@ -406,6 +413,7 @@ export function LangfristigeBestellplanung({ versionId }: { versionId: string })
             if (!open) setDetailBestellung(null)
           }}
           onDelete={handleDelete}
+          onUpdate={handleBestellungAktualisieren}
           maxKapazitaet={getKapazitaet(detailBestellung.produkt_id)}
           versionId={versionId}
         />
