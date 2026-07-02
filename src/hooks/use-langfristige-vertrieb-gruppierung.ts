@@ -9,7 +9,7 @@ import { useState, useEffect, useCallback } from 'react'
 // (kein „Wöchentlich"); KEINE „Nächste Zahlungswoche" (Basis-KW/-Jahr). Der
 // Zahlungszeitpunkt ergibt sich deterministisch aus der Gruppierung (Anfang
 // Folgemonat bzw. Anfang Folgemonat des Quartals) und wird erst in Folge-
-// Features verwendet. Das Zahlungsziel (Tage) bleibt als zusätzlicher Versatz.
+// Features verwendet. Das Zahlungsziel (Monate) bleibt als zusätzlicher Versatz.
 
 export type LangfristigeGruppierung = 'monatlich' | 'quartalsweise'
 
@@ -22,12 +22,12 @@ export const GRUPPIERUNG_LABELS: Record<LangfristigeGruppierung, string> = {
 
 export interface VertriebGruppierungEinstellung {
   gruppierung: LangfristigeGruppierung
-  zahlungsziel_tage: number | null
+  zahlungsziel_monate: number | null
 }
 
 const DEFAULTS: VertriebGruppierungEinstellung = {
   gruppierung: 'monatlich',
-  zahlungsziel_tage: null,
+  zahlungsziel_monate: null,
 }
 
 /**

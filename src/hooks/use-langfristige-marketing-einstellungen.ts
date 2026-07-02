@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback } from 'react'
 // Spiegelt das obere Kanal-Formular der kurzfristigen Marketing-Einstellungen
 // (PROJ-49), arbeitet aber gegen die versions-/nutzergesicherten Endpunkte.
 // Pro Marketingkanal genau drei Felder: Sales Plattform (optional), Gruppierung
-// (nur monatlich/quartalsweise) und Zahlungsziel in Tagen. KEINE Produkt-Tabelle,
+// (nur monatlich/quartalsweise) und Zahlungsziel in Monaten. KEINE Produkt-Tabelle,
 // KEIN Datums-/KW-Picker, KEINE "Nächste Zahlungswoche".
 
 export type Gruppierung = 'monatlich' | 'quartalsweise'
@@ -15,7 +15,7 @@ export interface LangfristigeMarketingEinstellung {
   marketingkanal_id: string
   sales_plattform_id: string | null
   gruppierung: Gruppierung
-  zahlungsziel_tage: number | null
+  zahlungsziel_monate: number | null
 }
 
 export const GRUPPIERUNG_VALUES: Gruppierung[] = ['monatlich', 'quartalsweise']
@@ -38,7 +38,7 @@ export function makeDefaultEinstellung(
     marketingkanal_id: marketingkanalId,
     sales_plattform_id: null,
     gruppierung: 'monatlich',
-    zahlungsziel_tage: null,
+    zahlungsziel_monate: null,
   }
 }
 

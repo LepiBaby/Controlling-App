@@ -47,10 +47,10 @@ beforeEach(() => {
 describe('GET retouren-allgemein-einstellungen', () => {
   it('returns 200 with stored grouping', async () => {
     mockFrom.mockReturnValueOnce(chain({ data: { id: VERSION_ID }, error: null })) // ensureVersion
-    mockFrom.mockReturnValueOnce(chain({ data: { gruppierung: 'monatlich', zahlungsziel_tage: 7 }, error: null }))
+    mockFrom.mockReturnValueOnce(chain({ data: { gruppierung: 'monatlich', zahlungsziel_monate: 7 }, error: null }))
     const res = await GET(req(baseUrl), ctx(VERSION_ID))
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ gruppierung: 'monatlich', zahlungsziel_tage: 7 })
+    expect(await res.json()).toEqual({ gruppierung: 'monatlich', zahlungsziel_monate: 7 })
   })
 
   it('returns 404 when version is foreign/unknown', async () => {
@@ -77,13 +77,13 @@ describe('PUT retouren-allgemein-einstellungen', () => {
   it('merges + upserts a partial patch (200)', async () => {
     mockFrom.mockReturnValueOnce(chain({ data: { id: VERSION_ID }, error: null })) // ensureVersion
     mockFrom.mockReturnValueOnce(chain({ data: null, error: null })) // existing (none)
-    mockFrom.mockReturnValueOnce(chain({ data: { gruppierung: 'quartalsweise', zahlungsziel_tage: null }, error: null })) // upsert
+    mockFrom.mockReturnValueOnce(chain({ data: { gruppierung: 'quartalsweise', zahlungsziel_monate: null }, error: null })) // upsert
     const res = await put({ gruppierung: 'quartalsweise' })
     expect(res.status).toBe(200)
   })
 
   it('rejects negative zahlungsziel (400)', async () => {
-    const res = await put({ zahlungsziel_tage: -3 })
+    const res = await put({ zahlungsziel_monate: -3 })
     expect(res.status).toBe(400)
   })
 

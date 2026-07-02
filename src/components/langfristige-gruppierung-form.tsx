@@ -47,10 +47,10 @@ export function LangfristigeGruppierungForm({
     if (!loading && !initializedRef.current) {
       initializedRef.current = true
       setZahlungszielStr(
-        einstellungen.zahlungsziel_tage != null ? String(einstellungen.zahlungsziel_tage) : '',
+        einstellungen.zahlungsziel_monate != null ? String(einstellungen.zahlungsziel_monate) : '',
       )
     }
-  }, [loading, einstellungen.zahlungsziel_tage])
+  }, [loading, einstellungen.zahlungsziel_monate])
 
   async function handleGruppierungChange(value: string) {
     try {
@@ -68,12 +68,12 @@ export function LangfristigeGruppierungForm({
     const trimmed = zahlungszielStr.trim()
     const parsed = trimmed === '' ? null : Math.round(parseFloat(trimmed))
     if (parsed !== null && (isNaN(parsed) || parsed < 0)) return
-    if (parsed === (einstellungen.zahlungsziel_tage ?? null)) return
+    if (parsed === (einstellungen.zahlungsziel_monate ?? null)) return
     try {
-      await upsert({ zahlungsziel_tage: parsed })
+      await upsert({ zahlungsziel_monate: parsed })
     } catch {
       setZahlungszielStr(
-        einstellungen.zahlungsziel_tage != null ? String(einstellungen.zahlungsziel_tage) : '',
+        einstellungen.zahlungsziel_monate != null ? String(einstellungen.zahlungsziel_monate) : '',
       )
       toast({
         title: 'Fehler',
@@ -115,7 +115,7 @@ export function LangfristigeGruppierungForm({
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor={`zahlungsziel-${feldId}`}>Zahlungsziel (Tage)</Label>
+          <Label htmlFor={`zahlungsziel-${feldId}`}>Zahlungsziel (Monate)</Label>
           <Input
             id={`zahlungsziel-${feldId}`}
             type="number"

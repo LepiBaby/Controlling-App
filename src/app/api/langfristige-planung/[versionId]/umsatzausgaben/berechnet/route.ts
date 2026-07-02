@@ -37,10 +37,10 @@ interface VersandRow { produkt_id: string; versandgebuehr_spediteur_euro_netto: 
 interface LagerRow { produkt_id: string; lagerkosten_euro_m3_monat: number | null }
 interface KulanzRow { produkt_id: string; quote_prozent: number | null; produktkosten_pro_stueck_euro_netto: number | null; versandkosten_pro_stueck_euro_netto: number | null }
 interface RetourenAllgProdRow { produkt_id: string; retourenquote_prozent: number | null; retourenhandling_kosten_euro_netto: number | null }
-interface GruppierungRow { gruppierung: Gruppierung | null; zahlungsziel_tage: number | null }
+interface GruppierungRow { gruppierung: Gruppierung | null; zahlungsziel_monate: number | null }
 interface ContainerRow { produkt_id: string; laenge_cm: number | null; breite_cm: number | null; hoehe_cm: number | null }
 interface MktPlanRow { marketingkanal_id: string; produkt_id: string; jahr: number; monat: number; marketingkosten_pct: number | null }
-interface MktEinstRow { marketingkanal_id: string; sales_plattform_id: string | null; gruppierung: Gruppierung | null; zahlungsziel_tage: number | null }
+interface MktEinstRow { marketingkanal_id: string; sales_plattform_id: string | null; gruppierung: Gruppierung | null; zahlungsziel_monate: number | null }
 interface AuszKanalRow { marketingkanal_id: string }
 interface UstSatzRow { kategorie_id: string; ebene: number; ust_satz: number | null }
 interface BestellungRow {
@@ -88,13 +88,13 @@ function buildMonate(startMonat: number, startJahr: number, horizont: number): M
 //   monatlich     → derselbe Monat, in dem die Kosten anfallen (KEIN Folgemonat)
 //   quartalsweise → Kosten des Quartals werden im LETZTEN Quartalsmonat gebündelt
 //                   (Q1→Mär, Q2→Jun, Q3→Sep, Q4→Dez), KEIN Folgemonat
-// Das Zahlungsziel (Tage) verschiebt den Termin in beiden Fällen zusätzlich nach
-// hinten (auf Monatsebene: ceil(Tage/30)).
+// Das Zahlungsziel (Monate) verschiebt den Termin in beiden Fällen zusätzlich nach
+// hinten (ganze Monate).
 function shiftToPaymentMonth(
   jahr: number,
   monat: number,
   gruppierung: Gruppierung | null,
-  zahlungszielTage: number | null,
+  zahlungszielMonate: number | null,
 ): Monat {
   let dueIdx: number
   if (gruppierung === 'quartalsweise') {
@@ -105,7 +105,7 @@ function shiftToPaymentMonth(
     // monatlich → Anfallsmonat (kein Folgemonat)
     dueIdx = monthIndex(jahr, monat)
   }
-  const zielMonate = Math.ceil(Math.max(0, zahlungszielTage ?? 0) / 30)
+  const zielMonate = Math.max(0, zahlungszielMonate ?? 0)
   return fromIndex(dueIdx + zielMonate)
 }
 
@@ -177,16 +177,16 @@ export async function GET(_request: Request, { params }: RouteContext) {
     supabase.from('langfristige_kpi_kategorien').select('id').eq('user_id', user!.id).eq('plan_version_id', versionId).eq('art', 'lp_marketingkanal').limit(500),
     fetchAllRows((from, to) => supabase.from('langfristige_absatz_planung').select('sales_plattform_id, produkt_id, jahr, monat, absatz, effektiver_vk').eq('user_id', user!.id).eq('plan_version_id', versionId).order('id', { ascending: true }).range(from, to)),
     fetchAllRows((from, to) => supabase.from('langfristige_versand_einstellungen').select('produkt_id, versandgebuehr_spediteur_euro_netto, versandgebuehr_3pl_euro_netto').eq('user_id', user!.id).eq('plan_version_id', versionId).order('id', { ascending: true }).range(from, to)),
-    supabase.from('langfristige_versand_plattform_einstellungen').select('gruppierung, zahlungsziel_tage').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(100),
+    supabase.from('langfristige_versand_plattform_einstellungen').select('gruppierung, zahlungsziel_monate').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(100),
     fetchAllRows((from, to) => supabase.from('langfristige_lager_einstellungen').select('produkt_id, lagerkosten_euro_m3_monat').eq('user_id', user!.id).eq('plan_version_id', versionId).order('id', { ascending: true }).range(from, to)),
-    supabase.from('langfristige_lager_plattform_einstellungen').select('gruppierung, zahlungsziel_tage').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(100),
+    supabase.from('langfristige_lager_plattform_einstellungen').select('gruppierung, zahlungsziel_monate').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(100),
     fetchAllRows((from, to) => supabase.from('langfristige_ersatzteile_kulanz_einstellungen').select('produkt_id, quote_prozent, produktkosten_pro_stueck_euro_netto, versandkosten_pro_stueck_euro_netto').eq('user_id', user!.id).eq('plan_version_id', versionId).order('id', { ascending: true }).range(from, to)),
-    supabase.from('langfristige_ersatzteile_kulanz_plattform_einstellungen').select('gruppierung, zahlungsziel_tage').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(100),
+    supabase.from('langfristige_ersatzteile_kulanz_plattform_einstellungen').select('gruppierung, zahlungsziel_monate').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(100),
     supabase.from('langfristige_retouren_allgemein_produkt_einstellungen').select('produkt_id, retourenquote_prozent, retourenhandling_kosten_euro_netto').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(500),
-    supabase.from('langfristige_retouren_allgemein_einstellungen').select('gruppierung, zahlungsziel_tage').eq('user_id', user!.id).eq('plan_version_id', versionId).maybeSingle(),
+    supabase.from('langfristige_retouren_allgemein_einstellungen').select('gruppierung, zahlungsziel_monate').eq('user_id', user!.id).eq('plan_version_id', versionId).maybeSingle(),
     supabase.from('langfristige_produktinformationen_containerkapazitaet').select('produkt_id, laenge_cm, breite_cm, hoehe_cm').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(500),
     fetchAllRows((from, to) => supabase.from('langfristige_marketing_planung').select('marketingkanal_id, produkt_id, jahr, monat, marketingkosten_pct').eq('user_id', user!.id).eq('plan_version_id', versionId).order('id', { ascending: true }).range(from, to)),
-    supabase.from('langfristige_marketing_einstellungen').select('marketingkanal_id, sales_plattform_id, gruppierung, zahlungsziel_tage').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(500),
+    supabase.from('langfristige_marketing_einstellungen').select('marketingkanal_id, sales_plattform_id, gruppierung, zahlungsziel_monate').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(500),
     supabase.from('langfristige_auszahlungs_marketingkanaele').select('marketingkanal_id').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(1000),
     supabase.from('langfristige_ust_kategorie_saetze').select('kategorie_id, ebene, ust_satz').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(1000),
     supabase.from('langfristige_ust_ebene_auswahl').select('kategorie_id, ebene').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(500),
@@ -250,11 +250,11 @@ export async function GET(_request: Request, { params }: RouteContext) {
   }
 
   // Gruppierung+Zahlungsziel je Bereich (versand/lager/kulanz: erster Eintrag; retouren: versionsweit)
-  const firstGrp = (rows: unknown[] | null): GruppierungRow => (rows?.[0] as GruppierungRow) ?? { gruppierung: 'monatlich', zahlungsziel_tage: null }
+  const firstGrp = (rows: unknown[] | null): GruppierungRow => (rows?.[0] as GruppierungRow) ?? { gruppierung: 'monatlich', zahlungsziel_monate: null }
   const versandGrp = firstGrp(versandGrpResult.data as unknown[] | null)
   const lagerGrp = firstGrp(lagerGrpResult.data as unknown[] | null)
   const kulanzGrp = firstGrp(kulanzGrpResult.data as unknown[] | null)
-  const retourenGrp = (retourenGrpResult.data as GruppierungRow | null) ?? { gruppierung: 'monatlich', zahlungsziel_tage: null }
+  const retourenGrp = (retourenGrpResult.data as GruppierungRow | null) ?? { gruppierung: 'monatlich', zahlungsziel_monate: null }
 
   // M³-Volumen je Produkt
   const m3ByProd = new Map<string, number>()
@@ -308,15 +308,15 @@ export async function GET(_request: Request, { params }: RouteContext) {
   // Lookback: Zahlungsziel + Quartalsbündelung (quartalsweise kann bis zu 2 Monate
   // vor das Quartalsende zurückreichen → großzügiger Puffer, Überhang wird gefiltert).
   function spanMonths(g: Gruppierung | null, ziel: number | null): number {
-    const zielM = Math.ceil(Math.max(0, ziel ?? 0) / 30)
+    const zielM = Math.max(0, ziel ?? 0)
     return (g === 'quartalsweise' ? 3 : 1) + zielM
   }
   let lookback = 1
   for (const g of [versandGrp, lagerGrp, kulanzGrp, retourenGrp]) {
-    lookback = Math.max(lookback, spanMonths(g.gruppierung, g.zahlungsziel_tage))
+    lookback = Math.max(lookback, spanMonths(g.gruppierung, g.zahlungsziel_monate))
   }
   for (const e of mktEinstMap.values()) {
-    lookback = Math.max(lookback, spanMonths(e.gruppierung ?? null, e.zahlungsziel_tage ?? null))
+    lookback = Math.max(lookback, spanMonths(e.gruppierung ?? null, e.zahlungsziel_monate ?? null))
   }
   lookback = Math.min(lookback, 12)
 
@@ -451,7 +451,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
       if (lagerL2 && lagerKosten > 0 && m3 > 0) {
         const bestand = bestandByProdMonat.get(`${prod.id}:${mon.jahr}:${mon.monat}`) ?? 0
         if (bestand > 0) {
-          const due = shiftToPaymentMonth(mon.jahr, mon.monat, lagerGrp.gruppierung, lagerGrp.zahlungsziel_tage)
+          const due = shiftToPaymentMonth(mon.jahr, mon.monat, lagerGrp.gruppierung, lagerGrp.zahlungsziel_monate)
           addWert(lagerL2, prod.id, due, bestand * lagerKosten * m3 * lagerUst)
         }
       }
@@ -461,17 +461,17 @@ export async function GET(_request: Request, { params }: RouteContext) {
 
       // Versand
       if (versandL2 && versandKosten > 0) {
-        const due = shiftToPaymentMonth(mon.jahr, mon.monat, versandGrp.gruppierung, versandGrp.zahlungsziel_tage)
+        const due = shiftToPaymentMonth(mon.jahr, mon.monat, versandGrp.gruppierung, versandGrp.zahlungsziel_monate)
         addWert(versandL2, prod.id, due, totalAbsatz * versandKosten * versandUst)
       }
       // Retouren (manuelle Quote × Absatz × Handlingkosten)
       if (retourenL2 && retouren && retouren.quote > 0 && retouren.handling > 0) {
-        const due = shiftToPaymentMonth(mon.jahr, mon.monat, retourenGrp.gruppierung, retourenGrp.zahlungsziel_tage)
+        const due = shiftToPaymentMonth(mon.jahr, mon.monat, retourenGrp.gruppierung, retourenGrp.zahlungsziel_monate)
         addWert(retourenL2, prod.id, due, retouren.quote * totalAbsatz * retouren.handling * retourenUst)
       }
       // Ersatzteile/Kulanz
       if (kulanzL2 && kulanz && kulanz.quote > 0 && kulanz.kosten > 0) {
-        const due = shiftToPaymentMonth(mon.jahr, mon.monat, kulanzGrp.gruppierung, kulanzGrp.zahlungsziel_tage)
+        const due = shiftToPaymentMonth(mon.jahr, mon.monat, kulanzGrp.gruppierung, kulanzGrp.zahlungsziel_monate)
         addWert(kulanzL2, prod.id, due, kulanz.quote * totalAbsatz * kulanz.kosten * kulanzUst)
       }
     }
@@ -500,7 +500,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
         }
         if (base <= 0) continue
 
-        const due = shiftToPaymentMonth(mon.jahr, mon.monat, einst?.gruppierung ?? null, einst?.zahlungsziel_tage ?? null)
+        const due = shiftToPaymentMonth(mon.jahr, mon.monat, einst?.gruppierung ?? null, einst?.zahlungsziel_monate ?? null)
         addWert(kanalId, prod.id, due, (pct / 100) * base * mktUst)
       }
     }

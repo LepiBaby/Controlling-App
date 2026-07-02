@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import { LangfristigeGruppierungForm } from './langfristige-gruppierung-form'
 
-// PROJ-78 Bug #1 (Regression): Das gespeicherte „Zahlungsziel (Tage)" muss beim
+// PROJ-78 Bug #1 (Regression): Das gespeicherte „Zahlungsziel (Monate)" muss beim
 // Laden im Eingabefeld erscheinen. Zuvor sperrte die Einmal-Initialisierung den
 // leeren Wert, weil der Hook mit loading=false startete.
 
@@ -12,7 +12,7 @@ beforeEach(() => {
   vi.restoreAllMocks()
 })
 
-function mockGet(value: { gruppierung: string; zahlungsziel_tage: number | null } | null) {
+function mockGet(value: { gruppierung: string; zahlungsziel_monate: number | null } | null) {
   global.fetch = vi.fn().mockResolvedValue({
     ok: true,
     json: async () => value,
@@ -21,7 +21,7 @@ function mockGet(value: { gruppierung: string; zahlungsziel_tage: number | null 
 
 describe('LangfristigeGruppierungForm', () => {
   it('zeigt das gespeicherte Zahlungsziel (versionsweit) beim Laden an', async () => {
-    mockGet({ gruppierung: 'quartalsweise', zahlungsziel_tage: 14 })
+    mockGet({ gruppierung: 'quartalsweise', zahlungsziel_monate: 14 })
     render(
       <LangfristigeGruppierungForm versionId="v1" endpointSuffix="retouren-allgemein-einstellungen" />,
     )
@@ -32,7 +32,7 @@ describe('LangfristigeGruppierungForm', () => {
   })
 
   it('zeigt das gespeicherte Zahlungsziel (plattformgebunden) beim Laden an', async () => {
-    mockGet({ gruppierung: 'monatlich', zahlungsziel_tage: 30 })
+    mockGet({ gruppierung: 'monatlich', zahlungsziel_monate: 30 })
     render(
       <LangfristigeGruppierungForm
         versionId="v1"

@@ -49,19 +49,30 @@ export async function generiereUndSpeichereLangfristigeBestellkosten(
     .eq('ist_automatisch', true)
     .in('bestellung_id', ids)
 
-  // Manuelle Einträge belegen ihren (Bestellung, Kategorie, Datum)-Slot, damit die
-  // Generierung keinen Auto-Duplikat-Eintrag daneben erzeugt.
+  // Manuelle Einträge unterdrücken ihre Auto-Entsprechung. Primär über die stabile
+  // Herkunfts-Kennung (überlebt Datum-/Betrag-/Kategorie-Anpassungen); zusätzlich
+  // — als Fallback für Altbestände ohne Herkunft — über den (Bestellung, Kategorie,
+  // Datum)-Slot.
   const { data: manuellRows } = await supabase
     .from('langfristige_bestellungen_kosten')
-    .select('bestellung_id, kpi_kategorie_id, datum')
+    .select('bestellung_id, kpi_kategorie_id, datum, auto_herkunft')
     .eq('user_id', userId)
     .eq('plan_version_id', versionId)
     .eq('ist_automatisch', false)
     .in('bestellung_id', ids)
+  const manuellRowsTyped = (manuellRows ?? []) as Array<{
+    bestellung_id: string
+    kpi_kategorie_id: string | null
+    datum: string
+    auto_herkunft: string | null
+  }>
   const manuellSlots = new Set(
-    ((manuellRows ?? []) as Array<{ bestellung_id: string; kpi_kategorie_id: string | null; datum: string }>).map(
-      (e) => `${e.bestellung_id}__${e.kpi_kategorie_id ?? ''}__${e.datum}`,
-    ),
+    manuellRowsTyped.map((e) => `${e.bestellung_id}__${e.kpi_kategorie_id ?? ''}__${e.datum}`),
+  )
+  const manuellHerkunft = new Set(
+    manuellRowsTyped
+      .filter((e) => e.auto_herkunft)
+      .map((e) => `${e.bestellung_id}__${e.auto_herkunft}`),
   )
 
   const produktIds = [...new Set(bestellungen.map((b) => b.produkt_id))]
@@ -117,6 +128,7 @@ export async function generiereUndSpeichereLangfristigeBestellkosten(
     nettobetrag: number
     begruendung: string
     ist_automatisch: boolean
+    auto_herkunft: string
   }> = []
 
   for (const b of bestellungen) {
@@ -150,12 +162,15 @@ export async function generiereUndSpeichereLangfristigeBestellkosten(
         nettobetrag: e.nettobetrag,
         begruendung: e.begruendung,
         ist_automatisch: true,
+        auto_herkunft: e.herkunft,
       })
     }
   }
 
   const filtered = allInserts.filter(
-    (ins) => !manuellSlots.has(`${ins.bestellung_id}__${ins.kpi_kategorie_id ?? ''}__${ins.datum}`),
+    (ins) =>
+      !manuellHerkunft.has(`${ins.bestellung_id}__${ins.auto_herkunft}`) &&
+      !manuellSlots.has(`${ins.bestellung_id}__${ins.kpi_kategorie_id ?? ''}__${ins.datum}`),
   )
   if (filtered.length > 0) {
     await supabase.from('langfristige_bestellungen_kosten').insert(filtered)

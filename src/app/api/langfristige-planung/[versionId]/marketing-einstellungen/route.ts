@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic'
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 const EINSTELLUNG_COLS =
-  'marketingkanal_id, sales_plattform_id, gruppierung, zahlungsziel_tage'
+  'marketingkanal_id, sales_plattform_id, gruppierung, zahlungsziel_monate'
 
 const GRUPPIERUNG_VALUES = ['monatlich', 'quartalsweise'] as const
 
@@ -22,7 +22,7 @@ const putSchema = z.object({
   marketingkanal_id: z.string().uuid(),
   sales_plattform_id: z.string().uuid().nullable().default(null),
   gruppierung: z.enum(GRUPPIERUNG_VALUES).default('monatlich'),
-  zahlungsziel_tage: z.number().int().min(0).nullable().default(null),
+  zahlungsziel_monate: z.number().int().min(0).nullable().default(null),
 })
 
 interface RouteContext {
@@ -86,7 +86,7 @@ export async function GET(request: Request, { params }: RouteContext) {
     marketingkanal_id: marketingkanalId,
     sales_plattform_id: einstellung.sales_plattform_id ?? null,
     gruppierung: einstellung.gruppierung ?? 'monatlich',
-    zahlungsziel_tage: einstellung.zahlungsziel_tage ?? null,
+    zahlungsziel_monate: einstellung.zahlungsziel_monate ?? null,
   })
 }
 
@@ -106,7 +106,7 @@ export async function PUT(request: Request, { params }: RouteContext) {
   const versionError = await ensureVersion(supabase, user!.id, versionId)
   if (versionError) return versionError
 
-  const { marketingkanal_id, sales_plattform_id, gruppierung, zahlungsziel_tage } =
+  const { marketingkanal_id, sales_plattform_id, gruppierung, zahlungsziel_monate } =
     parsed.data
 
   // Marketingkanal muss zur Version & Art lp_marketingkanal gehören.
@@ -154,7 +154,7 @@ export async function PUT(request: Request, { params }: RouteContext) {
         marketingkanal_id,
         sales_plattform_id,
         gruppierung,
-        zahlungsziel_tage,
+        zahlungsziel_monate,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'plan_version_id,marketingkanal_id,user_id' },
@@ -170,6 +170,6 @@ export async function PUT(request: Request, { params }: RouteContext) {
     marketingkanal_id: einstellung.marketingkanal_id,
     sales_plattform_id: einstellung.sales_plattform_id ?? null,
     gruppierung: einstellung.gruppierung,
-    zahlungsziel_tage: einstellung.zahlungsziel_tage ?? null,
+    zahlungsziel_monate: einstellung.zahlungsziel_monate ?? null,
   })
 }

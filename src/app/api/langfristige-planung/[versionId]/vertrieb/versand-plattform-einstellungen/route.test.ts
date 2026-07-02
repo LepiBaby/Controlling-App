@@ -48,10 +48,10 @@ beforeEach(() => {
 describe('GET versand-plattform-einstellungen', () => {
   it('returns 200 with stored grouping', async () => {
     mockFrom.mockReturnValueOnce(chain({ data: { id: VERSION_ID }, error: null })) // ensureVersion
-    mockFrom.mockReturnValueOnce(chain({ data: { gruppierung: 'quartalsweise', zahlungsziel_tage: 14 }, error: null }))
+    mockFrom.mockReturnValueOnce(chain({ data: { gruppierung: 'quartalsweise', zahlungsziel_monate: 14 }, error: null }))
     const res = await GET(req(`${baseUrl}?plattform_id=${PLATTFORM_ID}`), ctx(VERSION_ID))
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ gruppierung: 'quartalsweise', zahlungsziel_tage: 14 })
+    expect(await res.json()).toEqual({ gruppierung: 'quartalsweise', zahlungsziel_monate: 14 })
   })
 
   it('returns 200 with null when no entry yet', async () => {
@@ -80,8 +80,8 @@ describe('PUT versand-plattform-einstellungen', () => {
   it('merges + upserts a partial patch (200)', async () => {
     mockFrom.mockReturnValueOnce(chain({ data: { id: VERSION_ID }, error: null })) // ensureVersion
     mockFrom.mockReturnValueOnce(chain({ data: { id: PLATTFORM_ID }, error: null })) // plattform check
-    mockFrom.mockReturnValueOnce(chain({ data: { gruppierung: 'monatlich', zahlungsziel_tage: null }, error: null })) // existing
-    mockFrom.mockReturnValueOnce(chain({ data: { gruppierung: 'quartalsweise', zahlungsziel_tage: null }, error: null })) // upsert
+    mockFrom.mockReturnValueOnce(chain({ data: { gruppierung: 'monatlich', zahlungsziel_monate: null }, error: null })) // existing
+    mockFrom.mockReturnValueOnce(chain({ data: { gruppierung: 'quartalsweise', zahlungsziel_monate: null }, error: null })) // upsert
     const res = await put({ sales_plattform_id: PLATTFORM_ID, gruppierung: 'quartalsweise' })
     expect(res.status).toBe(200)
   })

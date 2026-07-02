@@ -53,15 +53,17 @@ export async function kategorieGehoert(
   return !!data
 }
 
+// Zahlungsziel in GANZEN MONATEN (Langfristige Planung, PROJ-78). Vgl. kurzfristige
+// Planung: dort in Tagen. Produktinformationen bleiben tagesbasiert.
 const zahlungszielSchema = z.number().int().min(0).nullable().optional()
 const gruppierungSchema = z.enum(['monatlich', 'quartalsweise']).optional()
 
 interface GruppierungRow {
   gruppierung: 'monatlich' | 'quartalsweise'
-  zahlungsziel_tage: number | null
+  zahlungsziel_monate: number | null
 }
 
-const GRUPPIERUNG_DEFAULTS: GruppierungRow = { gruppierung: 'monatlich', zahlungsziel_tage: null }
+const GRUPPIERUNG_DEFAULTS: GruppierungRow = { gruppierung: 'monatlich', zahlungsziel_monate: null }
 
 // --- Fabrik: plattformgebundene Gruppierung (Versand/Lager/Ersatzteile) --------
 
@@ -70,9 +72,9 @@ export function makeGruppierungPlattformRoute(table: string) {
     .object({
       sales_plattform_id: z.string().uuid(),
       gruppierung: gruppierungSchema,
-      zahlungsziel_tage: zahlungszielSchema,
+      zahlungsziel_monate: zahlungszielSchema,
     })
-    .refine(d => d.gruppierung !== undefined || d.zahlungsziel_tage !== undefined, {
+    .refine(d => d.gruppierung !== undefined || d.zahlungsziel_monate !== undefined, {
       message: 'Mindestens ein Feld erforderlich',
     })
 
@@ -90,7 +92,7 @@ export function makeGruppierungPlattformRoute(table: string) {
 
     const { data, error: dbErr } = await supabase
       .from(table)
-      .select('gruppierung, zahlungsziel_tage')
+      .select('gruppierung, zahlungsziel_monate')
       .eq('user_id', user!.id)
       .eq('plan_version_id', versionId)
       .eq('sales_plattform_id', plattformId)
@@ -118,7 +120,7 @@ export function makeGruppierungPlattformRoute(table: string) {
 
     const { data: existing } = await supabase
       .from(table)
-      .select('gruppierung, zahlungsziel_tage')
+      .select('gruppierung, zahlungsziel_monate')
       .eq('user_id', user!.id)
       .eq('plan_version_id', versionId)
       .eq('sales_plattform_id', parsed.data.sales_plattform_id)
@@ -130,15 +132,15 @@ export function makeGruppierungPlattformRoute(table: string) {
       plan_version_id: versionId,
       sales_plattform_id: parsed.data.sales_plattform_id,
       gruppierung: parsed.data.gruppierung ?? base.gruppierung,
-      zahlungsziel_tage:
-        parsed.data.zahlungsziel_tage !== undefined ? parsed.data.zahlungsziel_tage : base.zahlungsziel_tage,
+      zahlungsziel_monate:
+        parsed.data.zahlungsziel_monate !== undefined ? parsed.data.zahlungsziel_monate : base.zahlungsziel_monate,
       updated_at: new Date().toISOString(),
     }
 
     const { data, error: dbErr } = await supabase
       .from(table)
       .upsert(merged, { onConflict: 'plan_version_id,sales_plattform_id,user_id' })
-      .select('gruppierung, zahlungsziel_tage')
+      .select('gruppierung, zahlungsziel_monate')
       .single()
     if (dbErr || !data) {
       return NextResponse.json({ error: dbErr?.message ?? 'Upsert fehlgeschlagen' }, { status: 500 })
@@ -153,8 +155,8 @@ export function makeGruppierungPlattformRoute(table: string) {
 
 export function makeGruppierungVersionRoute(table: string) {
   const putSchema = z
-    .object({ gruppierung: gruppierungSchema, zahlungsziel_tage: zahlungszielSchema })
-    .refine(d => d.gruppierung !== undefined || d.zahlungsziel_tage !== undefined, {
+    .object({ gruppierung: gruppierungSchema, zahlungsziel_monate: zahlungszielSchema })
+    .refine(d => d.gruppierung !== undefined || d.zahlungsziel_monate !== undefined, {
       message: 'Mindestens ein Feld erforderlich',
     })
 
@@ -167,7 +169,7 @@ export function makeGruppierungVersionRoute(table: string) {
 
     const { data, error: dbErr } = await supabase
       .from(table)
-      .select('gruppierung, zahlungsziel_tage')
+      .select('gruppierung, zahlungsziel_monate')
       .eq('user_id', user!.id)
       .eq('plan_version_id', versionId)
       .maybeSingle()
@@ -190,7 +192,7 @@ export function makeGruppierungVersionRoute(table: string) {
 
     const { data: existing } = await supabase
       .from(table)
-      .select('gruppierung, zahlungsziel_tage')
+      .select('gruppierung, zahlungsziel_monate')
       .eq('user_id', user!.id)
       .eq('plan_version_id', versionId)
       .maybeSingle()
@@ -200,15 +202,15 @@ export function makeGruppierungVersionRoute(table: string) {
       user_id: user!.id,
       plan_version_id: versionId,
       gruppierung: parsed.data.gruppierung ?? base.gruppierung,
-      zahlungsziel_tage:
-        parsed.data.zahlungsziel_tage !== undefined ? parsed.data.zahlungsziel_tage : base.zahlungsziel_tage,
+      zahlungsziel_monate:
+        parsed.data.zahlungsziel_monate !== undefined ? parsed.data.zahlungsziel_monate : base.zahlungsziel_monate,
       updated_at: new Date().toISOString(),
     }
 
     const { data, error: dbErr } = await supabase
       .from(table)
       .upsert(merged, { onConflict: 'plan_version_id,user_id' })
-      .select('gruppierung, zahlungsziel_tage')
+      .select('gruppierung, zahlungsziel_monate')
       .single()
     if (dbErr || !data) {
       return NextResponse.json({ error: dbErr?.message ?? 'Upsert fehlgeschlagen' }, { status: 500 })

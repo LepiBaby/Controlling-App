@@ -40,7 +40,7 @@ describe('makeDefaultEinstellung', () => {
       marketingkanal_id: 'kanal-1',
       sales_plattform_id: null,
       gruppierung: 'monatlich',
-      zahlungsziel_tage: null,
+      zahlungsziel_monate: null,
     })
   })
 
@@ -53,6 +53,6 @@ describe('makeDefaultEinstellung', () => {
   })
 
   it('Zahlungsziel ist standardmäßig leer (null)', () => {
-    expect(makeDefaultEinstellung('x').zahlungsziel_tage).toBeNull()
+    expect(makeDefaultEinstellung('x').zahlungsziel_monate).toBeNull()
   })
 })

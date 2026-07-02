@@ -50,16 +50,16 @@ function KanalForm({
 
   // Lokaler String-State für das Zahlungsziel: Auto-Save erst bei onBlur.
   const [zahlungszielStr, setZahlungszielStr] = useState(
-    current.zahlungsziel_tage != null ? String(current.zahlungsziel_tage) : '',
+    current.zahlungsziel_monate != null ? String(current.zahlungsziel_monate) : '',
   )
 
   // Bei (Neu-)Laden der gespeicherten Einstellung lokalen State angleichen.
   useEffect(() => {
     setZahlungszielStr(
-      current.zahlungsziel_tage != null ? String(current.zahlungsziel_tage) : '',
+      current.zahlungsziel_monate != null ? String(current.zahlungsziel_monate) : '',
     )
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current.zahlungsziel_tage])
+  }, [current.zahlungsziel_monate])
 
   async function handleSave(patch: Partial<LangfristigeMarketingEinstellung>) {
     setSaving(true)
@@ -82,12 +82,12 @@ function KanalForm({
     if (parsed !== null && (isNaN(parsed) || parsed < 0)) {
       // Ungültige Eingabe verwerfen, auf gespeicherten Wert zurücksetzen.
       setZahlungszielStr(
-        current.zahlungsziel_tage != null ? String(current.zahlungsziel_tage) : '',
+        current.zahlungsziel_monate != null ? String(current.zahlungsziel_monate) : '',
       )
       return
     }
-    if (parsed === (current.zahlungsziel_tage ?? null)) return
-    handleSave({ zahlungsziel_tage: parsed })
+    if (parsed === (current.zahlungsziel_monate ?? null)) return
+    handleSave({ zahlungsziel_monate: parsed })
   }
 
   if (loading) {
@@ -185,7 +185,7 @@ function KanalForm({
           htmlFor={`zahlungsziel-${marketingkanalId}`}
           className="w-56 shrink-0 text-sm font-medium"
         >
-          Zahlungsziel (Tage)
+          Zahlungsziel (Monate)
         </Label>
         <Input
           id={`zahlungsziel-${marketingkanalId}`}

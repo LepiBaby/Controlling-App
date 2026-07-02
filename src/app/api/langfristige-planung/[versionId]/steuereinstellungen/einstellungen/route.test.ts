@@ -45,10 +45,14 @@ describe('langfristige steuereinstellungen/einstellungen', () => {
     expect((await GET(new Request(URL_BASE), ctx())).status).toBe(404)
   })
 
-  it('PUT upserts (200)', async () => {
+  it('PUT upserts (200) and maps DB months back to the shared …_tage keys', async () => {
     mockFrom.mockReturnValueOnce(chain({ data: { id: VERSION_ID }, error: null }))
-    mockFrom.mockReturnValueOnce(chain({ data: { zahlungsfrequenz: 'quartalsweise', zahlungsverschiebung_tage: 5, einfuhrust_zahlungsziel_tage: 30, einfuhrust_satz: 19, ust_satz_pflegeebene: 1 }, error: null }))
-    expect((await put({ zahlungsfrequenz: 'quartalsweise', einfuhrust_satz: 19 })).status).toBe(200)
+    // DB-Zeile führt die Werte in Monaten (…_monate); die API-Antwort bleibt unter den
+    // geteilten …_tage-Schlüsseln (Wert = Monate).
+    mockFrom.mockReturnValueOnce(chain({ data: { zahlungsfrequenz: 'quartalsweise', zahlungsverschiebung_monate: 5, einfuhrust_zahlungsziel_monate: 2, einfuhrust_satz: 19, ust_satz_pflegeebene: 1 }, error: null }))
+    const res = await put({ zahlungsfrequenz: 'quartalsweise', einfuhrust_satz: 19 })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ zahlungsverschiebung_tage: 5, einfuhrust_zahlungsziel_tage: 2 })
   })
 
   it('PUT returns 400 on empty body', async () => {

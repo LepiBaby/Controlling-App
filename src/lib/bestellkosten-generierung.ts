@@ -56,6 +56,10 @@ export interface GenerierteKostenEintrag {
   nettobetrag: number
   begruendung: string
   ist_automatisch: true
+  // Stabile Herkunfts-Kennung dieser Auto-Position (unabhängig von Datum/Betrag/
+  // Kategorie). Dient der Neugenerierung als robuster Schlüssel, um eine bereits
+  // auf "Manuell" umgeschaltete Position nicht zusätzlich als Auto zu duplizieren.
+  herkunft: string
 }
 
 function addTage(datum: string, tage: number): string {
@@ -103,24 +107,28 @@ export function generiereBestellkosten(
 
     const phasen: Array<{
       name: string
+      key: string
       prozent: number | null
       basisdatum: string | null
       zahlungsziel: number | null
     }> = [
       {
         name: 'Vor Produktion',
+        key: 'vor_produktion',
         prozent: zk.vor_produktion_pct,
         basisdatum: bestellung.bestelldatum,
         zahlungsziel: zk.zahlungsziel_vor_produktion_tage,
       },
       {
         name: 'Nach Produktion',
+        key: 'nach_produktion',
         prozent: zk.nach_produktion_pct,
         basisdatum: bestellung.shippingdatum,
         zahlungsziel: zk.zahlungsziel_nach_produktion_tage,
       },
       {
         name: 'Nach Ankunft',
+        key: 'nach_ankunft',
         prozent: zk.nach_ankunft_pct,
         basisdatum: bestellung.ankunftsdatum,
         zahlungsziel: zk.zahlungsziel_nach_ankunft_tage,
@@ -140,6 +148,7 @@ export function generiereBestellkosten(
         nettobetrag: betrag,
         begruendung: `${gesamtMenge.toLocaleString('de-DE')} Stk. × ${pk.warenkosten.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €/Stk. × ${phase.prozent}% (${phase.name})`,
         ist_automatisch: true,
+        herkunft: `ware__${produkt.produkt_id}__${phase.key}`,
       })
     }
   }
@@ -176,6 +185,7 @@ export function generiereBestellkosten(
         nettobetrag: betrag,
         begruendung: `Inspektion: ${teile.join(' + ')}`,
         ist_automatisch: true,
+        herkunft: 'inspektion',
       })
     }
   }
@@ -198,6 +208,7 @@ export function generiereBestellkosten(
         nettobetrag: shippingBetrag,
         begruendung: `Shipping: ${teile.join(' + ')}`,
         ist_automatisch: true,
+        herkunft: 'shipping',
       })
     }
   }
@@ -231,6 +242,7 @@ export function generiereBestellkosten(
         nettobetrag: zollBetrag,
         begruendung,
         ist_automatisch: true,
+        herkunft: 'zoll',
       })
     }
   }
@@ -252,6 +264,7 @@ export function generiereBestellkosten(
         nettobetrag: betrag,
         begruendung: `Einlagerung: ${teile.join(' + ')}`,
         ist_automatisch: true,
+        herkunft: 'einlagerung',
       })
     }
   }

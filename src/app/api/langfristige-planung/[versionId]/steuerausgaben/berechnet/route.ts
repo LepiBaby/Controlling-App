@@ -90,12 +90,12 @@ function extractVorsteuer(brutto: number, ustSatz: number): number {
 // Monatsbasierte Zahlungsverschiebung der UST-Zahllast (PROJ-83):
 //   monatlich     → Folgemonat
 //   quartalsweise → Folgemonat des Quartals (Q1→Apr, Q2→Jul, Q3→Okt, Q4→Jan FJ)
-// Zahlungsverschiebung (Tage) verschiebt zusätzlich (auf Monatsebene: ceil(Tage/30)).
+// Zahlungsverschiebung (GANZE MONATE) verschiebt die Zahllast zusätzlich nach hinten.
 function shiftUstPayment(
   jahr: number,
   monat: number,
   frequenz: 'monatlich' | 'quartalsweise',
-  verschiebungTage: number,
+  verschiebungMonate: number,
 ): Monat {
   let dueIdx: number
   if (frequenz === 'quartalsweise') {
@@ -105,7 +105,7 @@ function shiftUstPayment(
   } else {
     dueIdx = monthIndex(jahr, monat) + 1
   }
-  const zielMonate = Math.ceil(Math.max(0, verschiebungTage) / 30)
+  const zielMonate = Math.max(0, verschiebungMonate)
   return fromIndex(dueIdx + zielMonate)
 }
 
@@ -138,7 +138,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
     fetchAllRows((from, to) => supabase.from('kpi_categories').select('id, name, parent_id, type, level').order('id', { ascending: true }).range(from, to)),
     supabase
       .from('langfristige_ust_einstellungen')
-      .select('zahlungsfrequenz, zahlungsverschiebung_tage, einfuhrust_satz, einfuhrust_zahlungsziel_tage')
+      .select('zahlungsfrequenz, zahlungsverschiebung_monate, einfuhrust_satz, einfuhrust_zahlungsziel_monate')
       .eq('user_id', user!.id)
       .eq('plan_version_id', versionId)
       .maybeSingle(),
@@ -155,9 +155,9 @@ export async function GET(_request: Request, { params }: RouteContext) {
 
   const ustEinst = ustEinstResult.data
   const frequenz: 'monatlich' | 'quartalsweise' = ustEinst?.zahlungsfrequenz === 'quartalsweise' ? 'quartalsweise' : 'monatlich'
-  const verschiebungTage = Number(ustEinst?.zahlungsverschiebung_tage ?? 0)
+  const verschiebungMonate = Number(ustEinst?.zahlungsverschiebung_monate ?? 0)
   const einfuhrSatz = Number(ustEinst?.einfuhrust_satz ?? 0)
-  const einfuhrZielTage = Number(ustEinst?.einfuhrust_zahlungsziel_tage ?? 0)
+  const einfuhrZielMonate = Number(ustEinst?.einfuhrust_zahlungsziel_monate ?? 0)
 
   // ── 2. Kategorie-Struktur auflösen ────────────────────────────────────────────
   const kats = (katsResult.data ?? []) as KatRow[]
@@ -422,11 +422,12 @@ export async function GET(_request: Request, { params }: RouteContext) {
         const best = bestellById.get(bestellungId)
         const datumStr = best?.ankunftsdatum ?? best?.verfuegbarkeitsdatum ?? best?.bestelldatum
         if (!datumStr) continue
-        // Zahlungsdatum = Ankunftsdatum + Zahlungsziel (Tage); dessen Kalendermonat
-        // ist der Zielmonat (faithful zu PROJ-71 — keine ceil(Tage/30)-Näherung).
+        // Zielmonat = Ankunftsmonat + Zahlungsziel (GANZE MONATE). Langfristige Planung
+        // rechnet durchgängig in Monaten (kein Tagesbezug wie kurzfristig/PROJ-71).
         const d = new Date(datumStr + 'T00:00:00Z')
-        const zahlDatum = new Date(d.getTime() + Math.max(0, einfuhrZielTage) * 86400000)
-        const ziel = { jahr: zahlDatum.getUTCFullYear(), monat: zahlDatum.getUTCMonth() + 1 }
+        const ziel = fromIndex(
+          monthIndex(d.getUTCFullYear(), d.getUTCMonth() + 1) + Math.max(0, einfuhrZielMonate),
+        )
         const zielIdx = monthIndex(ziel.jahr, ziel.monat)
         const betrag = round2(basis * einfuhrSatz / 100)
         addResult(einfuhrLeafId, ziel, betrag)
@@ -459,11 +460,11 @@ export async function GET(_request: Request, { params }: RouteContext) {
       fetchAllRows((from, to) => supabase.from('langfristige_operativekosten_planung').select('kategorie_id, jahr, monat, betrag').eq('user_id', user!.id).eq('plan_version_id', versionId).order('id', { ascending: true }).range(from, to)),
       fetchAllRows((from, to) => supabase.from('langfristige_finanzierungsausgaben_planung').select('kategorie_id, jahr, monat, betrag').eq('user_id', user!.id).eq('plan_version_id', versionId).order('id', { ascending: true }).range(from, to)),
       // Zahlungsziele für die B2-Rückrechnung (Vertrieb + Marketing).
-      supabase.from('langfristige_versand_plattform_einstellungen').select('zahlungsziel_tage').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(100),
-      supabase.from('langfristige_lager_plattform_einstellungen').select('zahlungsziel_tage').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(100),
-      supabase.from('langfristige_ersatzteile_kulanz_plattform_einstellungen').select('zahlungsziel_tage').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(100),
-      supabase.from('langfristige_retouren_allgemein_einstellungen').select('zahlungsziel_tage').eq('user_id', user!.id).eq('plan_version_id', versionId).maybeSingle(),
-      supabase.from('langfristige_marketing_einstellungen').select('marketingkanal_id, zahlungsziel_tage').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(500),
+      supabase.from('langfristige_versand_plattform_einstellungen').select('zahlungsziel_monate').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(100),
+      supabase.from('langfristige_lager_plattform_einstellungen').select('zahlungsziel_monate').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(100),
+      supabase.from('langfristige_ersatzteile_kulanz_plattform_einstellungen').select('zahlungsziel_monate').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(100),
+      supabase.from('langfristige_retouren_allgemein_einstellungen').select('zahlungsziel_monate').eq('user_id', user!.id).eq('plan_version_id', versionId).maybeSingle(),
+      supabase.from('langfristige_marketing_einstellungen').select('marketingkanal_id, zahlungsziel_monate').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(500),
     ])
 
     // Produktkosten-Zahlungsziele + Roh-Bestellkosten (für die tagesgenaue B2-Rückrechnung).
@@ -539,18 +540,18 @@ export async function GET(_request: Request, { params }: RouteContext) {
     // Analog zur kurzfristigen Route (PROJ-71): Die Vorsteuer folgt dem Rechnungs-/
     // Leistungsmonat, nicht dem Zahlungsmonat. Die Umsatzausgaben-Quelle datiert ihre
     // Werte am Zahlungsmonat (Anfallsmonat + Zahlungsziel); für den USt-Anfall wird das
-    // Zahlungsziel monatsweise wieder abgezogen (ceil(Tage/30)), BEVOR die USt-Fälligkeit
+    // Zahlungsziel (GANZE MONATE) wieder abgezogen, BEVOR die USt-Fälligkeit
     // (+1 Monat) greift. Nur Vertrieb (Versand/Lager/Retouren/Kulanz) + Marketingkanäle;
     // Produktkosten/Operativ/Finanz bleiben (vorerst) am Quell-Monat.
-    const firstZt = (rows: { zahlungsziel_tage: number | null }[] | null | undefined) =>
-      Number((rows ?? []).find(r => r.zahlungsziel_tage != null)?.zahlungsziel_tage ?? 0)
+    const firstZt = (rows: { zahlungsziel_monate: number | null }[] | null | undefined) =>
+      Number((rows ?? []).find(r => r.zahlungsziel_monate != null)?.zahlungsziel_monate ?? 0)
     const zahlungszielByKat = new Map<string, number>()
-    if (versandL2) zahlungszielByKat.set(versandL2, firstZt(versandPlattRes.data as { zahlungsziel_tage: number | null }[] | null))
-    if (lagerL2) zahlungszielByKat.set(lagerL2, firstZt(lagerPlattRes.data as { zahlungsziel_tage: number | null }[] | null))
-    if (kulanzL2) zahlungszielByKat.set(kulanzL2, firstZt(kulanzPlattRes.data as { zahlungsziel_tage: number | null }[] | null))
-    if (retourenL2) zahlungszielByKat.set(retourenL2, Number((retourenAllgRes.data as { zahlungsziel_tage: number | null } | null)?.zahlungsziel_tage ?? 0))
-    for (const e of ((marketingEinstRes.data ?? []) as { marketingkanal_id: string; zahlungsziel_tage: number | null }[])) {
-      zahlungszielByKat.set(e.marketingkanal_id, Number(e.zahlungsziel_tage ?? 0))
+    if (versandL2) zahlungszielByKat.set(versandL2, firstZt(versandPlattRes.data as { zahlungsziel_monate: number | null }[] | null))
+    if (lagerL2) zahlungszielByKat.set(lagerL2, firstZt(lagerPlattRes.data as { zahlungsziel_monate: number | null }[] | null))
+    if (kulanzL2) zahlungszielByKat.set(kulanzL2, firstZt(kulanzPlattRes.data as { zahlungsziel_monate: number | null }[] | null))
+    if (retourenL2) zahlungszielByKat.set(retourenL2, Number((retourenAllgRes.data as { zahlungsziel_monate: number | null } | null)?.zahlungsziel_monate ?? 0))
+    for (const e of ((marketingEinstRes.data ?? []) as { marketingkanal_id: string; zahlungsziel_monate: number | null }[])) {
+      zahlungszielByKat.set(e.marketingkanal_id, Number(e.zahlungsziel_monate ?? 0))
     }
 
     // Produktkosten-Zahlungsziele (Shipping/Inspektion/Einlagerung/Zoll). Der BERECHNETE
@@ -590,12 +591,12 @@ export async function GET(_request: Request, { params }: RouteContext) {
       }
       // Marketingkanäle (Versions-Entitäten) über den Marketing-Resolver, sonst Standard.
       const satz = marketingChannelIds.has(katId) ? getSppSatz('marketing', katId) : getUstSatz(katId)
-      // Zahlungsziel-Rückrechnung: Zahlungsmonat − ceil(Zahlungsziel/30) = Rechnungsmonat.
+      // Zahlungsziel-Rückrechnung: Zahlungsmonat − Zahlungsziel (Monate) = Rechnungsmonat.
       let jahr = Number(jahrStr)
       let monat = Number(monatStr)
       const zt = zahlungszielByKat.get(katId) ?? 0
       if (zt > 0) {
-        const src = fromIndex(monthIndex(jahr, monat) - Math.ceil(zt / 30))
+        const src = fromIndex(monthIndex(jahr, monat) - zt)
         jahr = src.jahr
         monat = src.monat
       }
@@ -720,7 +721,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
     const kompByDue = new Map<string, { output: number; vorsteuer: number; einfuhr: number }>()
     for (const [idx, net] of ustNetByMonth) {
       const m = fromIndex(idx)
-      const due = shiftUstPayment(m.jahr, m.monat, frequenz, verschiebungTage)
+      const due = shiftUstPayment(m.jahr, m.monat, frequenz, verschiebungMonate)
       const dueKey = `${due.jahr}:${due.monat}`
       netByDue.set(dueKey, (netByDue.get(dueKey) ?? 0) + net)
       const comp = komponentenByMonth.get(idx)

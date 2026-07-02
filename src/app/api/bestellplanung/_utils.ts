@@ -278,19 +278,25 @@ export async function generiereUndSpeichereBestellkosten(
   const allProduktIds = [...new Set(bestellungen.flatMap(b => b.produkt_ids))]
   if (allProduktIds.length === 0) return
 
-  // Load existing manuell entries — these "claim" their (Bestellung, Kategorie, Datum) slot
-  // so the regeneration doesn't create a duplicate auto entry alongside them
+  // Load existing manuell entries — these suppress their auto counterpart. Primarily
+  // via the stable herkunft key (survives later date/amount/category edits); plus, as
+  // a fallback for legacy rows without a herkunft, via the (Bestellung, Kategorie,
+  // Datum) slot.
   const { data: manuellRows } = await supabase
     .from('bestellungen_kosten')
-    .select('bestellung_id, kpi_kategorie_id, datum')
+    .select('bestellung_id, kpi_kategorie_id, datum, auto_herkunft')
     .eq('user_id', userId)
     .eq('ist_automatisch', false)
     .in('bestellung_id', bestellungen.map(b => b.id))
 
+  const manuellRowsTyped = (manuellRows ?? []) as Array<{
+    bestellung_id: string; kpi_kategorie_id: string | null; datum: string; auto_herkunft: string | null
+  }>
   const manuellSlots = new Set(
-    (manuellRows ?? []).map((e: { bestellung_id: string; kpi_kategorie_id: string | null; datum: string }) =>
-      `${e.bestellung_id}__${e.kpi_kategorie_id ?? ''}__${e.datum}`
-    )
+    manuellRowsTyped.map(e => `${e.bestellung_id}__${e.kpi_kategorie_id ?? ''}__${e.datum}`)
+  )
+  const manuellHerkunft = new Set(
+    manuellRowsTyped.filter(e => e.auto_herkunft).map(e => `${e.bestellung_id}__${e.auto_herkunft}`)
   )
 
   // Load all stammdaten in parallel
@@ -363,6 +369,7 @@ export async function generiereUndSpeichereBestellkosten(
     nettobetrag: number
     begruendung: string
     ist_automatisch: boolean
+    auto_herkunft: string
   }> = []
 
   for (const b of bestellungen) {
@@ -416,11 +423,13 @@ export async function generiereUndSpeichereBestellkosten(
         nettobetrag: eintrag.nettobetrag,
         begruendung: eintrag.begruendung,
         ist_automatisch: true,
+        auto_herkunft: eintrag.herkunft,
       })
     }
   }
 
   const filteredInserts = allInserts.filter(ins =>
+    !manuellHerkunft.has(`${ins.bestellung_id}__${ins.auto_herkunft}`) &&
     !manuellSlots.has(`${ins.bestellung_id}__${ins.kpi_kategorie_id ?? ''}__${ins.datum}`)
   )
   if (filteredInserts.length > 0) {

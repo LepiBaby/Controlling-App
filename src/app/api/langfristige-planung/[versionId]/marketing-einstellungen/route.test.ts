@@ -19,7 +19,7 @@ const EINSTELLUNG = {
   marketingkanal_id: KANAL_ID,
   sales_plattform_id: PLATTFORM_ID,
   gruppierung: 'quartalsweise',
-  zahlungsziel_tage: 30,
+  zahlungsziel_monate: 30,
 }
 
 function ctx(id: string) {
@@ -93,7 +93,7 @@ describe('GET /api/langfristige-planung/[versionId]/marketing-einstellungen', ()
     const body = await res.json()
     expect(body.gruppierung).toBe('quartalsweise')
     expect(body.sales_plattform_id).toBe(PLATTFORM_ID)
-    expect(body.zahlungsziel_tage).toBe(30)
+    expect(body.zahlungsziel_monate).toBe(30)
   })
 
   it('returns null when no entry exists', async () => {
@@ -147,7 +147,7 @@ describe('PUT /api/langfristige-planung/[versionId]/marketing-einstellungen', ()
     marketingkanal_id: KANAL_ID,
     sales_plattform_id: PLATTFORM_ID,
     gruppierung: 'quartalsweise',
-    zahlungsziel_tage: 30,
+    zahlungsziel_monate: 30,
   }
 
   it('upserts settings with a platform', async () => {
@@ -183,9 +183,9 @@ describe('PUT /api/langfristige-planung/[versionId]/marketing-einstellungen', ()
     expect(res.status).toBe(400)
   })
 
-  it('returns 400 on negative zahlungsziel_tage', async () => {
+  it('returns 400 on negative zahlungsziel_monate', async () => {
     const res = await PUT(
-      putReq({ marketingkanal_id: KANAL_ID, zahlungsziel_tage: -1 }),
+      putReq({ marketingkanal_id: KANAL_ID, zahlungsziel_monate: -1 }),
       ctx(VERSION_ID),
     )
     expect(res.status).toBe(400)

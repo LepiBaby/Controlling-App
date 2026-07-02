@@ -67,8 +67,12 @@ function buildGroups(cats: KpiCategory[]): ParentGroup[] {
 
 // ─── Section 1: Umsatzsteuer-Grundeinstellungen ───────────────────────────────
 
-function GrundeinstellungenSektion({ ustSettings }: { ustSettings: UstSettingsHook }) {
+function GrundeinstellungenSektion({ ustSettings, versionId }: { ustSettings: UstSettingsHook; versionId?: string }) {
   const { einstellungen, loading, error, save } = ustSettings
+  // Langfristige Planung (Versions-Modus): Zahlungsverschiebung in Monaten, sonst Tagen.
+  // Der Zahlenwert kommt unverändert aus dem geteilten Hook; nur die Einheit im Label
+  // (und die Fehlermeldung) unterscheidet sich.
+  const einheit = versionId ? 'Monate' : 'Tage'
   const { toast } = useToast()
   const [zahlungsfrequenz, setZahlungsfrequenz] = useState<Zahlungsfrequenz>('monatlich')
   const [verschiebungStr, setVerschiebungStr] = useState('0')
@@ -100,7 +104,7 @@ function GrundeinstellungenSektion({ ustSettings }: { ustSettings: UstSettingsHo
     if (isNaN(tage) || tage < 0) {
       toast({
         title: 'Ungültige Eingabe',
-        description: 'Zahlungsverschiebung muss eine ganze Zahl ≥ 0 sein.',
+        description: `Zahlungsverschiebung muss eine ganze Zahl ≥ 0 sein (${einheit}).`,
         variant: 'destructive',
       })
       setVerschiebungStr(String(einstellungen.zahlungsverschiebung_tage))
@@ -153,7 +157,7 @@ function GrundeinstellungenSektion({ ustSettings }: { ustSettings: UstSettingsHo
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="verschiebung-tage">Zahlungsverschiebung (Tage)</Label>
+          <Label htmlFor="verschiebung-tage">Zahlungsverschiebung ({einheit})</Label>
           <Input
             id="verschiebung-tage"
             type="number"
@@ -731,7 +735,7 @@ function EinfuhrUstSektion({ ustSettings, versionId }: { ustSettings: UstSetting
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="einfuhrust-zahlungsziel">Zahlungsziel (Tage)</Label>
+          <Label htmlFor="einfuhrust-zahlungsziel">Zahlungsziel ({isVersion ? 'Monate' : 'Tage'})</Label>
           <Input
             id="einfuhrust-zahlungsziel"
             type="number"
@@ -808,7 +812,7 @@ export function SteuereinstellungenFormular({ versionId }: { versionId?: string 
         </TabsTrigger>
       </TabsList>
       <TabsContent value="grundeinstellungen">
-        <GrundeinstellungenSektion ustSettings={ustSettings} />
+        <GrundeinstellungenSektion ustSettings={ustSettings} versionId={versionId} />
       </TabsContent>
       <TabsContent value="saetze">
         <UstSaetzeSektion ustSettings={ustSettings} kategorieSaetze={kategorieSaetze} versionId={versionId} />

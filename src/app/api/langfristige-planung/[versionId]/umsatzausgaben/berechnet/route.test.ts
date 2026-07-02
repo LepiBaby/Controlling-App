@@ -155,12 +155,12 @@ describe('GET /api/langfristige-planung/[versionId]/umsatzausgaben/berechnet', (
       prod: [{ id: PRODUKT_ID }],
       absatz: [{ sales_plattform_id: PLATTFORM_ID, produkt_id: PRODUKT_ID, jahr: 2026, monat: 1, absatz: 10, effektiver_vk: 5 }],
       versand: [{ produkt_id: PRODUKT_ID, versandgebuehr_spediteur_euro_netto: 2, versandgebuehr_3pl_euro_netto: 1 }],
-      versandGrp: [{ gruppierung: 'monatlich', zahlungsziel_tage: 0 }],
+      versandGrp: [{ gruppierung: 'monatlich', zahlungsziel_monate: 0 }],
     })
     const res = await GET(new Request(URL_BASE), ctx())
     expect(res.status).toBe(200)
     const body = await res.json()
-    // Absatz 10 × (2+1) = 30, USt 0%, monatlich + 0 Tage → bleibt im Anfallsmonat Jan 2026.
+    // Absatz 10 × (2+1) = 30, USt 0%, monatlich + 0 Monate → bleibt im Anfallsmonat Jan 2026.
     expect(body.data).toHaveLength(1)
     expect(body.data[0]).toMatchObject({
       kategorie_id: VERSAND_L2,
@@ -171,7 +171,7 @@ describe('GET /api/langfristige-planung/[versionId]/umsatzausgaben/berechnet', (
     })
   })
 
-  it('shifts Versand by Zahlungsziel only (30 Tage → +1 Monat)', async () => {
+  it('shifts Versand by Zahlungsziel only (1 Monat → +1 Monat)', async () => {
     setupMocks({
       grund: { startmonat_monat: 1, startmonat_jahr: 2026, planungshorizont_monate: 3 },
       kats: [
@@ -181,12 +181,12 @@ describe('GET /api/langfristige-planung/[versionId]/umsatzausgaben/berechnet', (
       prod: [{ id: PRODUKT_ID }],
       absatz: [{ sales_plattform_id: PLATTFORM_ID, produkt_id: PRODUKT_ID, jahr: 2026, monat: 1, absatz: 10, effektiver_vk: 5 }],
       versand: [{ produkt_id: PRODUKT_ID, versandgebuehr_spediteur_euro_netto: 2, versandgebuehr_3pl_euro_netto: 1 }],
-      versandGrp: [{ gruppierung: 'monatlich', zahlungsziel_tage: 30 }],
+      versandGrp: [{ gruppierung: 'monatlich', zahlungsziel_monate: 1 }],
     })
     const res = await GET(new Request(URL_BASE), ctx())
     expect(res.status).toBe(200)
     const body = await res.json()
-    // monatlich + 30 Tage → Anfallsmonat Jan + ceil(30/30)=1 → fällig Feb 2026.
+    // monatlich + 1 Monat → Anfallsmonat Jan + 1 → fällig Feb 2026.
     expect(body.data).toHaveLength(1)
     expect(body.data[0]).toMatchObject({ kategorie_id: VERSAND_L2, jahr: 2026, monat: 2, wert: 30 })
   })
@@ -203,7 +203,7 @@ describe('GET /api/langfristige-planung/[versionId]/umsatzausgaben/berechnet', (
       // Q1-Monat = März (kein Folgemonat).
       absatz: [{ sales_plattform_id: PLATTFORM_ID, produkt_id: PRODUKT_ID, jahr: 2026, monat: 2, absatz: 10, effektiver_vk: 5 }],
       versand: [{ produkt_id: PRODUKT_ID, versandgebuehr_spediteur_euro_netto: 2, versandgebuehr_3pl_euro_netto: 1 }],
-      versandGrp: [{ gruppierung: 'quartalsweise', zahlungsziel_tage: 0 }],
+      versandGrp: [{ gruppierung: 'quartalsweise', zahlungsziel_monate: 0 }],
     })
     const res = await GET(new Request(URL_BASE), ctx())
     expect(res.status).toBe(200)
@@ -223,15 +223,15 @@ describe('GET /api/langfristige-planung/[versionId]/umsatzausgaben/berechnet', (
         { id: VERSAND, name: 'Versand', parent_id: VERTRIEB, type: 'ausgaben_kosten', level: 2 },
       ],
       prod: [{ id: PRODUKT_ID }],
-      // Absatz NUR im Mai (vor dem Startmonat Juni); Zahlungsziel 30 Tage → fällig Juni.
+      // Absatz NUR im Mai (vor dem Startmonat Juni); Zahlungsziel 1 Monat → fällig Juni.
       absatz: [{ sales_plattform_id: PLATTFORM_ID, produkt_id: PRODUKT_ID, jahr: 2026, monat: 5, absatz: 10, effektiver_vk: 5 }],
       versand: [{ produkt_id: PRODUKT_ID, versandgebuehr_spediteur_euro_netto: 10, versandgebuehr_3pl_euro_netto: 0 }],
-      versandGrp: [{ gruppierung: 'monatlich', zahlungsziel_tage: 30 }],
+      versandGrp: [{ gruppierung: 'monatlich', zahlungsziel_monate: 1 }],
     })
     const res = await GET(new Request(URL_BASE), ctx())
     expect(res.status).toBe(200)
     const body = await res.json()
-    // Mai-Absatz 10 × 10 € = 100, monatlich + 30 Tage → fällig Juni (Startmonat wird befüllt).
+    // Mai-Absatz 10 × 10 € = 100, monatlich + 1 Monat → fällig Juni (Startmonat wird befüllt).
     expect(body.data).toHaveLength(1)
     expect(body.data[0]).toMatchObject({ kategorie_id: VERSAND, jahr: 2026, monat: 6, wert: 100 })
   })
