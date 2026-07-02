@@ -124,8 +124,9 @@ export function LangfristigeBestellungFormularDialog({
         ankunftsdatum: daten.ankunftsdatum || null,
         verfuegbarkeitsdatum: daten.verfuegbarkeitsdatum || null,
         menge_praktisch: mengeZahl,
-        anzahl_20dc: Math.max(0, Math.round(Number(anzahl20dc) || 0)),
-        anzahl_40hq: Math.max(0, Math.round(Number(anzahl40hq) || 0)),
+        // Container dürfen anteilig sein (Kommazahlen) — nicht auf ganze Zahlen runden.
+        anzahl_20dc: Math.max(0, Number(anzahl20dc) || 0),
+        anzahl_40hq: Math.max(0, Number(anzahl40hq) || 0),
         notizen: notizen.trim() || null,
       })
       onOpenChange(false)
@@ -204,6 +205,7 @@ export function LangfristigeBestellungFormularDialog({
                 id="f-40hq"
                 type="number"
                 min={0}
+                step="any"
                 value={anzahl40hq}
                 onChange={(e) => setAnzahl40hq(e.target.value)}
               />
@@ -216,6 +218,7 @@ export function LangfristigeBestellungFormularDialog({
                 id="f-20dc"
                 type="number"
                 min={0}
+                step="any"
                 value={anzahl20dc}
                 onChange={(e) => setAnzahl20dc(e.target.value)}
               />

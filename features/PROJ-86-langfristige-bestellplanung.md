@@ -713,5 +713,15 @@ Die Verifikation erfolgte über die etablierte Repo-Praxis: **Vitest Integration
 ### Produktionsreife
 **READY** — keine Critical/High-Bugs offen in PROJ-86; alle 468 Feature-Tests grün, Build sauber, Security-/Isolations-Audit bestanden.
 
+## Nachträgliche Änderung (2026-07-02): Anteilige Container bei manuellen Bestellungen
+
+**Anforderung:** Beim manuellen Anlegen einer (laufenden) Bestellung sollen auch **anteilige Container** (Kommazahlen) für 40HQ/20DC erfasst werden können; die **Bestellkostenberechnung** berücksichtigt diese Dezimalwerte entsprechend.
+
+**Umgesetzt:**
+- DB-Migration `proj86_langfristige_bestellungen_container_decimal`: `langfristige_bestellungen.anzahl_20dc` und `anzahl_40hq` von `integer` → `numeric` (Default 0 beibehalten).
+- Zod-Validierung: `anzahl_20dc`/`anzahl_40hq` in `POST …/bestellungen` und `PUT …/bestellungen/[id]` von `z.number().int().min(0)` → `z.number().min(0)`.
+- `langfristige-bestellung-formular-dialog.tsx`: Container-Eingaben nicht mehr auf ganze Zahlen gerundet (`Math.round` entfernt); `step="any"` an den beiden Container-Inputs.
+- Die Bestellkosten-Kalkulation (`@/lib/bestellkosten-generierung`) unterstützte Dezimalwerte bereits (Betrag = `anzahl × Container-Kostensatz`, Formatierung via `fmtAnzahl`) — keine Änderung nötig.
+
 ## Deployment
 _To be added by /deploy_

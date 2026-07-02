@@ -28,8 +28,10 @@ const CreateSchema = z.object({
   menge_theoretisch: z.number().int().min(0).nullable().optional(),
   menge_praktisch: z.number().int().min(0).optional(),
   begruendung: z.string().max(2000).nullable().optional(),
-  anzahl_20dc: z.number().int().min(0).optional(),
-  anzahl_40hq: z.number().int().min(0).optional(),
+  // Container dürfen anteilig (Kommazahlen) angegeben werden — die
+  // Bestellkostenberechnung berücksichtigt Dezimalwerte entsprechend.
+  anzahl_20dc: z.number().min(0).optional(),
+  anzahl_40hq: z.number().min(0).optional(),
   notizen: z.string().max(2000).nullable().optional(),
 })
 
