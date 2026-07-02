@@ -490,5 +490,13 @@ Alle Routen: `requireAuth()` + RLS-Schutz + Zod-Validierung der Eingaben.
 
 Empfehlung: BUG-64-1 in einem Folge-Commit fixen (1 Zeile: Status-Check in DELETE hinzufügen).
 
+## Bug Fix (2026-07-02) — Manuelle Position dupliziert nach Anpassung
+
+**Symptom:** Eine auf **Manuell** gesetzte Bestellkosten-Position erschien beim erneuten Laden zusätzlich wieder als automatische Position (Manuell + Auto nebeneinander), sobald man sie anpasste (Datum/Betrag/Kategorie) oder sich das Auto-Datum durch geänderte Bestelldaten/Container verschob.
+
+**Ursache:** Der Duplikat-Schutz manueller Einträge lief nur über `(Bestellung, Kategorie, Datum)`. Beim Anpassen wechselt genau dieser Slot → die Auto-Position wurde neben der manuellen erneut erzeugt.
+
+**Fix:** Neue Spalte `auto_herkunft` (Migration `add_auto_herkunft_to_bestellkosten`) speichert je Auto-Position eine stabile Herkunfts-Kennung (`ware__<produkt>__<phase>`, `inspektion`, `shipping`, `zoll`, `einlagerung`). Beim Umschalten auf Manuell bleibt sie erhalten; die Neugenerierung unterdrückt Auto-Positionen anhand der Herkunft (Slot-Vergleich nur noch als Fallback für Altbestände). Geteilte Logik in `src/lib/bestellkosten-generierung.ts` + `src/app/api/bestellplanung/_utils.ts` (identisch für die langfristige Planung PROJ-86 umgesetzt). Bestehende manuelle Ware-Positionen wurden per Backfill mit Herkunft versehen.
+
 ## Deployment
 _To be added by /deploy_

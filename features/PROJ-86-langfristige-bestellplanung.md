@@ -734,5 +734,19 @@ Die Verifikation erfolgte über die etablierte Repo-Praxis: **Vitest Integration
 - `read-only`-Bausteine `DatumReadonly`/`fmtDatum` entfernt; Hauptkomponente reicht `onUpdate` (`handleBestellungAktualisieren`) durch und synchronisiert den offenen Dialog auf die gespeicherten Werte.
 - **DB-Nachzug:** Container-Spalten von `numeric` → `double precision` (Migration `proj86_langfristige_bestellungen_container_float`). Grund: PostgREST liefert `numeric` als String, das Frontend erwartet `number`; `double precision` unterstützt Kommazahlen und wird als JSON-`number` serialisiert.
 
+## Bug Fix (2026-07-02) — Manuelle Bestellkosten-Position dupliziert nach Anpassung
+
+**Symptom:** Wurde eine Bestellkosten-Position auf **Manuell** gesetzt und danach angepasst (Datum/Betrag/Kategorie geändert — oder das Auto-Datum verschob sich, weil die Bestelldaten/Container geändert wurden), erschien beim erneuten Laden **zusätzlich** wieder die automatische Position. Manuell und Auto standen nebeneinander.
+
+**Ursache:** Der Schutz manueller Einträge gegen Auto-Duplikate lief nur über den Schlüssel `(Bestellung, Kategorie, Datum)`. Da Datum/Kategorie einer Position gerade beim Anpassen wechseln (und das Auto-Datum aus den Einstellungen neu gerechnet wird), passte der Slot nicht mehr → die Auto-Position wurde erneut eingefügt.
+
+**Fix:** Jede Auto-Position trägt jetzt eine **stabile Herkunfts-Kennung** (`ware__<produkt>__vor_produktion|nach_produktion|nach_ankunft`, `inspektion`, `shipping`, `zoll`, `einlagerung`), gespeichert in der neuen Spalte `auto_herkunft`. Wird eine Position auf Manuell umgeschaltet, behält sie diese Kennung. Die Neugenerierung unterdrückt jede Auto-Position, deren Herkunft bereits eine manuelle Entsprechung hat — unabhängig von späteren Datum-/Betrag-/Kategorie-Anpassungen. Der alte `(Kategorie, Datum)`-Slot-Vergleich bleibt als Fallback für Altbestände ohne Herkunft.
+
+**Geänderte Dateien:**
+- Migration `add_auto_herkunft_to_bestellkosten` — Spalte `auto_herkunft text` auf `bestellungen_kosten` **und** `langfristige_bestellungen_kosten`.
+- `src/lib/bestellkosten-generierung.ts` — `GenerierteKostenEintrag.herkunft` ergänzt und an allen 5 Erzeugungsstellen gesetzt (geteilte Logik → wirkt kurz- **und** langfristig).
+- `src/app/api/langfristige-planung/[versionId]/bestellplanung/bestellungen/[id]/kosten/_kosten-utils.ts` und `src/app/api/bestellplanung/_utils.ts` — laden `auto_herkunft` der manuellen Einträge, speichern es bei Auto-Inserts, unterdrücken per Herkunft (plus Slot-Fallback).
+- Einmaliger Daten-Backfill: die 2 bestehenden manuellen Ware-Positionen (kurzfristig, Bestellung `e435bb62…`) erhielten ihre Herkunft, wodurch die dort stehende Auto-Dublette verschwindet.
+
 ## Deployment
 _To be added by /deploy_
