@@ -425,13 +425,15 @@ export async function GET(_request: Request, { params }: RouteContext) {
         // Zielmonat = Ankunftsmonat + Zahlungsziel (GANZE MONATE). Langfristige Planung
         // rechnet durchgängig in Monaten (kein Tagesbezug wie kurzfristig/PROJ-71).
         const d = new Date(datumStr + 'T00:00:00Z')
-        const ziel = fromIndex(
-          monthIndex(d.getUTCFullYear(), d.getUTCMonth() + 1) + Math.max(0, einfuhrZielMonate),
-        )
-        const zielIdx = monthIndex(ziel.jahr, ziel.monat)
+        const ankunftIdx = monthIndex(d.getUTCFullYear(), d.getUTCMonth() + 1)
+        const ziel = fromIndex(ankunftIdx + Math.max(0, einfuhrZielMonate))
         const betrag = round2(basis * einfuhrSatz / 100)
+        // Cash-Zeile der Einfuhrumsatzsteuer liegt am Zahlungsmonat (Ankunft + Zahlungsziel).
         addResult(einfuhrLeafId, ziel, betrag)
-        einfuhrByMonth.set(zielIdx, (einfuhrByMonth.get(zielIdx) ?? 0) + betrag)
+        // B6-Vorsteuerabzug entsteht dagegen im ANKUNFTSMONAT (Leistungsdatum) — deckungsgleich
+        // mit der kurzfristigen Route (PROJ-71): das Zahlungsziel verschiebt nur die Cash-Zeile,
+        // nicht den Vorsteuer-Anfall.
+        einfuhrByMonth.set(ankunftIdx, (einfuhrByMonth.get(ankunftIdx) ?? 0) + betrag)
         // Produkt-Aufschlüsselung (nur innerhalb des Horizonts, mirror von addResult)
         if (monatSet.has(`${ziel.jahr}:${ziel.monat}`)) {
           const pk = `${best?.produkt_id ?? '__none__'}:${ziel.jahr}:${ziel.monat}`
@@ -708,7 +710,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
       addUst(r.jahr, r.monat, -extractVorsteuer(Number(r.betrag), satz), 'vorsteuer')
     }
 
-    // — B6: Einfuhrumsatzsteuer-Abzug im Monat ihres Anfalls —
+    // — B6: Einfuhrumsatzsteuer-Abzug im Ankunftsmonat (Leistungsdatum), nicht im Zahlungsmonat —
     for (const [idx, betrag] of einfuhrByMonth) {
       const m = fromIndex(idx)
       addUst(m.jahr, m.monat, -betrag, 'einfuhr')

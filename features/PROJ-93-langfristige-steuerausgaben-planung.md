@@ -2,7 +2,8 @@
 
 ## Status: In Review
 **Created:** 2026-06-22
-**Last Updated:** 2026-06-24 (QA: USt-Berechnung + Zahlungsziel-Rückrechnung/Invest-Satz-Fixes geprüft; 25/25 bestehende Tests grün; 6 Befunde dokumentiert — siehe „QA Test Results"; Status → In Review)
+**Last Updated:** 2026-07-02 (Fix: B6 Einfuhrumsatzsteuer-Abzug jetzt im Ankunftsmonat statt Zahlungsmonat — deckungsgleich mit kurzfristig/PROJ-71; siehe „Fix (2026-07-02)")
+**Vorher:** 2026-06-24 (QA: USt-Berechnung + Zahlungsziel-Rückrechnung/Invest-Satz-Fixes geprüft; 25/25 bestehende Tests grün; 6 Befunde dokumentiert — siehe „QA Test Results"; Status → In Review)
 
 ## Implementation Notes (Enhancement 2026-06-23: Aufschlüsselungen / Drill-down)
 
@@ -53,6 +54,10 @@ Portierung der PROJ-71-Erweiterung auf die langfristige (monatsbasierte, reine S
 **Problem:** B4 nutzte `getUstSatzHierarchisch`, das den L1-Vorfahren über den **globalen** KPI-Baum sucht. Die Invest-Kategorien sind aber **versions-eigen** (`lp_investition`) → der Vorfahre wird nie gefunden → Satz immer 0 %. Folge: Der für „Produktinvestitionen Sales & Marketing" gepflegte 19 %-Satz wurde ignoriert (B4 = 0).
 **Fix:** Neuer `getUstSatzInvest`-Resolver — respektiert die Gesamt/Aufgeteilt-Auswahl der **globalen** „Produktinvestitionen"-L1 (`langfristige_ust_ebene_auswahl`): **Gesamt** → deren L1-Satz; **Aufgeteilt** → vom Invest-Eintrag im **Versions-Invest-Baum** nach oben den ersten gepflegten Satz (Versions-Gruppe, ebene 1 — analog zum Produktverkäufe-Resolver). Dafür wird der `lp_investition`-Parent-Baum geladen. Die übrigen Domänen (Vertrieb/Produkt/Operativ/Finanz/Einnahmen über den globalen Baum; Produktverkäufe/Marketing über ihre Sonder-Resolver) respektierten Gesamt/Aufgeteilt bereits korrekt — nur Invest war betroffen. `tsc --noEmit` ohne neue Fehler.
 **Offen:** Für BERECHNETE Invest-Werte (Einkauf aus Erstbestellungen) wendet die Invest-Berechnet-Route den USt-Aufschlag noch über die globale Bestellkosten-Kategorie an (Ware/Einlagerung/…), während B4 jetzt den Invest-Gruppensatz extrahiert — bei nicht-0 %-Einkauf-Sätzen wäre das inkonsistent (in Testversion1 ist Einkauf 0 % → unkritisch). Manuelle Invest-Werte (der Normalfall) sind davon nicht betroffen.
+
+### Fix (2026-07-02): B6 Einfuhrumsatzsteuer-Abzug im **Ankunftsmonat** statt Zahlungsmonat
+**Problem:** Der B6-Vorsteuerabzug der Einfuhrumsatzsteuer wurde am **Zielmonat = Ankunftsmonat + Zahlungsziel** gebucht (`einfuhrByMonth` war am `zielIdx` verschlüsselt) — abweichend von der kurzfristigen Referenz PROJ-71, wo der Abzug in der **Ankunftswoche** (Leistungsdatum) entsteht und das Zahlungsziel nur die separate Einfuhrumsatzsteuer-Cash-Zeile verschiebt. Folge: Bei Zahlungsziel > 0, das eine Quartals-/Monatsgrenze überschritt, minderte die Einfuhr-USt das falsche Quartal (z. B. Q4 statt Q3).
+**Fix (`berechnet/route.ts`, Bestellungs-Schleife):** `einfuhrByMonth` wird jetzt am **`ankunftIdx`** (Ankunftsmonat/Leistungsdatum) verschlüsselt; der B6-Abzug landet dort. Die Einfuhrumsatzsteuer-Cash-Zeile (`addResult`) und die Produkt-Aufschlüsselung (`einfuhrProduktByMonth`) bleiben unverändert am Zielmonat (Ankunft + Zahlungsziel). Damit deckt sich die langfristige Logik mit der kurzfristigen: das Zahlungsziel verschiebt nur die Cash-Zeile, nicht den Vorsteuer-Anfall. `tsc --noEmit`/Lint ohne neue Fehler in der Route.
 
 ## Implementation Notes (Frontend)
 - `src/hooks/use-langfristige-steuerausgaben.ts` — versionsgebundener Hook. Lädt parallel Grundeinstellungen (Startmonat + `planungshorizont_monate`, Fallback 12), den globalen `ausgaben_kosten`-KPI-Baum (Filter auf „Steuern"-Subtree → L1-Gruppen + L2-Untergruppen, `istLeaf` wenn keine Untergruppen), die manuellen Overrides (`GET /steuerausgaben`) und die Auto-Werte (`GET /steuerausgaben/berechnet`). Monatsfenster ohne Vorlauf (`buildSteuerausgabenMonate`). Zell-Schlüssel `kategorieId:jahr:monat` (KEINE Produktdimension). `getEffektiverWert` = manuell ?? berechnet (für Aggregation). `upsertZelle` (optimistisch + Rollback, `null` → löschen), `resetAll` (DELETE). **Negative Beträge erlaubt.**
