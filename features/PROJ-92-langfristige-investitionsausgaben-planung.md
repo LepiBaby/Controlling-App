@@ -15,6 +15,8 @@ Die Seite wurde von einer **Ausgaben- (Brutto-)** auf eine **Kosten- (Netto-)Sic
   - **Liquiditätsauswertung (PROJ-94):** schlägt Netto → **Brutto** auf (`Cash-Out = Netto × (1 + Satz/100)`), analog Operativkosten.
   - **Steuerausgaben B4 (PROJ-93):** Vorsteuer = **`Netto × Satz/100`** (statt `extractVorsteuer` aus Brutto), gleicht sich exakt mit dem Brutto-Aufschlag der Liquiditätsauswertung aus.
 
+**Deployed 2026-07-03** — Commit `07a0afe` nach `main` gepusht, Vercel-Deployment erfolgreich abgeschlossen (GitHub-Check „Vercel: success"). Production-Build lokal grün; betroffene Unit-Tests 82/82 grün.
+
 ## Dependencies
 - Requires: PROJ-1 (Authentifizierung) — nur eingeloggte Nutzer; alle Daten an den Nutzer gebunden
 - Requires: PROJ-73 (Langfristige Planung — Planversionen & Navigation) — versionsbasiertes Routing (`[versionId]`), Versions-Shell (`LangfristigeVersionShell`), Versions-Eigentums-Helfer (`ensureLangfristigeVersion`), zentrale Nav-Konfiguration (`src/lib/langfristige-planung-nav.ts`), Datenisolation je Planversion
