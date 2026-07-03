@@ -1,6 +1,6 @@
 # PROJ-103: Planversionen-Ordner — Langfristige Planung
 
-## Status: In Progress
+## Status: Deployed
 **Created:** 2026-07-03
 **Last Updated:** 2026-07-03
 
@@ -267,7 +267,8 @@ Doppelter Ordnername → 409 · leerer/Whitespace-Name → 400 · Löschen beleg
 Interaktive Ende-zu-Ende-Flows mit echter Session (Ordner anlegen/umbenennen/löschen im Browser, Drag-freies Verschieben per Menü, Anlegen in Ordner) sind über Code-Audit + DB-Verifikation + Route-Tests abgedeckt; vollständige UI-Automatisierung erfordert eine authentifizierte Session (projektweite Konvention, analog PROJ-74–101).
 
 ## Deployment
-_To be added by /deploy_
-
-## Deployment
-_To be added by /deploy_
+**Deployed:** 2026-07-03 · **Tag:** `v1.103.0-PROJ-103` · **Commit:** `c74a3ce`
+- Vercel Auto-Deploy via Push auf `main` (GitHub: LepiBaby/Controlling-App).
+- DB-Migration `create_langfristige_planversion_ordner` bereits im Supabase-Projekt „Controlling-App" angewandt.
+- Production-Build lokal grün (`npm run build`, Exit 0); alle neuen Routen kompiliert.
+- Zusammen mit PROJ-104 in einem Commit ausgeliefert (geteilte Dateien).

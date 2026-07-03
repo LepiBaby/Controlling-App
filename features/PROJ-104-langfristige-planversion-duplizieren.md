@@ -281,7 +281,8 @@ Die Vollkopie ist als **eine** atomare Datenbank-Funktion umgesetzt; der Endpunk
 Interaktive Ende-zu-Ende-Flows mit echter Session (Klick „Duplizieren", Kopie öffnen/bearbeiten) sind über Code-Audit + umfangreiche DB-Verifikation + Route-Tests abgedeckt; vollständige UI-Automatisierung erfordert eine authentifizierte Session (projektweite Konvention).
 
 ## Deployment
-_To be added by /deploy_
-
-## Deployment
-_To be added by /deploy_
+**Deployed:** 2026-07-03 · **Tag:** `v1.104.0-PROJ-104` · **Commit:** `c74a3ce`
+- Vercel Auto-Deploy via Push auf `main` (GitHub: LepiBaby/Controlling-App).
+- DB-Funktion `duplicate_langfristige_planversion` bereits im Supabase-Projekt „Controlling-App" angewandt (Migrationen `create_duplicate_langfristige_planversion_fn` + `duplicate_langfristige_planversion_order_preserving_map`).
+- Production-Build lokal grün (`npm run build`, Exit 0); Endpunkt `…/[id]/duplicate` kompiliert.
+- Zusammen mit PROJ-103 in einem Commit ausgeliefert (geteilte Dateien).
