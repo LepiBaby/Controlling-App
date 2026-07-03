@@ -1,8 +1,8 @@
 # PROJ-99: Investitionsauswertung — Langfristige Planung
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-06-24
-**Last Updated:** 2026-06-24
+**Last Updated:** 2026-07-03 (Redesign: Produkt-orientierte Aufschlüsselung, deployed)
 
 ## Dependencies
 - Requires: PROJ-1 (Authentifizierung) — nur eingeloggte Nutzer; alle Daten an den Nutzer gebunden
@@ -426,5 +426,44 @@ Die Seite wurde als **reine, read-only Anzeigeschicht** über die bestehende PRO
 ### Production-Ready-Empfehlung: ✅ READY
 Keine Critical/High-Bugs. Kernlogik durch Unit-Tests abgesichert, `tsc` sauber, keine neue Angriffsfläche. Empfehlung: kurze visuelle Bestätigung im Browser (Monatlich/Gesamt-Umschalter, Drill-Down, gestapeltes Diagramm, Werteabgleich mit der Investitionsausgaben-Planung) vor dem Deploy.
 
+## Redesign — Produkt-orientierte Aufschlüsselung (2026-07-03)
+
+**Nutzervorgabe:** Die Auswertung wird **nicht mehr nach Kategorien** (Obergruppe → Untergruppe → Produkt) aufgeschlüsselt, sondern auf **oberster Ebene nach Produkten**. Darunter folgen je Produkt die einzelnen Investitions-Kategorien mit ihren Untergruppen.
+
+### Neue Zeilenstruktur
+
+```
+Produkt A (oberste Ebene, als Investition markiert)          (lp_produkt, ist_investition)
+    Obergruppe A.1 (Ebene 1)                                 (lp_investition)
+        Untergruppe A.1.a (Leaf, Wert = effektiver Soll dieses Produkts)
+        Untergruppe A.1.b …
+    Obergruppe A.2 …
+Produkt B …
+─────────────────────────────────────────────────────────
+= Investitionen (Gesamt)                                     (Summe aller Produkte)
+```
+
+### Entscheidungen (mit dem Nutzer abgestimmt)
+- **Oberste Ebene = NUR als Investition markierte Produkte** (`ist_investition`, PROJ-105). Nicht markierte Produkte erscheinen nicht — auch nicht, wenn sie Werte tragen. Folge: `Investitionen (Gesamt)` summiert nur markierte Produkte.
+- **Voller Kategoriebaum je Produkt:** Unter jedem Produkt wird der **komplette** `lp_investition`-Baum (alle Obergruppen/Untergruppen) gezeigt, auch mit 0,00 € — kein Daten-Filter mehr auf Kategorieebene (anders als die ursprüngliche „nur Produkte mit Daten"-Regel, die nun obsolet ist, weil die Produktebene oben steht).
+- **Diagramm:** stapelt nun je **Produkt** (statt je Obergruppe); Summe der Segmente je Spalte = Investitionen Gesamt. Chart-Titel „Investitionen nach Produkt".
+- **Zellwert unverändert:** effektiver Soll je (Untergruppe × Produkt × Monat) = manuell → berechnet → 0, weiterhin bit-identisch zur Investitionsausgaben-Planung (PROJ-92) je Produkt/Untergruppe.
+
+### Geänderte Dateien
+- `src/hooks/use-langfristige-investitionsauswertung.ts` — Baum invertiert (Produkt → Obergruppe → Untergruppe); oberste Ebene `produkte.filter(ist_investition)`; voller Kategoriebaum je Produkt (kein `hatDaten`-Filter mehr); Serien je Produkt; `hasProdukte` = „mind. ein markiertes Produkt"; `collectIaExpandableIds` generisch (beliebige Tiefe); `IaNodeKind`-Reihenfolge dokumentiert.
+- `src/components/langfristige-investitionsauswertung-matrix.tsx` — Styling: Produkt = fetter Header (oberste Ebene), Obergruppe = `font-medium`, Untergruppe = Leaf (klein, muted). Neuer Leerzustand „Keine Produkte als Investition markiert" (+ Link zur KPI-Modell-Verwaltung) statt der bisherigen „keine Produkte"-Bannerzeile.
+- `src/components/langfristige-investitionsauswertung-chart.tsx` — Titel „Investitionen nach Produkt"; toter Ternär (QA-Bug #1) entfernt.
+- `src/app/dashboard/langfristige-planung/[versionId]/investitionsauswertung/page.tsx` — nur Kommentare (Diagramm/Tabelle) angepasst.
+- `src/hooks/use-langfristige-investitionsauswertung.test.ts` — Tests auf die neue Struktur umgestellt (15/15 grün): markierte-Produkte-oben, voller Baum, effektiver Soll, nicht-markierte fließen nicht ein, Serien je Produkt, Leerzustände, `collectIaExpandableIds` generisch, `applyIaZeitansicht`.
+
+### Hinweis zur Konsistenz
+Da die Auswertung jetzt nur **markierte** Produkte summiert, kann die Gesamt-Summe von der Investitionsausgaben-Planung (PROJ-92) abweichen, falls dort **manuell ergänzte** (nicht markierte) Produktzeilen Werte tragen. Das ist eine bewusste Folge der Nutzervorgabe „nur markierte Produkte". Je (markiertes Produkt × Untergruppe) bleiben die Werte identisch.
+
+**Qualität:** `tsc --noEmit` ohne neue Fehler in den geänderten Dateien; 15/15 Unit-Tests grün. `next lint` im Template unter Next 16 nicht lauffähig.
+
 ## Deployment
-_To be added by /deploy_
+
+- **Deployed:** 2026-07-03 (Redesign Produkt-orientierte Aufschlüsselung)
+- **Weg:** Push auf `main` → Vercel Auto-Deploy (Projekt `controlling-app`). Der Redesign-Code ist in Commit `7e00d1d` (zusammen mit PROJ-105) auf `main` und damit live.
+- **Pre-Deploy-Gate:** `npm run build` erfolgreich (Route `/dashboard/langfristige-planung/[versionId]/investitionsauswertung` gebaut); 15/15 Unit-Tests grün; `tsc --noEmit` ohne neue Fehler in den geänderten Dateien. `next lint` unter Next 16 in diesem Repo nicht lauffähig (bekannt).
+- **Hinweis:** Reine Frontend-Änderung — kein neues Backend, keine Migration, keine neuen Env-Vars.

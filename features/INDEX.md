@@ -120,7 +120,7 @@
 | PROJ-96 | Umsatzauswertung — Langfristige Planung | Approved | [PROJ-96-langfristige-umsatzauswertung.md](PROJ-96-langfristige-umsatzauswertung.md) | 2026-06-24 |
 | PROJ-97 | Umsatzkosten-Auswertung — Langfristige Planung | Approved | [PROJ-97-langfristige-umsatzkosten-auswertung.md](PROJ-97-langfristige-umsatzkosten-auswertung.md) | 2026-06-24 |
 | PROJ-98 | Operative Kosten-Auswertung — Langfristige Planung | Approved | [PROJ-98-langfristige-operative-kosten-auswertung.md](PROJ-98-langfristige-operative-kosten-auswertung.md) | 2026-06-24 |
-| PROJ-99 | Investitionsauswertung — Langfristige Planung | Approved | [PROJ-99-langfristige-investitionsauswertung.md](PROJ-99-langfristige-investitionsauswertung.md) | 2026-06-24 |
+| PROJ-99 | Investitionsauswertung — Langfristige Planung | Deployed | [PROJ-99-langfristige-investitionsauswertung.md](PROJ-99-langfristige-investitionsauswertung.md) | 2026-06-24 |
 | PROJ-100 | Finanzierungsausgaben-Auswertung — Langfristige Planung | Approved | [PROJ-100-langfristige-finanzierungsausgaben-auswertung.md](PROJ-100-langfristige-finanzierungsausgaben-auswertung.md) | 2026-06-24 |
 | PROJ-101 | Kapitalbedarf & Finanzierung — Langfristige Planung | Approved | [PROJ-101-langfristige-kapitalbedarf-finanzierung.md](PROJ-101-langfristige-kapitalbedarf-finanzierung.md) | 2026-06-24 |
 | PROJ-102 | Plan-Ist-Vergleich (Reporting) | Deployed | [PROJ-102-plan-ist-vergleich.md](PROJ-102-plan-ist-vergleich.md) | 2026-06-28 |
