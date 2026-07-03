@@ -22,6 +22,23 @@ interface PlanversionDialogProps {
   initialName?: string
   /** Soll den Namen speichern. Wirft bei Fehler (z.B. Duplikat) — message wird angezeigt. */
   onSubmit: (name: string) => Promise<void>
+  /** Optionale Textüberschreibungen, damit derselbe Dialog auch für Ordner (PROJ-103) nutzbar ist. */
+  texts?: {
+    createTitle?: string
+    renameTitle?: string
+    createDescription?: string
+    renameDescription?: string
+    placeholder?: string
+  }
+}
+
+const STANDARD_TEXTS: Required<NonNullable<PlanversionDialogProps['texts']>> = {
+  createTitle: 'Neue Planversion',
+  renameTitle: 'Planversion umbenennen',
+  createDescription:
+    'Vergib einen Namen. Die Daten der Version pflegst du anschließend in den einzelnen Seiten.',
+  renameDescription: 'Ändere den Namen dieser Planversion.',
+  placeholder: 'z.B. Basisszenario 2027–2030',
 }
 
 export function PlanversionDialog({
@@ -30,7 +47,9 @@ export function PlanversionDialog({
   mode,
   initialName = '',
   onSubmit,
+  texts,
 }: PlanversionDialogProps) {
+  const t = { ...STANDARD_TEXTS, ...texts }
   const [name, setName] = useState(initialName)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -66,13 +85,9 @@ export function PlanversionDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>
-            {mode === 'create' ? 'Neue Planversion' : 'Planversion umbenennen'}
-          </DialogTitle>
+          <DialogTitle>{mode === 'create' ? t.createTitle : t.renameTitle}</DialogTitle>
           <DialogDescription>
-            {mode === 'create'
-              ? 'Vergib einen Namen. Die Daten der Version pflegst du anschließend in den einzelnen Seiten.'
-              : 'Ändere den Namen dieser Planversion.'}
+            {mode === 'create' ? t.createDescription : t.renameDescription}
           </DialogDescription>
         </DialogHeader>
 
@@ -83,7 +98,7 @@ export function PlanversionDialog({
             value={name}
             maxLength={MAX_NAME_LENGTH}
             autoFocus
-            placeholder="z.B. Basisszenario 2027–2030"
+            placeholder={t.placeholder}
             onChange={(e) => {
               setName(e.target.value)
               if (error) setError(null)

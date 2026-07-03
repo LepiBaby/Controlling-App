@@ -5,6 +5,8 @@ import { useState, useEffect, useCallback } from 'react'
 export interface Planversion {
   id: string
   name: string
+  /** Ordner-Zugehörigkeit (PROJ-103): null = liegt frei auf der Grundseite. */
+  ordner_id: string | null
   created_at: string
   updated_at: string
 }
@@ -57,17 +59,20 @@ export function usePlanversionen() {
     reload()
   }, [reload])
 
-  const create = useCallback(async (name: string): Promise<Planversion> => {
-    const res = await fetch(API_BASE, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
-    })
-    if (!res.ok) await readError(res, 'Planversion konnte nicht erstellt werden.')
-    const created: Planversion = await res.json()
-    setPlanversionen((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)))
-    return created
-  }, [])
+  const create = useCallback(
+    async (name: string, ordnerId: string | null = null): Promise<Planversion> => {
+      const res = await fetch(API_BASE, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, ordner_id: ordnerId }),
+      })
+      if (!res.ok) await readError(res, 'Planversion konnte nicht erstellt werden.')
+      const created: Planversion = await res.json()
+      setPlanversionen((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)))
+      return created
+    },
+    [],
+  )
 
   const rename = useCallback(async (id: string, name: string): Promise<Planversion> => {
     const res = await fetch(`${API_BASE}/${id}`, {
@@ -89,5 +94,33 @@ export function usePlanversionen() {
     setPlanversionen((prev) => prev.filter((p) => p.id !== id))
   }, [])
 
-  return { planversionen, loading, error, reload, create, rename, remove }
+  // Dupliziert eine Version komplett (PROJ-104). Der Server legt eine neue Version
+  // mit Auto-Namen („… (Kopie)") am selben Ort an und kopiert alle versionsgebundenen
+  // Daten. Gibt die neue Version zurück.
+  const duplicate = useCallback(async (id: string): Promise<Planversion> => {
+    const res = await fetch(`${API_BASE}/${id}/duplicate`, { method: 'POST' })
+    if (!res.ok) await readError(res, 'Planversion konnte nicht dupliziert werden.')
+    const created: Planversion = await res.json()
+    setPlanversionen((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)))
+    return created
+  }, [])
+
+  // Verschiebt eine Version in einen Ordner (ordnerId) oder auf die Grundseite (null).
+  // Ändert ausschließlich die Ordner-Zugehörigkeit — keine Planungsdaten (PROJ-103).
+  const move = useCallback(
+    async (id: string, ordnerId: string | null): Promise<Planversion> => {
+      const res = await fetch(`${API_BASE}/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ordner_id: ordnerId }),
+      })
+      if (!res.ok) await readError(res, 'Planversion konnte nicht verschoben werden.')
+      const updated: Planversion = await res.json()
+      setPlanversionen((prev) => prev.map((p) => (p.id === id ? updated : p)))
+      return updated
+    },
+    [],
+  )
+
+  return { planversionen, loading, error, reload, create, rename, remove, move, duplicate }
 }

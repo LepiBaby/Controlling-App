@@ -12,14 +12,14 @@ vi.mock('@/lib/supabase-server', () => ({
 }))
 
 function req(options?: RequestInit) {
-  return new Request('http://localhost/api/langfristige-planung/planversionen', options)
+  return new Request('http://localhost/api/langfristige-planung/planversion-ordner', options)
 }
 
-const VERSION = {
-  id: '11111111-1111-4111-8111-111111111111',
-  name: 'Basisszenario',
-  created_at: '2026-06-20T00:00:00Z',
-  updated_at: '2026-06-20T00:00:00Z',
+const ORDNER = {
+  id: '22222222-2222-4222-8222-222222222222',
+  name: 'Szenarien 2027',
+  created_at: '2026-07-03T00:00:00Z',
+  updated_at: '2026-07-03T00:00:00Z',
 }
 
 async function unauth() {
@@ -36,17 +36,17 @@ beforeEach(() => {
   mockFrom.mockReset()
 })
 
-describe('GET /api/langfristige-planung/planversionen', () => {
-  it('returns 200 with list of plan versions', async () => {
+describe('GET /api/langfristige-planung/planversion-ordner', () => {
+  it('returns 200 with list of ordner', async () => {
     mockFrom.mockReturnValueOnce({
       select: () => ({
-        eq: () => ({ order: () => ({ limit: () => ({ data: [VERSION], error: null }) }) }),
+        eq: () => ({ order: () => ({ limit: () => ({ data: [ORDNER], error: null }) }) }),
       }),
     })
     const res = await GET()
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body[0].name).toBe('Basisszenario')
+    expect(body[0].name).toBe('Szenarien 2027')
   })
 
   it('returns 401 when unauthenticated', async () => {
@@ -66,7 +66,7 @@ describe('GET /api/langfristige-planung/planversionen', () => {
   })
 })
 
-describe('POST /api/langfristige-planung/planversionen', () => {
+describe('POST /api/langfristige-planung/planversion-ordner', () => {
   function insertMock(data: unknown, error: { code?: string; message: string } | null = null) {
     mockFrom.mockReturnValueOnce({
       insert: () => ({ select: () => ({ single: () => ({ data, error }) }) }),
@@ -74,13 +74,13 @@ describe('POST /api/langfristige-planung/planversionen', () => {
   }
 
   it('returns 201 on successful create', async () => {
-    insertMock(VERSION)
+    insertMock(ORDNER)
     const res = await POST(
-      req({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Basisszenario' }) }),
+      req({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Szenarien 2027' }) }),
     )
     expect(res.status).toBe(201)
     const body = await res.json()
-    expect(body.name).toBe('Basisszenario')
+    expect(body.name).toBe('Szenarien 2027')
   })
 
   it('returns 400 when name is missing', async () => {
@@ -98,7 +98,7 @@ describe('POST /api/langfristige-planung/planversionen', () => {
   it('returns 409 on duplicate name', async () => {
     insertMock(null, { code: '23505', message: 'duplicate key' })
     const res = await POST(
-      req({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Basisszenario' }) }),
+      req({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Szenarien 2027' }) }),
     )
     expect(res.status).toBe(409)
   })
@@ -109,32 +109,5 @@ describe('POST /api/langfristige-planung/planversionen', () => {
       req({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'X' }) }),
     )
     expect(res.status).toBe(401)
-  })
-
-  // PROJ-103: Anlegen direkt in einem Ordner.
-  const ORDNER_ID = '22222222-2222-4222-8222-222222222222'
-  function ordnerCheckMock(data: unknown) {
-    mockFrom.mockReturnValueOnce({
-      select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: () => ({ data, error: null }) }) }) }),
-    })
-  }
-
-  it('returns 201 when creating inside an owned folder', async () => {
-    ordnerCheckMock({ id: ORDNER_ID })
-    insertMock({ ...VERSION, ordner_id: ORDNER_ID })
-    const res = await POST(
-      req({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'X', ordner_id: ORDNER_ID }) }),
-    )
-    expect(res.status).toBe(201)
-    const body = await res.json()
-    expect(body.ordner_id).toBe(ORDNER_ID)
-  })
-
-  it('returns 400 when target folder does not exist / is foreign', async () => {
-    ordnerCheckMock(null)
-    const res = await POST(
-      req({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'X', ordner_id: ORDNER_ID }) }),
-    )
-    expect(res.status).toBe(400)
   })
 })

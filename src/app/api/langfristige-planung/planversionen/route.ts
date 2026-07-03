@@ -7,10 +7,12 @@ import { ensureInvestitionenSnapshot } from '@/lib/langfristige-investitionen-sn
 // Überspringt den in Next 16 instabilen Static-Path-Pass (Worker-Crash).
 export const dynamic = 'force-dynamic'
 
-const SELECT_COLS = 'id, name, created_at, updated_at'
+const SELECT_COLS = 'id, name, ordner_id, created_at, updated_at'
 
 const createSchema = z.object({
   name: z.string().min(1).max(100).transform((s) => s.trim()),
+  // PROJ-103: optionaler Zielordner (null/fehlend = Grundseite).
+  ordner_id: z.string().uuid().nullable().optional(),
 })
 
 // Postgres unique-violation -> Name bereits vergeben
@@ -49,9 +51,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Der Name darf nicht leer sein.' }, { status: 400 })
   }
 
+  // Zielordner (falls angegeben) muss existieren und dem Nutzer gehören.
+  const ordnerId = parsed.data.ordner_id ?? null
+  if (ordnerId !== null) {
+    const { data: ordner, error: ordnerErr } = await supabase
+      .from('langfristige_planversion_ordner')
+      .select('id')
+      .eq('user_id', user!.id)
+      .eq('id', ordnerId)
+      .maybeSingle()
+    if (ordnerErr) return NextResponse.json({ error: ordnerErr.message }, { status: 500 })
+    if (!ordner) return NextResponse.json({ error: 'Zielordner nicht gefunden.' }, { status: 400 })
+  }
+
   const { data, error: dbErr } = await supabase
     .from('langfristige_planversionen')
-    .insert({ name: parsed.data.name, user_id: user!.id })
+    .insert({ name: parsed.data.name, user_id: user!.id, ordner_id: ordnerId })
     .select(SELECT_COLS)
     .single()
 

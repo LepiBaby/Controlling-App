@@ -6,13 +6,20 @@ import { requireAuth } from '@/lib/supabase-server'
 // Überspringt den in Next 16 instabilen Static-Path-Pass (Worker-Crash).
 export const dynamic = 'force-dynamic'
 
-const SELECT_COLS = 'id, name, created_at, updated_at'
+const SELECT_COLS = 'id, name, ordner_id, created_at, updated_at'
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const DUPLICATE_CODE = '23505'
 
-const patchSchema = z.object({
-  name: z.string().min(1).max(100).transform((s) => s.trim()),
-})
+// PROJ-103: PATCH kann umbenennen (name) und/oder verschieben (ordner_id).
+// Beide Felder sind optional, aber mindestens eines muss vorhanden sein.
+const patchSchema = z
+  .object({
+    name: z.string().max(100).optional(),
+    ordner_id: z.string().uuid().nullable().optional(),
+  })
+  .refine((d) => d.name !== undefined || d.ordner_id !== undefined, {
+    message: 'Keine Änderung angegeben.',
+  })
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -50,16 +57,45 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 
   const body = await request.json().catch(() => null)
   const parsed = patchSchema.safeParse(body)
-  if (!parsed.success || parsed.data.name.length === 0) {
-    return NextResponse.json(
-      { error: 'Bitte gib einen Namen mit 1–100 Zeichen an.' },
-      { status: 400 },
-    )
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'Ungültige Eingabe.' }, { status: 400 })
+  }
+
+  // Update-Objekt je nach angegebenen Feldern zusammenbauen.
+  const update: { name?: string; ordner_id?: string | null; updated_at: string } = {
+    updated_at: new Date().toISOString(),
+  }
+
+  if (parsed.data.name !== undefined) {
+    const name = parsed.data.name.trim()
+    if (name.length < 1 || name.length > 100) {
+      return NextResponse.json(
+        { error: 'Bitte gib einen Namen mit 1–100 Zeichen an.' },
+        { status: 400 },
+      )
+    }
+    update.name = name
+  }
+
+  if (parsed.data.ordner_id !== undefined) {
+    const ordnerId = parsed.data.ordner_id
+    // Zielordner (falls nicht null) muss existieren und dem Nutzer gehören.
+    if (ordnerId !== null) {
+      const { data: ordner, error: ordnerErr } = await supabase
+        .from('langfristige_planversion_ordner')
+        .select('id')
+        .eq('user_id', user!.id)
+        .eq('id', ordnerId)
+        .maybeSingle()
+      if (ordnerErr) return NextResponse.json({ error: ordnerErr.message }, { status: 500 })
+      if (!ordner) return NextResponse.json({ error: 'Zielordner nicht gefunden.' }, { status: 400 })
+    }
+    update.ordner_id = ordnerId
   }
 
   const { data, error: dbErr } = await supabase
     .from('langfristige_planversionen')
-    .update({ name: parsed.data.name, updated_at: new Date().toISOString() })
+    .update(update)
     .eq('user_id', user!.id)
     .eq('id', id)
     .select(SELECT_COLS)

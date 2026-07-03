@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { GET, PATCH, DELETE } from './route'
+import { PATCH, DELETE } from './route'
 
 const mockFrom = vi.fn()
 
@@ -11,19 +11,19 @@ vi.mock('@/lib/supabase-server', () => ({
   }),
 }))
 
-const ID = '11111111-1111-4111-8111-111111111111'
-const VERSION = {
+const ID = '22222222-2222-4222-8222-222222222222'
+const ORDNER = {
   id: ID,
-  name: 'Basisszenario',
-  created_at: '2026-06-20T00:00:00Z',
-  updated_at: '2026-06-20T00:00:00Z',
+  name: 'Szenarien 2027',
+  created_at: '2026-07-03T00:00:00Z',
+  updated_at: '2026-07-03T00:00:00Z',
 }
 
 function ctx(id: string) {
   return { params: Promise.resolve({ id }) }
 }
 function req(options?: RequestInit) {
-  return new Request(`http://localhost/api/langfristige-planung/planversionen/${ID}`, options)
+  return new Request(`http://localhost/api/langfristige-planung/planversion-ordner/${ID}`, options)
 }
 
 async function unauth() {
@@ -40,40 +40,7 @@ beforeEach(() => {
   mockFrom.mockReset()
 })
 
-describe('GET /api/langfristige-planung/planversionen/[id]', () => {
-  function selectMock(data: unknown, error: { message: string } | null = null) {
-    mockFrom.mockReturnValueOnce({
-      select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: () => ({ data, error }) }) }) }),
-    })
-  }
-
-  it('returns 200 with the version', async () => {
-    selectMock(VERSION)
-    const res = await GET(req(), ctx(ID))
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.id).toBe(ID)
-  })
-
-  it('returns 404 when not found / foreign', async () => {
-    selectMock(null)
-    const res = await GET(req(), ctx(ID))
-    expect(res.status).toBe(404)
-  })
-
-  it('returns 400 on invalid uuid', async () => {
-    const res = await GET(req(), ctx('not-a-uuid'))
-    expect(res.status).toBe(400)
-  })
-
-  it('returns 401 when unauthenticated', async () => {
-    await unauth()
-    const res = await GET(req(), ctx(ID))
-    expect(res.status).toBe(401)
-  })
-})
-
-describe('PATCH /api/langfristige-planung/planversionen/[id]', () => {
+describe('PATCH /api/langfristige-planung/planversion-ordner/[id]', () => {
   function updateMock(data: unknown, error: { code?: string; message: string } | null = null) {
     mockFrom.mockReturnValueOnce({
       update: () => ({ eq: () => ({ eq: () => ({ select: () => ({ maybeSingle: () => ({ data, error }) }) }) }) }),
@@ -81,7 +48,7 @@ describe('PATCH /api/langfristige-planung/planversionen/[id]', () => {
   }
 
   it('returns 200 on successful rename', async () => {
-    updateMock({ ...VERSION, name: 'Neu' })
+    updateMock({ ...ORDNER, name: 'Neu' })
     const res = await PATCH(
       req({ method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Neu' }) }),
       ctx(ID),
@@ -95,6 +62,14 @@ describe('PATCH /api/langfristige-planung/planversionen/[id]', () => {
     const res = await PATCH(
       req({ method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: '  ' }) }),
       ctx(ID),
+    )
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 400 on invalid uuid', async () => {
+    const res = await PATCH(
+      req({ method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'X' }) }),
+      ctx('not-a-uuid'),
     )
     expect(res.status).toBe(400)
   })
@@ -125,75 +100,40 @@ describe('PATCH /api/langfristige-planung/planversionen/[id]', () => {
     )
     expect(res.status).toBe(401)
   })
-
-  // PROJ-103: Verschieben in einen Ordner / auf die Grundseite.
-  const ORDNER_ID = '22222222-2222-4222-8222-222222222222'
-  function ordnerCheckMock(data: unknown) {
-    mockFrom.mockReturnValueOnce({
-      select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: () => ({ data, error: null }) }) }) }),
-    })
-  }
-
-  it('returns 200 when moving into an owned folder', async () => {
-    ordnerCheckMock({ id: ORDNER_ID })
-    updateMock({ ...VERSION, ordner_id: ORDNER_ID })
-    const res = await PATCH(
-      req({ method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ordner_id: ORDNER_ID }) }),
-      ctx(ID),
-    )
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.ordner_id).toBe(ORDNER_ID)
-  })
-
-  it('returns 200 when moving back to the base level (ordner_id null)', async () => {
-    updateMock({ ...VERSION, ordner_id: null })
-    const res = await PATCH(
-      req({ method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ordner_id: null }) }),
-      ctx(ID),
-    )
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.ordner_id).toBeNull()
-  })
-
-  it('returns 400 when target folder does not exist / is foreign', async () => {
-    ordnerCheckMock(null)
-    const res = await PATCH(
-      req({ method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ordner_id: ORDNER_ID }) }),
-      ctx(ID),
-    )
-    expect(res.status).toBe(400)
-  })
-
-  it('returns 400 when no changed field is provided', async () => {
-    const res = await PATCH(
-      req({ method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) }),
-      ctx(ID),
-    )
-    expect(res.status).toBe(400)
-  })
 })
 
-describe('DELETE /api/langfristige-planung/planversionen/[id]', () => {
+describe('DELETE /api/langfristige-planung/planversion-ordner/[id]', () => {
   function findMock(data: unknown, error: { message: string } | null = null) {
     mockFrom.mockReturnValueOnce({
       select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: () => ({ data, error }) }) }) }),
     })
   }
-  function deleteMock(error: { message: string } | null = null) {
+  function countMock(count: number, error: { message: string } | null = null) {
+    mockFrom.mockReturnValueOnce({
+      select: () => ({ eq: () => ({ eq: () => ({ count, error }) }) }),
+    })
+  }
+  function deleteMock(error: { code?: string; message: string } | null = null) {
     mockFrom.mockReturnValueOnce({
       delete: () => ({ eq: () => ({ eq: () => ({ error }) }) }),
     })
   }
 
-  it('returns 200 on successful delete', async () => {
+  it('returns 200 when deleting an empty folder', async () => {
     findMock({ id: ID })
+    countMock(0)
     deleteMock(null)
     const res = await DELETE(req({ method: 'DELETE' }), ctx(ID))
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.success).toBe(true)
+  })
+
+  it('returns 409 when the folder still contains plan versions', async () => {
+    findMock({ id: ID })
+    countMock(2)
+    const res = await DELETE(req({ method: 'DELETE' }), ctx(ID))
+    expect(res.status).toBe(409)
   })
 
   it('returns 404 when not found / foreign', async () => {
