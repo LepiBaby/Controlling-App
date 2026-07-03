@@ -2,7 +2,9 @@
 
 ## Status: Deployed
 **Created:** 2026-06-24
-**Last Updated:** 2026-07-03 (Redesign: Produkt-orientierte Aufschlüsselung, deployed)
+**Last Updated:** 2026-07-03 (Werte jetzt Netto — PROJ-92 Netto-Umstellung)
+
+> **2026-07-03 — Werte jetzt Netto (PROJ-92 Netto-Umstellung):** Die Investitionskostenplanung (vormals „Investitionsausgaben Planung", PROJ-92) hält jetzt **Netto**-Werte. Da diese Auswertung die Eingabewerte 1:1 durchreicht (kein eigener USt-Bezug), zeigt sie automatisch **Netto** — keine Code-Änderung nötig. Nav-Beschreibung angepasst („gleiche Werte wie die Investitionskostenplanung").
 
 ## Dependencies
 - Requires: PROJ-1 (Authentifizierung) — nur eingeloggte Nutzer; alle Daten an den Nutzer gebunden

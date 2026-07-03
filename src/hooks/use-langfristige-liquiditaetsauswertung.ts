@@ -277,9 +277,12 @@ async function loadSteuer(versionId: string, ausKats: KpiCategory[]): Promise<Mo
 
 // Generischer Produkt-Modul-Loader (Umsatzausgaben + Investitionsausgaben):
 // Werte je (kategorie_id, produkt_id) → Produkt-Unterzeilen; effektiv = manuell ?? berechnet.
+// Optionaler Brutto-Faktor je Kategorie (z.B. Investitionskosten: Netto → Brutto inkl. USt
+// für die Cash-Out-Sicht); wird auf manuelle UND berechnete Werte angewandt.
 async function loadProduktModul(
   versionId: string, endpoint: string, noteSeite: string, leafIds: Set<string>,
   produktNames: Map<string, string>, produktOrder: Map<string, number>,
+  grossUp?: (kategorieId: string) => number,
 ): Promise<ModuleResult> {
   const [valRaw, berRaw, noteEntries] = await Promise.all([
     fetchJson<unknown>(endpoint, []),
@@ -329,11 +332,13 @@ async function loadProduktModul(
     const leafId = lk.slice(0, sep)
     const [yStr, mStr] = lk.slice(sep + 1).split(':')
     const y = Number(yStr), m = Number(mStr)
+    const factor = grossUp ? grossUp(leafId) : 1
     let sum = 0, any = false
     for (const prod of prods) {
       const pk = `${leafId}:${prod}:${y}:${m}`
-      const v = manProd.has(pk) ? manProd.get(pk)! : berProd.get(pk)
-      if (v !== undefined) {
+      const raw = manProd.has(pk) ? manProd.get(pk)! : berProd.get(pk)
+      if (raw !== undefined) {
+        const v = factor === 1 ? raw : Math.round(raw * factor * 100) / 100
         sum += v; any = true
         if (prod !== PROD_NONE) {
           const ck = leafMonthKey(subId(leafId, prod), y, m)
@@ -620,12 +625,36 @@ export function useLangfristigeLiquiditaetsauswertung(versionId: string) {
         }
         const operativGrossUp = (katId: string) => 1 + getUstSatzHierarchisch(katId) / 100
 
+        // Investitions-USt-Satz (VERSIONS-Invest-Baum) — exakt wie steuerausgaben/berechnet
+        // (getUstSatzInvest): Die Ebenen-Auswahl liegt auf der GLOBALEN „Produktinvestitionen"-
+        // L1, die Aufgeteilt-Sätze auf den VERSIONS-Gruppen. Investitionskosten sind NETTO
+        // (exkl. USt) → für die Cash-Out-Sicht wird der Satz aufgeschlagen (Brutto = Netto ×
+        // (1 + Satz/100)). Deckt sich mit der Vorsteuer (B4 = Netto × Satz/100) der Steuerroute.
+        const produktinvestitionenL1Id = aus.find(k => k.level === 1 && k.name.trim().toLowerCase() === 'produktinvestitionen')?.id ?? null
+        const investParentMap = new Map<string, string>()
+        for (const k of invRaw) if (k.parent_id) investParentMap.set(k.id, k.parent_id)
+        function getUstSatzInvest(katId: string): number {
+          if (!produktinvestitionenL1Id) return 0
+          const selectedEbene = ustEbeneMap[produktinvestitionenL1Id] ?? 1
+          if (selectedEbene === 1) return ustRateMap.get(`${produktinvestitionenL1Id}:1`) ?? 0
+          let id: string | undefined = katId
+          let depth = 0
+          while (id && depth < 6) {
+            const rate = ustRateMap.get(`${id}:1`) ?? ustRateMap.get(`${id}:2`)
+            if (rate != null) return rate
+            id = investParentMap.get(id)
+            depth++
+          }
+          return 0
+        }
+        const investGrossUp = (katId: string) => 1 + getUstSatzInvest(katId) / 100
+
         // Phase 1: Module, deren Soll in die Umsatzsteuer-Berechnung einfließt.
         const [einnahmen, umsatz, operativ, investitionen, finanzierung] = await Promise.all([
           loadEinnahmen(versionId, ein, plattformNames, plattformOrder),
           loadProduktModul(versionId, `/api/langfristige-planung/${versionId}/umsatzausgaben`, 'umsatzausgaben', umsatzLeafIds, produktNames, produktOrder),
           loadManuellOnlyModul(versionId, { endpoint: `/api/langfristige-planung/${versionId}/operativekosten-planung`, rootName: 'operativ', noteSeite: 'operativekosten-planung', field: 'betrag', grossUp: operativGrossUp }, aus),
-          loadProduktModul(versionId, `/api/langfristige-planung/${versionId}/investitionsausgaben-planung`, 'investitionsausgaben-planung', invLeafIds, produktNames, produktOrder),
+          loadProduktModul(versionId, `/api/langfristige-planung/${versionId}/investitionsausgaben-planung`, 'investitionsausgaben-planung', invLeafIds, produktNames, produktOrder, investGrossUp),
           loadManuellOnlyModul(versionId, { endpoint: `/api/langfristige-planung/${versionId}/finanzierungsausgaben-planung`, rootName: 'finanzierung', noteSeite: 'finanzierungsausgaben-planung', field: 'betrag' }, aus),
         ])
         // Phase 2: Steuerausgaben zuletzt — liest die frischen Soll-Werte der anderen Module (Umsatzsteuer).

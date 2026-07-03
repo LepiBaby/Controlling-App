@@ -2,7 +2,9 @@
 
 ## Status: Approved
 **Created:** 2026-06-23
-**Last Updated:** 2026-06-23 (QA bestanden — keine Critical/High-Bugs)
+**Last Updated:** 2026-07-03 (Investitionen jetzt Brutto-Aufschlag — PROJ-92 Netto-Umstellung)
+
+> **2026-07-03 — Investitionen Netto→Brutto (PROJ-92 Netto-Umstellung):** Die Investitionskostenplanung (PROJ-92) liefert jetzt **Netto**. Der Cash-Out-Block `aus-investitionen` schlägt den USt-Satz je Untergruppe auf (`Brutto = Netto × (1 + Satz/100)`) — clientseitiger `getUstSatzInvest`-Resolver + `grossUp` in `loadProduktModul`, analog zum bestehenden Operativkosten-Aufschlag.
 
 ## Dependencies
 - Requires: PROJ-1 (Authentifizierung) — nur eingeloggte Nutzer; alle Daten an den Nutzer gebunden

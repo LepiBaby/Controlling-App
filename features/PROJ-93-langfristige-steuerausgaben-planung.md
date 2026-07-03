@@ -5,6 +5,8 @@
 **Last Updated:** 2026-07-02 (Fix: B6 Einfuhrumsatzsteuer-Abzug jetzt im Ankunftsmonat statt Zahlungsmonat — deckungsgleich mit kurzfristig/PROJ-71; siehe „Fix (2026-07-02)")
 **Vorher:** 2026-06-24 (QA: USt-Berechnung + Zahlungsziel-Rückrechnung/Invest-Satz-Fixes geprüft; 25/25 bestehende Tests grün; 6 Befunde dokumentiert — siehe „QA Test Results"; Status → In Review)
 
+> **2026-07-03 — B4 auf Netto umgestellt (PROJ-92 Netto-Umstellung):** Die Investitionskostenplanung (vormals „Investitionsausgaben Planung", PROJ-92) liefert jetzt **Netto** statt Brutto. B4-Vorsteuer daher `Netto × getUstSatzInvest/100` (statt `extractVorsteuer` aus Brutto) — gleicht sich exakt mit dem Brutto-Aufschlag der Liquiditätsauswertung (PROJ-94) aus. Analog zu B3 Operativkosten.
+
 ## Implementation Notes (Enhancement 2026-06-23: Aufschlüsselungen / Drill-down)
 
 Portierung der PROJ-71-Erweiterung auf die langfristige (monatsbasierte, reine Soll-)Planung.

@@ -18,10 +18,10 @@ export const dynamic = 'force-dynamic'
 //   • Zeitliche Zuordnung "Nach Zahlungszeitpunkt": der Monat des Fälligkeitsdatums
 //     (datum) der Bestellkosten-Position — diese sind bereits in Zahlungstranchen
 //     materialisiert (PROJ-64), daher keine erneute Zahlungskonditionen-Berechnung.
-//   • Beträge werden um die USt aus den Steuereinstellungen DIESER Planversion
-//     (PROJ-83: langfristige_ust_kategorie_saetze + langfristige_ust_ebene_auswahl)
-//     aufgeschlagen — je Bestellkosten-Position über ihre globale kpi_kategorie_id
-//     (gleiche Gesamt/Aufgeteilt-Logik wie Umsatzausgaben PROJ-91).
+//   • Beträge sind NETTO (exkl. USt): die Investitionskostenplanung ist eine Kosten-
+//     (Netto-)Sicht. Der USt-Aufschlag erfolgt erst downstream — Brutto in der
+//     Liquiditätsauswertung (Cash-Out = Netto × (1 + Satz/100)), Vorsteuer in der
+//     Steuerausgaben-Berechnung (Netto × Satz/100).
 // Es wird nichts persistiert (rein berechnet).
 // Antwort: { data: { kategorie_id, produkt_id, jahr, monat, wert }[] }  (kategorie_id = L2-Untergruppe)
 
@@ -36,7 +36,6 @@ interface InvestKatRow { id: string; name: string; parent_id: string | null; lev
 interface GlobalKatRow { id: string; name: string; parent_id: string | null }
 interface BestellungRow { id: string; produkt_id: string; ist_erstbestellung: boolean }
 interface BestellKostRow { bestellung_id: string; kpi_kategorie_id: string | null; datum: string | null; nettobetrag: number }
-interface UstSatzRow { kategorie_id: string; ebene: number; ust_satz: number | null }
 
 interface Monat { jahr: number; monat: number }
 
@@ -71,7 +70,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
 
   // 1. Grundeinstellungen (Monatsfenster) + Investitions-Kategorien der Version +
   //    globale Kategorie-Namen (für den Bestellkosten-Namensabgleich) — parallel.
-  const [grundResult, investResult, globalKatResult, ustSatzResult, ustEbeneResult] = await Promise.all([
+  const [grundResult, investResult, globalKatResult] = await Promise.all([
     supabase
       .from('langfristige_grundeinstellungen')
       .select('startmonat_monat, startmonat_jahr, planungshorizont_monate')
@@ -89,14 +88,10 @@ export async function GET(_request: Request, { params }: RouteContext) {
         .range(from, to)
     ),
     fetchAllRows((from, to) => supabase.from('kpi_categories').select('id, name, parent_id').order('id', { ascending: true }).range(from, to)),
-    supabase.from('langfristige_ust_kategorie_saetze').select('kategorie_id, ebene, ust_satz').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(1000),
-    supabase.from('langfristige_ust_ebene_auswahl').select('kategorie_id, ebene').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(500),
   ])
 
   if (investResult.error) return NextResponse.json({ error: investResult.error.message }, { status: 500 })
   if (globalKatResult.error) return NextResponse.json({ error: globalKatResult.error.message }, { status: 500 })
-  if (ustSatzResult.error) return NextResponse.json({ error: ustSatzResult.error.message }, { status: 500 })
-  if (ustEbeneResult.error) return NextResponse.json({ error: ustEbeneResult.error.message }, { status: 500 })
 
   const grund = grundResult.data
   const now = new Date()
@@ -123,43 +118,11 @@ export async function GET(_request: Request, { params }: RouteContext) {
     return NextResponse.json({ data: [] })
   }
 
-  // Globale Kategorie-Namen + Parent-Struktur (zum Übersetzen der Bestellkosten-Kategorie
-  // und für die USt-Ebenenzuordnung).
+  // Globale Kategorie-Namen (zum Übersetzen der Bestellkosten-Kategorie auf die
+  // gleichnamige Einkauf-Untergruppe der Version).
   const globalNameById = new Map<string, string>()
-  const parentMap = new Map<string, string>()
   for (const k of (globalKatResult.data ?? []) as GlobalKatRow[]) {
     globalNameById.set(k.id, k.name)
-    if (k.parent_id) parentMap.set(k.id, k.parent_id)
-  }
-
-  // USt-Sätze + Ebenen-Auswahl dieser Version (PROJ-83) — identische Gesamt/Aufgeteilt-
-  // Logik wie Umsatzausgaben (PROJ-91): Satz wird je globaler Kategorie aufgeschlagen.
-  const ustRateMap = new Map<string, number>()
-  for (const r of (ustSatzResult.data ?? []) as UstSatzRow[]) {
-    if (r.ust_satz != null) ustRateMap.set(`${r.kategorie_id}:${r.ebene}`, Number(r.ust_satz))
-  }
-  const ustEbeneMap = new Map<string, 1 | 2>()
-  for (const r of (ustEbeneResult.data ?? []) as { kategorie_id: string; ebene: number }[]) {
-    ustEbeneMap.set(r.kategorie_id, r.ebene as 1 | 2)
-  }
-  function getUstMultiplier(specificId: string | null, parentId: string | null): number {
-    if (parentId) {
-      const ebene = ustEbeneMap.get(parentId) ?? 1 // default: Gesamt
-      if (ebene === 1) {
-        const r = ustRateMap.get(`${parentId}:1`)
-        if (r != null) return 1 + r / 100
-      } else if (specificId) {
-        const r = ustRateMap.get(`${specificId}:2`)
-        if (r != null) return 1 + r / 100
-      }
-    }
-    if (specificId) {
-      const r2 = ustRateMap.get(`${specificId}:2`)
-      if (r2 != null) return 1 + r2 / 100
-      const r1 = ustRateMap.get(`${specificId}:1`)
-      if (r1 != null) return 1 + r1 / 100
-    }
-    return 1
   }
 
   // 2. Erstbestellungen + deren Bestellkosten der Version (parallel).
@@ -218,12 +181,9 @@ export async function GET(_request: Request, { params }: RouteContext) {
     const netto = Number(k.nettobetrag)
     if (!(netto > 0)) continue
 
-    // USt-Aufschlag gemäß Steuereinstellungen der Version (Gesamt/Aufgeteilt je Kategorie).
-    const ust = getUstMultiplier(k.kpi_kategorie_id, parentMap.get(k.kpi_kategorie_id) ?? null)
-    const betrag = netto * ust
-
+    // NETTO (Kostensicht) — kein USt-Aufschlag; dieser erfolgt downstream (Liquidität/Steuer).
     const key = `${untergruppeId}:${produktId}:${jahr}:${monat}`
-    resultMap.set(key, (resultMap.get(key) ?? 0) + betrag)
+    resultMap.set(key, (resultMap.get(key) ?? 0) + netto)
   }
 
   const data = []

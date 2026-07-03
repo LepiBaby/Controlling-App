@@ -2,7 +2,9 @@
 
 ## Status: Planned
 **Created:** 2026-06-24
-**Last Updated:** 2026-06-24
+**Last Updated:** 2026-07-03 (Investitionswerte jetzt Netto — PROJ-92 Netto-Umstellung)
+
+> **2026-07-03 — Investitionswerte jetzt Netto (PROJ-92 Netto-Umstellung):** Der Kapitalbedarf bezieht die Investitionssummen über die Investitionsauswertung (PROJ-99), die jetzt **Netto** durchreicht. Damit fließen die Investitionen automatisch **netto** in den Gesamtkapitalbedarf — keine Code-Änderung nötig.
 
 ## Dependencies
 - Requires: PROJ-1 (Authentifizierung) — nur eingeloggte Nutzer; alle Daten an den Nutzer gebunden

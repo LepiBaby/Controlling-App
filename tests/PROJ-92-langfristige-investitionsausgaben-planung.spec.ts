@@ -2,7 +2,8 @@ import { test, expect } from '@playwright/test'
 
 // PROJ-92: Investitionsausgaben Planung — Langfristige Planung
 //
-// Versionsgebundene Seite: /dashboard/langfristige-planung/[versionId]/investitionsausgaben-planung
+// Versionsgebundene Seite: /dashboard/langfristige-planung/[versionId]/investitionskosten-planung
+// (umbenannt von „investitionsausgaben-planung" — Netto-Umstellung 2026-07-03; API-Pfad bleibt investitionsausgaben-planung)
 // Monatsweise; Zeilen aus dem Investitionen-KPI-Modell der Version (Übergruppe →
 // Untergruppe → Produkt). "Produktinvestitionen Einkauf" wird automatisch aus den
 // Erstbestellungen + Bestellkosten dieser Version berechnet (nach Zahlungszeitpunkt);
@@ -16,7 +17,7 @@ import { test, expect } from '@playwright/test'
 //  - Logik: use-langfristige-investitionsausgaben.test.ts (Monatsfenster + Schlüssel)
 
 const SAMPLE_VERSION_ID = '11111111-1111-4111-8111-111111111111'
-const PAGE_URL = `/dashboard/langfristige-planung/${SAMPLE_VERSION_ID}/investitionsausgaben-planung`
+const PAGE_URL = `/dashboard/langfristige-planung/${SAMPLE_VERSION_ID}/investitionskosten-planung`
 
 // ─── Seitenexistenz (kein 404) ───────────────────────────────────────────────
 

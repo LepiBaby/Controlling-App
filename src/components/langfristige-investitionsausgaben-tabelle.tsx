@@ -343,7 +343,7 @@ export function LangfristigeInvestitionsausgabenTabelle({ versionId }: { version
     rows.push({
       id: 'total',
       kind: 'total',
-      label: 'Investitionsausgaben (Gesamt)',
+      label: 'Investitionskosten (Gesamt)',
       indent: 0,
       isEditable: false,
       expandable: false,
@@ -606,7 +606,7 @@ export function LangfristigeInvestitionsausgabenTabelle({ versionId }: { version
             <a href={`/dashboard/langfristige-planung/${versionId}/kpi-modell-verwaltung`} className="underline text-foreground">
               KPI-Modell Verwaltung
             </a>
-            {' '}Produkte anlegen, um Investitionsausgaben je Produkt zu pflegen.
+            {' '}Produkte anlegen, um Investitionskosten je Produkt zu pflegen.
           </p>
         )}
 
@@ -893,7 +893,7 @@ export function LangfristigeInvestitionsausgabenTabelle({ versionId }: { version
         <AlertDialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Investitionsausgaben zurücksetzen?</AlertDialogTitle>
+              <AlertDialogTitle>Investitionskosten zurücksetzen?</AlertDialogTitle>
               <AlertDialogDescription>
                 Alle manuell eingegebenen Werte und Notizen dieser Planversion werden gelöscht.
                 Die Felder der Kategorie „Produktinvestitionen Einkauf" werden wieder automatisch

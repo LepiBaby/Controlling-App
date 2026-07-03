@@ -17,7 +17,7 @@ const PRODUKT_ID = '33333333-3333-4333-8333-333333333333'
 // Thenable-Chain: jede Methode gibt die Chain zurück; await löst zum Ergebnis auf.
 function chain(result: unknown) {
   const c: Record<string, unknown> = { then: (resolve: (v: unknown) => unknown) => resolve(result) }
-  for (const m of ['select', 'eq', 'maybeSingle', 'limit']) c[m] = () => c
+  for (const m of ['select', 'eq', 'maybeSingle', 'limit', 'order', 'range']) c[m] = () => c
   return c
 }
 

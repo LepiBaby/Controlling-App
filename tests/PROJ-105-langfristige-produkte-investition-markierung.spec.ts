@@ -49,8 +49,8 @@ test('unauthenticated PATCH to kpi-kategorien (ist_investition) is blocked (redi
 
 // ─── Auth-Guard: Auswertungs- & Pflegeseiten ────────────────────────────────
 
-test('unauthenticated user is redirected from the investitionsausgaben-planung page to /login', async ({ page }) => {
-  await page.goto(`/dashboard/langfristige-planung/${VERSION_ID}/investitionsausgaben-planung`)
+test('unauthenticated user is redirected from the investitionskosten-planung page to /login', async ({ page }) => {
+  await page.goto(`/dashboard/langfristige-planung/${VERSION_ID}/investitionskosten-planung`)
   await expect(page).toHaveURL(/\/login/)
 })
 

@@ -102,9 +102,9 @@ export const VERSIONS_NAV_GRUPPEN: VersionsNavGruppe[] = [
         description: 'Operative Kosten je Gruppe & Untergruppe monatsweise manuell planen',
       },
       {
-        slug: 'investitionsausgaben-planung',
-        label: 'Investitionsausgaben Planung',
-        description: 'Investitionsausgaben je Kategorie, Untergruppe & Produkt monatsweise; „Produktinvestitionen Einkauf" automatisch aus Erstbestellungen',
+        slug: 'investitionskosten-planung',
+        label: 'Investitionskostenplanung',
+        description: 'Investitionskosten (netto) je Kategorie, Untergruppe & Produkt monatsweise; „Produktinvestitionen Einkauf" automatisch aus Erstbestellungen',
       },
       {
         slug: 'finanzierungsausgaben-planung',
@@ -139,7 +139,7 @@ export const VERSIONS_NAV_GRUPPEN: VersionsNavGruppe[] = [
       {
         slug: 'investitionsauswertung',
         label: 'Investitionsauswertung',
-        description: 'Investitionen je Obergruppe, Untergruppe & Produkt monatlich oder als Gesamt — gestapeltes Diagramm und „Investitionen (Gesamt)" (gleiche Werte wie die Investitionsausgaben-Planung)',
+        description: 'Investitionen (netto) je Obergruppe, Untergruppe & Produkt monatlich oder als Gesamt — gestapeltes Diagramm und „Investitionen (Gesamt)" (gleiche Werte wie die Investitionskostenplanung)',
       },
       {
         slug: 'kapitalbedarf-finanzierung',

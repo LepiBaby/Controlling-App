@@ -39,8 +39,8 @@ test('langfristige Liquiditätsauswertung (PROJ-94) is still accessible (no 404)
   expect(response?.status()).toBeLessThan(400)
 })
 
-test('langfristige Investitionsausgaben Planung (PROJ-92) is still accessible (no 404)', async ({ page }) => {
-  const response = await page.goto(`/dashboard/langfristige-planung/${SAMPLE_VERSION_ID}/investitionsausgaben-planung`)
+test('langfristige Investitionskostenplanung (PROJ-92) is still accessible (no 404)', async ({ page }) => {
+  const response = await page.goto(`/dashboard/langfristige-planung/${SAMPLE_VERSION_ID}/investitionskosten-planung`)
   expect(response?.status()).toBeLessThan(400)
 })
 

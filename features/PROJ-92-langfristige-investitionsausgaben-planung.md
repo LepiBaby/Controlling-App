@@ -2,7 +2,18 @@
 
 ## Status: Approved
 **Created:** 2026-06-22
-**Last Updated:** 2026-06-23 (QA bestanden — Production-Ready)
+**Last Updated:** 2026-07-03 (Netto-Umstellung + Umbenennung „Investitionskostenplanung")
+
+## Änderung 2026-07-03 — Netto-Semantik + Umbenennung „Investitionskostenplanung"
+
+Die Seite wurde von einer **Ausgaben- (Brutto-)** auf eine **Kosten- (Netto-)Sicht** umgestellt und dabei in **„Investitionskostenplanung"** umbenannt. Die eingegebenen bzw. auto-berechneten Werte sind ab sofort **netto (exkl. USt)**; der USt-Aufschlag erfolgt erst downstream über den in den Steuereinstellungen der Version hinterlegten USt-Satz je Untergruppe (gleiche `getUstSatzInvest`-Logik wie in der Steuerausgaben-Route).
+
+- **Auto-Wert „Produktinvestitionen Einkauf" ist jetzt Netto** — der bisherige USt-Aufschlag in der berechnet-Route (`investitionsausgaben-planung/berechnet`) wurde entfernt; der Wert entspricht dem Netto-Bestellkostenbetrag.
+- **Umbenennung „Labels + Slug/Route":** Nav-Slug `investitionsausgaben-planung` → `investitionskosten-planung`, Seitenordner + Seitentitel + Tabellen-Labels („Investitionskosten (Gesamt)" etc.). **Unverändert (API/DB):** API-Pfad `/api/.../investitionsausgaben-planung`, DB-Tabelle `langfristige_investitionsausgaben_planung` und der `noteSeite`-Schlüssel `investitionsausgaben-planung` (sonst verwaisen bestehende Notizen).
+- **Downstream-Auswirkungen:**
+  - **Investitionsauswertung (PROJ-99)** & **Kapitalbedarf & Finanzierung (PROJ-101):** zeigen jetzt **Netto** (reine Durchreiche der Eingabewerte — keine eigene Rechenänderung).
+  - **Liquiditätsauswertung (PROJ-94):** schlägt Netto → **Brutto** auf (`Cash-Out = Netto × (1 + Satz/100)`), analog Operativkosten.
+  - **Steuerausgaben B4 (PROJ-93):** Vorsteuer = **`Netto × Satz/100`** (statt `extractVorsteuer` aus Brutto), gleicht sich exakt mit dem Brutto-Aufschlag der Liquiditätsauswertung aus.
 
 ## Dependencies
 - Requires: PROJ-1 (Authentifizierung) — nur eingeloggte Nutzer; alle Daten an den Nutzer gebunden

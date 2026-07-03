@@ -667,7 +667,11 @@ export async function GET(_request: Request, { params }: RouteContext) {
       }
     }
 
-    // — Investitionsausgaben (B4): effektiv = manuell ?? berechnet (Brutto inkl. USt) → extractVorsteuer —
+    // — Investitionsausgaben (B4): effektiv = manuell ?? berechnet (NETTO exkl. USt) →
+    //   Vorsteuer = Netto × Satz/100. Die Investitionskostenplanung ist eine Kosten-
+    //   (Netto-)Sicht; NICHT extractVorsteuer, da kein Brutto. So gleicht sich die
+    //   Vorsteuer exakt mit dem Brutto-Aufschlag der Liquiditätsauswertung
+    //   (Cash-Out = Netto × (1 + Satz/100)) aus — analog B3 Operativkosten.
     // Satz über den VERSIONS-Invest-Resolver (getUstSatzInvest), der die Gesamt/Aufgeteilt-
     // Auswahl der globalen „Produktinvestitionen"-L1 respektiert — die Invest-Kategorien
     // sind versions-eigen und werden vom globalen Hierarchie-Resolver nicht aufgelöst.
@@ -681,7 +685,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
     for (const [key, wert] of investEff) {
       const [katId, , jahrStr, monatStr] = key.split(':')
       const satz = getUstSatzInvest(katId)
-      addUst(Number(jahrStr), Number(monatStr), -extractVorsteuer(Number(wert), satz), 'vorsteuer')
+      addUst(Number(jahrStr), Number(monatStr), -(Number(wert) * satz / 100), 'vorsteuer')
     }
 
     // — A2: sonstige Einnahmen (nicht Produktverkäufe, nicht Plattform-Unterzeilen) —
