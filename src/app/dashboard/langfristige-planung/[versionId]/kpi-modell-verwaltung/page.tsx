@@ -47,7 +47,7 @@ function KategorieTab({
   const {
     tree, categories, loading, error,
     addCategory, renameCategory, deleteCategory, moveCategory,
-    reorderCategory, reparentCategory, getDescendantCount,
+    reorderCategory, reparentCategory, getDescendantCount, toggleInvestition,
   } = useLangfristigeKpiKategorien(versionId, art)
   const [pendingDelete, setPendingDelete] = useState<KpiCategory | null>(null)
 
@@ -76,6 +76,9 @@ function KategorieTab({
         onMoveDown={(id) => moveCategory(id, 'down')}
         onReorder={reorderCategory}
         onReparent={reparentCategory}
+        // PROJ-105: Investitions-Markierung nur im Produkte-Reiter; steuert, welche
+        // Produkte in der Investitionsausgaben-Planung standardmäßig als Zeile erscheinen.
+        onToggleInvestition={art === 'lp_produkt' ? toggleInvestition : undefined}
         // Bewusst NICHT verdrahtet: SKU, USt, Dimensionen, Anzeigebezeichnungen,
         // Rentabilitäts-Ausschluss — diese Funktionen entfallen in der Langfristigen Planung.
       />

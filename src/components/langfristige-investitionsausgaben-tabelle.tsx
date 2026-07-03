@@ -3,10 +3,19 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import {
   ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown,
-  RotateCcw, StickyNote,
+  RotateCcw, StickyNote, Plus, X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,6 +38,7 @@ import {
   wertKey,
   type PlanungsMonat,
   type InvestKategorie,
+  type InvestProdukt,
 } from '@/hooks/use-langfristige-investitionsausgaben'
 import { useLangfristigePlanungNotizen } from '@/hooks/use-langfristige-planung-notizen'
 import { PlanungNotizFormular } from '@/components/planung-notiz-formular'
@@ -49,7 +59,7 @@ function formatNum(v: number): string {
 
 // ─── Row types ────────────────────────────────────────────────────────────────
 
-type RowKind = 'total' | 'category-header' | 'subgroup-header' | 'leaf'
+type RowKind = 'total' | 'category-header' | 'subgroup-header' | 'leaf' | 'add-row'
 
 interface FlatRow {
   id: string
@@ -62,8 +72,63 @@ interface FlatRow {
   isEditable: boolean
   expandable: boolean
   expanded: boolean
+  // Leaf: manuell ergänzte Zeile (entfernbar)
+  removable?: boolean
   // Für Aggregationszeilen: die Leaf-Kinder (L2-Untergruppe + Produkt) zum Summieren
   childLeafs?: Array<{ l2KatId: string; produktId: string }>
+}
+
+// ─── Produkt-Picker (PROJ-105) ──────────────────────────────────────────────────
+
+// Popover-Combobox zum Ergänzen einer weiteren Produktzeile in einer Untergruppe.
+function AddProduktPicker({
+  addbar,
+  onAdd,
+}: {
+  addbar: InvestProdukt[]
+  onAdd: (produktId: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+
+  if (addbar.length === 0) return null
+
+  const filtered = search.trim()
+    ? addbar.filter(p => p.name.toLowerCase().includes(search.trim().toLowerCase()))
+    : addbar
+
+  return (
+    <Popover open={open} onOpenChange={o => { setOpen(o); if (!o) setSearch('') }}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+        >
+          <Plus className="h-3.5 w-3.5 shrink-0" />
+          Produkt hinzufügen
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 p-0" align="start">
+        <Command shouldFilter={false}>
+          <CommandInput placeholder="Produkt suchen…" value={search} onValueChange={setSearch} />
+          <CommandList>
+            <CommandGroup>
+              {filtered.map(p => (
+                <CommandItem
+                  key={p.id}
+                  value={p.id}
+                  onSelect={() => { onAdd(p.id); setOpen(false); setSearch('') }}
+                >
+                  {p.name}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+            {filtered.length === 0 && <CommandEmpty>Keine Produkte gefunden.</CommandEmpty>}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  )
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -80,6 +145,11 @@ export function LangfristigeInvestitionsausgabenTabelle({ versionId }: { version
     getBerechneterWert,
     upsertZelle,
     resetAll,
+    getUntergruppeProdukte,
+    getAddbareProdukte,
+    isEntfernbareZeile,
+    addProduktzeile,
+    removeProduktzeile,
   } = useLangfristigeInvestitionsausgaben(versionId)
 
   const { toast } = useToast()
@@ -178,16 +248,14 @@ export function LangfristigeInvestitionsausgabenTabelle({ versionId }: { version
     const rows: FlatRow[] = []
     const allLeafPairs: Array<{ l2KatId: string; produktId: string }> = []
 
-    // Vollständige Matrix: unter jeder Untergruppe erscheint jedes Produkt der Version.
-    const leafProdukte = produkte
-
+    // Pro Untergruppe: als Investition markierte Produkte + manuell ergänzte Zeilen.
     for (const l1 of l1Kategorien) {
       const l2s = getSubgroups(l1)
       const l1Expanded = expandedIds.has(l1.id)
       const l1ChildLeafs: Array<{ l2KatId: string; produktId: string }> = []
 
       for (const l2 of l2s) {
-        for (const p of leafProdukte) {
+        for (const p of getUntergruppeProdukte(l2.id)) {
           l1ChildLeafs.push({ l2KatId: l2.id, produktId: p.id })
           allLeafPairs.push({ l2KatId: l2.id, produktId: p.id })
         }
@@ -209,7 +277,8 @@ export function LangfristigeInvestitionsausgabenTabelle({ versionId }: { version
         if (l1Expanded) {
           for (const l2 of l2s) {
             const l2Expanded = expandedIds.has(l2.id)
-            const l2ChildLeafs = leafProdukte.map(p => ({ l2KatId: l2.id, produktId: p.id }))
+            const l2Produkte = getUntergruppeProdukte(l2.id)
+            const l2ChildLeafs = l2Produkte.map(p => ({ l2KatId: l2.id, produktId: p.id }))
 
             rows.push({
               id: `l2-${l2.id}`,
@@ -219,13 +288,13 @@ export function LangfristigeInvestitionsausgabenTabelle({ versionId }: { version
               l1KategorieId: l1.id,
               l2KategorieId: l2.id,
               isEditable: false,
-              expandable: leafProdukte.length > 0,
+              expandable: produkte.length > 0,
               expanded: l2Expanded,
               childLeafs: l2ChildLeafs,
             })
 
             if (l2Expanded) {
-              for (const prod of leafProdukte) {
+              for (const prod of l2Produkte) {
                 rows.push({
                   id: `leaf-${l2.id}-${prod.id}`,
                   kind: 'leaf',
@@ -235,6 +304,21 @@ export function LangfristigeInvestitionsausgabenTabelle({ versionId }: { version
                   l2KategorieId: l2.id,
                   produktId: prod.id,
                   isEditable: true,
+                  expandable: false,
+                  expanded: false,
+                  removable: isEntfernbareZeile(l2.id, prod.id),
+                })
+              }
+              // Zeile zum Ergänzen weiterer Produkte (nur wenn es addbare gibt).
+              if (getAddbareProdukte(l2.id).length > 0) {
+                rows.push({
+                  id: `add-${l2.id}`,
+                  kind: 'add-row',
+                  label: '',
+                  indent: 2,
+                  l1KategorieId: l1.id,
+                  l2KategorieId: l2.id,
+                  isEditable: false,
                   expandable: false,
                   expanded: false,
                 })
@@ -268,7 +352,7 @@ export function LangfristigeInvestitionsausgabenTabelle({ versionId }: { version
     })
 
     return rows
-  }, [l1Kategorien, getSubgroups, expandedIds, produkte])
+  }, [l1Kategorien, getSubgroups, expandedIds, produkte, getUntergruppeProdukte, getAddbareProdukte, isEntfernbareZeile])
 
   // ─── Value aggregation helpers ────────────────────────────────────────────
 
@@ -279,7 +363,7 @@ export function LangfristigeInvestitionsausgabenTabelle({ versionId }: { version
   }
 
   function getCellValue(row: FlatRow, monat: PlanungsMonat): {
-    display: string; rawNum: number | null; indicator: 'gray' | 'blue' | null; isEditable: boolean
+    display: string; rawNum: number | null; indicator: 'gray' | null; isEditable: boolean
   } {
     if (!row.isEditable) {
       if (row.childLeafs && row.childLeafs.length > 0) {
@@ -295,7 +379,8 @@ export function LangfristigeInvestitionsausgabenTabelle({ versionId }: { version
 
     const manVal = getManuellerWert(row.l2KategorieId!, row.produktId!, monat)
     if (manVal !== null) {
-      return { display: formatNum(manVal), rawNum: manVal, indicator: 'blue', isEditable: true }
+      // Manuelle Werte werden bewusst NICHT markiert (kein blauer Punkt).
+      return { display: formatNum(manVal), rawNum: manVal, indicator: null, isEditable: true }
     }
 
     const berVal = getBerechneterWert(row.l2KategorieId!, row.produktId!, monat)
@@ -546,6 +631,35 @@ export function LangfristigeInvestitionsausgabenTabelle({ versionId }: { version
 
             <tbody>
               {flatRows.map(row => {
+                // PROJ-105: Zeile zum Ergänzen weiterer Produkte in einer Untergruppe.
+                if (row.kind === 'add-row') {
+                  return (
+                    <tr key={row.id} className="border-b last:border-0 bg-white dark:bg-background">
+                      <td
+                        className="sticky left-0 z-10 px-3 py-1.5 whitespace-nowrap bg-white dark:bg-background"
+                        style={{ paddingLeft: `${12 + row.indent * 16}px` }}
+                      >
+                        <span className="flex items-center gap-1">
+                          <span className="w-3.5 shrink-0" />
+                          <AddProduktPicker
+                            addbar={getAddbareProdukte(row.l2KategorieId!)}
+                            onAdd={async (produktId) => {
+                              try {
+                                await addProduktzeile(row.l2KategorieId!, produktId)
+                              } catch {
+                                toast({ title: 'Fehler', description: 'Produkt konnte nicht hinzugefügt werden.', variant: 'destructive' })
+                              }
+                            }}
+                          />
+                        </span>
+                      </td>
+                      {monate.map(m => (
+                        <td key={`${m.year}-${m.month}`} className="border-l" />
+                      ))}
+                    </tr>
+                  )
+                }
+
                 const isTotal = row.kind === 'total'
                 const isL1Header = row.kind === 'category-header'
                 const isL2Header = row.kind === 'subgroup-header'
@@ -584,9 +698,25 @@ export function LangfristigeInvestitionsausgabenTabelle({ versionId }: { version
                           {row.label}
                         </button>
                       ) : (
-                        <span className={['flex items-center gap-1', labelFont, isLeaf ? 'text-muted-foreground' : ''].join(' ')}>
+                        <span className={['group/leaf flex items-center gap-1', labelFont, isLeaf ? 'text-muted-foreground' : ''].join(' ')}>
                           <span className="w-3.5 shrink-0" />
                           {row.label}
+                          {isLeaf && row.removable && (
+                            <button
+                              type="button"
+                              className="ml-1 opacity-0 group-hover/leaf:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
+                              title="Produktzeile entfernen"
+                              onClick={async () => {
+                                try {
+                                  await removeProduktzeile(row.l2KategorieId!, row.produktId!)
+                                } catch {
+                                  toast({ title: 'Fehler', description: 'Produkt konnte nicht entfernt werden.', variant: 'destructive' })
+                                }
+                              }}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          )}
                         </span>
                       )}
                     </td>
@@ -666,12 +796,11 @@ export function LangfristigeInvestitionsausgabenTabelle({ versionId }: { version
                             />
                           ) : (
                             <div className="flex items-center justify-end gap-1">
-                              {indicator && (
-                                <span className={[
-                                  'inline-block h-1.5 w-1.5 rounded-full shrink-0',
-                                  indicator === 'gray' ? 'bg-gray-300 dark:bg-gray-600' : 'bg-blue-500',
-                                ].join(' ')}
-                                title={indicator === 'gray' ? 'Automatisch berechnet' : 'Manuell eingegeben'} />
+                              {indicator === 'gray' && (
+                                <span
+                                  className="inline-block h-1.5 w-1.5 rounded-full shrink-0 bg-gray-300 dark:bg-gray-600"
+                                  title="Automatisch berechnet"
+                                />
                               )}
                               <span className={[
                                 isTotal ? 'font-semibold' : '',

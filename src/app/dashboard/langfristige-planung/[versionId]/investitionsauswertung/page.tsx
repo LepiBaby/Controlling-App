@@ -40,10 +40,10 @@ function InvestitionsauswertungInhalt({ versionId }: { versionId: string }) {
         </div>
       )}
 
-      {/* Diagramm: Obergruppen gestapelt */}
+      {/* Diagramm: Produkte gestapelt */}
       <LangfristigeInvestitionsauswertungChart model={displayModel} zeitansicht={zeitansicht} />
 
-      {/* Haupttabelle (Obergruppe → Untergruppe → Produkt + Gesamt) */}
+      {/* Haupttabelle (Produkt → Obergruppe → Untergruppe + Gesamt) */}
       <LangfristigeInvestitionsauswertungMatrix model={displayModel} versionId={versionId} />
     </div>
   )

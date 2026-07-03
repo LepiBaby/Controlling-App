@@ -6,7 +6,7 @@ import { requireAuth } from '@/lib/supabase-server'
 // Überspringt den in Next 16 instabilen Static-Path-Pass (Worker-Crash).
 export const dynamic = 'force-dynamic'
 
-const SELECT_COLS = 'id, plan_version_id, art, parent_id, name, level, sort_order, is_system'
+const SELECT_COLS = 'id, plan_version_id, art, parent_id, name, level, sort_order, is_system, ist_investition'
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 const patchSchema = z.object({
@@ -14,6 +14,8 @@ const patchSchema = z.object({
   sort_order: z.number().int().min(0).optional(),
   parent_id: z.string().uuid().nullable().optional(),
   level: z.union([z.literal(1), z.literal(2)]).optional(),
+  // PROJ-105: Produkt (art='lp_produkt') als Investition markieren.
+  ist_investition: z.boolean().optional(),
 })
 
 interface RouteContext {
@@ -120,6 +122,10 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   if (patch.sort_order !== undefined) update.sort_order = patch.sort_order
   if (patch.parent_id !== undefined) update.parent_id = patch.parent_id
   if (patch.level !== undefined) update.level = patch.level
+  // Investitions-Markierung nur für Produkte sinnvoll; für andere Arten ignorieren.
+  if (patch.ist_investition !== undefined && existing.art === 'lp_produkt') {
+    update.ist_investition = patch.ist_investition
+  }
 
   const { data, error: dbErr } = await supabase
     .from('langfristige_kpi_kategorien')

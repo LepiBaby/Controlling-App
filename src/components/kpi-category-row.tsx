@@ -10,7 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { KpiAddCategoryForm } from '@/components/kpi-add-category-form'
 import {
   ChevronRight, ChevronDown, Plus, Pencil, Trash2,
-  ArrowUp, ArrowDown, Check, X, GripVertical, SlidersHorizontal, Tag, TrendingDown, Percent, Ban, Lock,
+  ArrowUp, ArrowDown, Check, X, GripVertical, SlidersHorizontal, Tag, TrendingDown, Percent, Ban, Lock, PiggyBank,
 } from 'lucide-react'
 import type { KpiCategory } from '@/hooks/use-kpi-categories'
 import { cn } from '@/lib/utils'
@@ -55,6 +55,8 @@ interface KpiCategoryRowProps {
   onUpdateAbzugsposten?: (id: string, ist_abzugsposten: boolean) => Promise<void>
   onUpdateUstSatz?: (id: string, ust_satz: number | null) => Promise<void>
   onUpdateExcludeFromRentabilitaet?: (id: string, exclude: boolean) => Promise<void>
+  // PROJ-105: Langfristig-Produkt als Investition markieren (nur im Produkte-Reiter verdrahtet).
+  onToggleInvestition?: (id: string, ist_investition: boolean) => Promise<void>
 }
 
 const INDENT: Record<number, string> = { 1: 'pl-0', 2: 'pl-6', 3: 'pl-12' }
@@ -75,6 +77,7 @@ export function KpiCategoryRow({
   onUpdateAbzugsposten,
   onUpdateUstSatz,
   onUpdateExcludeFromRentabilitaet,
+  onToggleInvestition,
 }: KpiCategoryRowProps) {
   const isSkuRow = category.type === 'produkte' && category.level === 2
   const isSkuParent = category.type === 'produkte' && category.level === 1
@@ -152,6 +155,8 @@ export function KpiCategoryRow({
   const showAbzugsposten = category.level === 1 && !!onUpdateAbzugsposten
   const showUstSatz = isSkuParent && !!onUpdateUstSatz
   const showExcludeFromRentabilitaet = !!onUpdateExcludeFromRentabilitaet
+  // PROJ-105: Investitions-Toggle nur, wenn verdrahtet (Produkte-Reiter der Langfristigen Planung).
+  const showInvestition = !!onToggleInvestition
 
   // Drop indicator for this row
   const myIntent = dropIntent?.overId === category.id ? dropIntent : null
@@ -204,6 +209,13 @@ export function KpiCategoryRow({
             : <span className="w-3.5" />
           }
         </button>
+
+        {/* PROJ-105: dauerhaftes Investitions-Zeichen (nur Icon), damit markierte Produkte auch ohne Hover erkennbar sind */}
+        {showInvestition && category.ist_investition && !editing && (
+          <span className="shrink-0 text-primary" title="Als Investition markiert">
+            <PiggyBank className="h-3.5 w-3.5" />
+          </span>
+        )}
 
         {/* Name / inline edit */}
         {editing ? (
@@ -463,6 +475,16 @@ export function KpiCategoryRow({
                 </PopoverContent>
               </Popover>
             )}
+            {showInvestition && (
+              <Button
+                variant="ghost" size="icon"
+                className={cn('h-6 w-6', category.ist_investition && 'text-primary')}
+                onClick={() => onToggleInvestition!(category.id, !category.ist_investition)}
+                title={category.ist_investition ? 'Als Investition markiert – klicken zum Entfernen' : 'Als Investition markieren'}
+              >
+                <PiggyBank className="h-3 w-3" />
+              </Button>
+            )}
             <Button
               variant="ghost" size="icon"
               className="h-6 w-6 text-destructive hover:text-destructive"
@@ -516,6 +538,7 @@ export function KpiCategoryRow({
               onUpdateAbzugsposten={onUpdateAbzugsposten}
               onUpdateUstSatz={onUpdateUstSatz}
               onUpdateExcludeFromRentabilitaet={onUpdateExcludeFromRentabilitaet}
+              onToggleInvestition={onToggleInvestition}
             />
           ))}
         </div>

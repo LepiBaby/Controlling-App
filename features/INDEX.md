@@ -126,7 +126,8 @@
 | PROJ-102 | Plan-Ist-Vergleich (Reporting) | Deployed | [PROJ-102-plan-ist-vergleich.md](PROJ-102-plan-ist-vergleich.md) | 2026-06-28 |
 | PROJ-103 | Planversionen-Ordner — Langfristige Planung | Deployed | [PROJ-103-langfristige-planversionen-ordner.md](PROJ-103-langfristige-planversionen-ordner.md) | 2026-07-03 |
 | PROJ-104 | Planversion duplizieren — Langfristige Planung | Deployed | [PROJ-104-langfristige-planversion-duplizieren.md](PROJ-104-langfristige-planversion-duplizieren.md) | 2026-07-03 |
+| PROJ-105 | Produkte als Investition markieren — Langfristige Planung | Deployed | [PROJ-105-langfristige-produkte-investition-markierung.md](PROJ-105-langfristige-produkte-investition-markierung.md) | 2026-07-03 |
 
 <!-- Add features above this line -->
 
-## Next Available ID: PROJ-105
+## Next Available ID: PROJ-106

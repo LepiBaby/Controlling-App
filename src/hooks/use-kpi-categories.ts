@@ -27,6 +27,9 @@ export interface KpiCategory {
   // PROJ-74 (Erweiterung): true = systemverwaltete, schreibgeschützte Langfristig-
   // Investitionsgruppe (Snapshot aus globalem KPI-Modell). Im globalen Modell stets undefined/false.
   is_system?: boolean
+  // PROJ-105: nur Langfristig-Produkte (art='lp_produkt') — als Investition markiert.
+  // Standardmäßig zeigt die Investitionsausgaben-Planung nur markierte Produkte.
+  ist_investition?: boolean
   children?: KpiCategory[]
 }
 

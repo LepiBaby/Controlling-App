@@ -43,6 +43,7 @@ interface KpiCategoryTreeProps {
   onUpdateAbzugsposten?: (id: string, ist_abzugsposten: boolean) => Promise<void>
   onUpdateUstSatz?: (id: string, ust_satz: number | null) => Promise<void>
   onUpdateExcludeFromRentabilitaet?: (id: string, exclude: boolean) => Promise<void>
+  onToggleInvestition?: (id: string, ist_investition: boolean) => Promise<void>
 }
 
 function DragPreview({ name }: { name: string }) {
@@ -100,6 +101,7 @@ export function KpiCategoryTree({
   onUpdateAbzugsposten,
   onUpdateUstSatz,
   onUpdateExcludeFromRentabilitaet,
+  onToggleInvestition,
 }: KpiCategoryTreeProps) {
   const [activeId, setActiveId] = useState<string | null>(null)
   const [dropIntent, setDropIntent] = useState<DropIntent | null>(null)
@@ -239,6 +241,7 @@ export function KpiCategoryTree({
                   onUpdateAbzugsposten={onUpdateAbzugsposten}
                   onUpdateUstSatz={onUpdateUstSatz}
                   onUpdateExcludeFromRentabilitaet={onUpdateExcludeFromRentabilitaet}
+                  onToggleInvestition={onToggleInvestition}
                 />
               ))}
             </div>

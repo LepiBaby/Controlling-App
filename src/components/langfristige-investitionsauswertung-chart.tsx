@@ -65,7 +65,7 @@ export function LangfristigeInvestitionsauswertungChart({ model, zeitansicht }: 
 
   const chartData = useMemo(() => {
     return columns.map(col => {
-      const point: Record<string, string | number> = { name: col.sublabel ? `${col.label}` : col.label }
+      const point: Record<string, string | number> = { name: col.label }
       for (const s of serien) point[s.id] = s.values[col.key] ?? 0
       return point
     })
@@ -100,7 +100,7 @@ export function LangfristigeInvestitionsauswertungChart({ model, zeitansicht }: 
 
   return (
     <div className="rounded-lg border p-4 space-y-3">
-      <span className="text-sm font-medium">Investitionen nach Obergruppe</span>
+      <span className="text-sm font-medium">Investitionen nach Produkt</span>
 
       {!hasValues ? (
         <div className="flex flex-col items-center justify-center h-[300px] gap-2 text-muted-foreground text-sm">

@@ -150,18 +150,23 @@ export function LangfristigeInvestitionsauswertungMatrix({ model, versionId }: P
       </div>
     )
   }
+  if (!hasProdukte) {
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed py-16 text-center text-muted-foreground">
+        <BarChart2 className="h-8 w-8" />
+        <p className="text-sm">Keine Produkte als Investition markiert. Markiere Produkte im KPI-Modell (Reiter „Produkte"), damit sie hier erscheinen.</p>
+        <Button asChild variant="outline" size="sm">
+          <Link href={`/dashboard/langfristige-planung/${versionId}/kpi-modell-verwaltung`}>
+            Zur KPI-Modell-Verwaltung
+          </Link>
+        </Button>
+      </div>
+    )
+  }
 
   return (
     <>
       <div data-betrag-selektion="true" className="space-y-2">
-        {!hasProdukte && (
-          <p className="text-sm text-muted-foreground rounded-md border border-dashed px-4 py-2">
-            Diese Planversion hat noch keine Produkte — Untergruppen zeigen daher keine Produktzeilen.{' '}
-            <Link href={`/dashboard/langfristige-planung/${versionId}/kpi-modell-verwaltung`} className="underline">
-              KPI-Modell-Verwaltung
-            </Link>
-          </p>
-        )}
         {isEmpty && (
           <p className="text-sm text-muted-foreground rounded-md border border-dashed px-4 py-2">
             Diese Planversion enthält noch keine Investitionswerte — alle Zeilen zeigen 0,00 €.
@@ -195,9 +200,10 @@ export function LangfristigeInvestitionsauswertungMatrix({ model, versionId }: P
             <tbody>
               {rows.map((row, idx) => {
                 const isGesamt = row.kind === 'gesamt'
+                const isProdukt = row.kind === 'produkt' // oberste Ebene = Produkt-Header
                 const isObergruppe = row.kind === 'obergruppe'
-                const isProdukt = row.kind === 'produkt'
-                const isBold = isGesamt || isObergruppe
+                const isUntergruppe = row.kind === 'untergruppe' // Leaf
+                const isBold = isGesamt || isProdukt
                 const stickyBg = isGesamt ? 'bg-muted' : 'bg-background'
                 return (
                   <tr
@@ -222,7 +228,8 @@ export function LangfristigeInvestitionsauswertungMatrix({ model, versionId }: P
                         )}
                         <span className={[
                           isBold ? 'font-semibold' : '',
-                          isProdukt ? 'text-muted-foreground text-xs' : '',
+                          isObergruppe ? 'font-medium' : '',
+                          isUntergruppe ? 'text-muted-foreground text-xs' : '',
                         ].filter(Boolean).join(' ')}>
                           {row.label}
                         </span>
@@ -239,7 +246,7 @@ export function LangfristigeInvestitionsauswertungMatrix({ model, versionId }: P
                       return (
                         <td
                           key={c.key}
-                          className={['px-3 py-2 text-right tabular-nums whitespace-nowrap', isBold ? 'font-semibold' : '', isProdukt ? 'text-xs text-muted-foreground' : '', selBg].filter(Boolean).join(' ')}
+                          className={['px-3 py-2 text-right tabular-nums whitespace-nowrap', isBold ? 'font-semibold' : '', isObergruppe ? 'font-medium' : '', isUntergruppe ? 'text-xs text-muted-foreground' : '', selBg].filter(Boolean).join(' ')}
                           onMouseDown={e => handleCellMouseDown(e, cellKey, value)}
                           onMouseEnter={() => handleCellMouseEnter(cellKey, value)}
                         >

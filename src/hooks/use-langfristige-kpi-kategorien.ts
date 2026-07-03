@@ -30,6 +30,7 @@ interface LangfristigeKategorieRecord {
   level: 1 | 2 | 3
   sort_order: number
   is_system?: boolean
+  ist_investition?: boolean
 }
 
 // Auf die gemeinsame KpiCategory-Form abbilden; ungenutzte Felder defaulten.
@@ -50,6 +51,7 @@ function toKpiCategory(r: LangfristigeKategorieRecord): KpiCategory {
     ust_satz: null,
     exclude_from_rentabilitaet: false,
     is_system: r.is_system ?? false,
+    ist_investition: r.ist_investition ?? false,
   }
 }
 
@@ -247,9 +249,26 @@ export function useLangfristigeKpiKategorien(versionId: string, art: Langfristig
   const getDescendantCount = useCallback((id: string) =>
     countDescendants(categories, id), [categories])
 
+  // PROJ-105: Produkt als Investition markieren / Markierung entfernen (optimistisch).
+  const toggleInvestition = useCallback(async (id: string, value: boolean) => {
+    const previous = categories.find(c => c.id === id)?.ist_investition ?? false
+    setCategories(prev => prev.map(c => c.id === id ? { ...c, ist_investition: value } : c))
+    try {
+      const res = await fetch(`${basePath}/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ist_investition: value }),
+      })
+      if (!res.ok) throw new Error()
+    } catch {
+      setCategories(prev => prev.map(c => c.id === id ? { ...c, ist_investition: previous } : c))
+      throw new Error('Investitions-Markierung konnte nicht gespeichert werden.')
+    }
+  }, [categories, basePath])
+
   return {
     tree, categories, loading, error,
     addCategory, renameCategory, deleteCategory, moveCategory,
-    reorderCategory, reparentCategory, getDescendantCount,
+    reorderCategory, reparentCategory, getDescendantCount, toggleInvestition,
   }
 }
