@@ -1086,6 +1086,9 @@ export function LangfristigerBestelllaufDialog({ versionId, open, onOpenChange, 
     setBearbeitetAenderungen(prev => new Map(prev).set(id, updated))
 
   const neueBestellungen = ergebnis?.neue_planbestellungen ?? []
+  // Auf Schritt 3 (Konsolidierung) die auf Schritt 2 manuell bearbeiteten Bestellungen
+  // (Menge, Datum, Container) verwenden — nicht die unveränderten Algorithmus-Originale.
+  const effektiveNeueBestellungen = neueBestellungen.map(b => bearbeitet.get(b.temp_id) ?? b)
   // Neue Bestellungen nach Produkt gruppieren (ein Produkt kann mehrere
   // Bestellungen über den Horizont haben).
   const neueBestellungenGruppen = useMemo(() => {
@@ -1204,7 +1207,7 @@ export function LangfristigerBestelllaufDialog({ versionId, open, onOpenChange, 
           {step === 3 && (
             <LangfristigerKonsolidierungsSchritt
               versionId={versionId}
-              neueBestellungen={neueBestellungen}
+              neueBestellungen={effektiveNeueBestellungen}
               ausgewaehlteNeueIds={ausgewaehlt}
               stammdaten={stammdaten}
               containerGlobal={containerGlobal}
