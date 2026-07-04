@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/supabase-server'
 import { ensureLangfristigeVersion } from '@/lib/langfristige-version'
 import { fetchAllRows } from '@/lib/supabase-paginate'
+import { generiereUndSpeichereLangfristigeBestellkosten } from '../../bestellplanung/bestellungen/[id]/kosten/_kosten-utils'
 
 // Auth-geschützte, pro-Planversion dynamische Route — nie statisch generieren.
 // Überspringt den in Next 16 instabilen Static-Path-Pass (Worker-Crash).
@@ -34,7 +35,20 @@ interface RouteContext {
 
 interface InvestKatRow { id: string; name: string; parent_id: string | null; level: number }
 interface GlobalKatRow { id: string; name: string; parent_id: string | null }
-interface BestellungRow { id: string; produkt_id: string; ist_erstbestellung: boolean }
+interface BestellungRow {
+  id: string
+  produkt_id: string
+  ist_erstbestellung: boolean
+  menge_praktisch: number | null
+  bestelldatum: string | null
+  produktionsende_datum: string | null
+  shippingdatum: string | null
+  ankunftsdatum: string | null
+  verfuegbarkeitsdatum: string | null
+  anzahl_40hq: number | null
+  anzahl_20dc: number | null
+  container_anteil: Record<string, number> | null
+}
 interface BestellKostRow { bestellung_id: string; kpi_kategorie_id: string | null; datum: string | null; nettobetrag: number }
 
 interface Monat { jahr: number; monat: number }
@@ -125,35 +139,26 @@ export async function GET(_request: Request, { params }: RouteContext) {
     globalNameById.set(k.id, k.name)
   }
 
-  // 2. Erstbestellungen + deren Bestellkosten der Version (parallel).
-  const [bestellungenResult, bestellKostResult] = await Promise.all([
-    fetchAllRows((from, to) =>
-      supabase
-        .from('langfristige_bestellungen')
-        .select('id, produkt_id, ist_erstbestellung')
-        .eq('user_id', user!.id)
-        .eq('plan_version_id', versionId)
-        .eq('ist_erstbestellung', true)
-        .order('id', { ascending: true })
-        .range(from, to)
-    ),
-    fetchAllRows((from, to) =>
-      supabase
-        .from('langfristige_bestellungen_kosten')
-        .select('bestellung_id, kpi_kategorie_id, datum, nettobetrag')
-        .eq('user_id', user!.id)
-        .eq('plan_version_id', versionId)
-        .order('id', { ascending: true })
-        .range(from, to)
-    ),
-  ])
+  // 2. Erstbestellungen der Version laden (mit den für die Kostengenerierung
+  //    nötigen Feldern).
+  const bestellungenResult = await fetchAllRows((from, to) =>
+    supabase
+      .from('langfristige_bestellungen')
+      .select('id, produkt_id, ist_erstbestellung, menge_praktisch, bestelldatum, produktionsende_datum, shippingdatum, ankunftsdatum, verfuegbarkeitsdatum, anzahl_20dc, anzahl_40hq, container_anteil')
+      .eq('user_id', user!.id)
+      .eq('plan_version_id', versionId)
+      .eq('ist_erstbestellung', true)
+      .order('id', { ascending: true })
+      .range(from, to)
+  )
 
   if (bestellungenResult.error) return NextResponse.json({ error: bestellungenResult.error.message }, { status: 500 })
-  if (bestellKostResult.error) return NextResponse.json({ error: bestellKostResult.error.message }, { status: 500 })
+
+  const erstbestellungen = (bestellungenResult.data ?? []) as BestellungRow[]
 
   // Erstbestellung-ID → Produkt der Version.
   const produktByBestellung = new Map<string, string>()
-  for (const b of (bestellungenResult.data ?? []) as BestellungRow[]) {
+  for (const b of erstbestellungen) {
     produktByBestellung.set(b.id, b.produkt_id)
   }
 
@@ -161,7 +166,46 @@ export async function GET(_request: Request, { params }: RouteContext) {
     return NextResponse.json({ data: [] })
   }
 
-  // 3. Bestellkosten je (Einkauf-Untergruppe × Produkt × Fälligkeitsmonat) summieren.
+  // Bestellkosten der Erstbestellungen lazy generieren (wie Umsatzausgaben/
+  // Rentabilitätsauswertung), damit die Investitionswerte auch dann vorhanden sind,
+  // wenn die Bestellung z.B. über den Bestelllauf angelegt und nie einzeln geöffnet
+  // wurde. Erstbestellungen werden von der Umsatzausgaben-Berechnung bewusst
+  // ausgeschlossen, deshalb muss die Generierung hier erfolgen.
+  try {
+    await generiereUndSpeichereLangfristigeBestellkosten(
+      supabase,
+      user!.id,
+      versionId,
+      erstbestellungen.map(b => ({
+        id: b.id,
+        produkt_id: b.produkt_id,
+        menge_praktisch: b.menge_praktisch ?? 0,
+        bestelldatum: b.bestelldatum,
+        produktionsende_datum: b.produktionsende_datum,
+        shippingdatum: b.shippingdatum,
+        ankunftsdatum: b.ankunftsdatum,
+        verfuegbarkeitsdatum: b.verfuegbarkeitsdatum,
+        anzahl_40hq: b.anzahl_40hq ?? 0,
+        anzahl_20dc: b.anzahl_20dc ?? 0,
+        container_anteil: b.container_anteil,
+      })),
+    )
+  } catch { /* Generierung fehlgeschlagen → vorhandene Kosten verwenden */ }
+
+  // 3. Bestellkosten der Version lesen (nach der Generierung).
+  const bestellKostResult = await fetchAllRows((from, to) =>
+    supabase
+      .from('langfristige_bestellungen_kosten')
+      .select('bestellung_id, kpi_kategorie_id, datum, nettobetrag')
+      .eq('user_id', user!.id)
+      .eq('plan_version_id', versionId)
+      .order('id', { ascending: true })
+      .range(from, to)
+  )
+
+  if (bestellKostResult.error) return NextResponse.json({ error: bestellKostResult.error.message }, { status: 500 })
+
+  // 4. Bestellkosten je (Einkauf-Untergruppe × Produkt × Fälligkeitsmonat) summieren.
   // key: `${untergruppeId}:${produktId}:${jahr}:${monat}` → Netto-Summe
   const resultMap = new Map<string, number>()
   for (const k of (bestellKostResult.data ?? []) as BestellKostRow[]) {

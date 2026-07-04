@@ -11,6 +11,14 @@ vi.mock('@/lib/supabase-server', () => ({
   }),
 }))
 
+// Bestellkosten-Generierung (eigene DB-Queries) ist ein Seiteneffekt vor dem Lesen
+// der Kosten — hier als No-op gemockt, damit die from()-Reihenfolge der Route stabil
+// bleibt. Ein eigener Test prüft, dass sie aufgerufen wird.
+const mockGeneriere = vi.fn().mockResolvedValue(undefined)
+vi.mock('../../bestellplanung/bestellungen/[id]/kosten/_kosten-utils', () => ({
+  generiereUndSpeichereLangfristigeBestellkosten: (...args: unknown[]) => mockGeneriere(...args),
+}))
+
 const VERSION_ID = '11111111-1111-4111-8111-111111111111'
 const PRODUKT_ID = '33333333-3333-4333-8333-333333333333'
 
@@ -64,6 +72,8 @@ function seedHappy(opts: {
 beforeEach(() => {
   vi.clearAllMocks()
   mockFrom.mockReset()
+  mockGeneriere.mockClear()
+  mockGeneriere.mockResolvedValue(undefined)
 })
 
 describe('GET investitionsausgaben-planung/berechnet', () => {
@@ -113,6 +123,28 @@ describe('GET investitionsausgaben-planung/berechnet', () => {
       monat: 4,
       wert: 1250.5,
     })
+  })
+
+  it('regenerates Bestellkosten for the Erstbestellungen before reading them', async () => {
+    seedHappy({
+      bestellungen: [{ id: 'best-1', produkt_id: PRODUKT_ID, ist_erstbestellung: true, menge_praktisch: 100 }],
+      kosten: [{ bestellung_id: 'best-1', kpi_kategorie_id: 'g-ware', datum: '2026-04-15', nettobetrag: 1000 }],
+    })
+    const res = await GET(new Request(URL), ctx())
+    expect(res.status).toBe(200)
+    // Generierung wurde mit der Erstbestellung aufgerufen (lazy-Materialisierung).
+    expect(mockGeneriere).toHaveBeenCalledTimes(1)
+    const [, , versionArg, bestellungenArg] = mockGeneriere.mock.calls[0]
+    expect(versionArg).toBe(VERSION_ID)
+    expect(bestellungenArg).toHaveLength(1)
+    expect((bestellungenArg as Array<{ id: string }>)[0].id).toBe('best-1')
+  })
+
+  it('does not regenerate when there are no Erstbestellungen', async () => {
+    seedHappy({ bestellungen: [], kosten: [] })
+    const res = await GET(new Request(URL), ctx())
+    expect(res.status).toBe(200)
+    expect(mockGeneriere).not.toHaveBeenCalled()
   })
 
   it('ignores cost rows of non-Erstbestellungen', async () => {
