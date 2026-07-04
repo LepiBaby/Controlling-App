@@ -1,8 +1,8 @@
 # PROJ-106: Deckungsbeitragsauswertung — Langfristige Planung
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-07-04
-**Last Updated:** 2026-07-04
+**Last Updated:** 2026-07-05
 
 ## Dependencies
 - Requires: PROJ-1 (Authentifizierung) — nur eingeloggte Nutzer; alle Daten an den Nutzer gebunden
@@ -341,4 +341,9 @@ Da die Seite rein anzeigend/rechnend ist und die komplette Datenkette von PROJ-9
 Keine Critical/High/Medium Bugs. Die beiden Low-Beobachtungen sind bewusste, dokumentierte Trade-offs ohne funktionale Auswirkung.
 
 ## Deployment
-_To be added by /deploy_
+
+- **Deployed:** 2026-07-05
+- **Weg:** Push auf `main` → Vercel Auto-Deploy (Projekt `controlling-app`). Der Feature-Code ist in Commit `421b647` auf `main` und damit live. Tag: `v1.106.0-PROJ-106`.
+- **Pre-Deploy-Gate:** `npm run build` erfolgreich („✓ Compiled successfully"; Route `/dashboard/langfristige-planung/[versionId]/deckungsbeitragsauswertung` als dynamische Route gebaut); 14/14 Unit-Tests grün (Hook inkl. neuer PROJ-106-Fälle) + 12/12 Regression (`umsatzauswertung`, weiterer `computeCascade`-Konsument); 4/4 Playwright; `tsc --noEmit` ohne neue Fehler in den geänderten/neuen Produktivdateien. `next lint` unter Next 16 in diesem Repo nicht lauffähig (bekannt — siehe Projekt-Memory).
+- **Hinweis:** Reine Frontend-Änderung — **kein neues Backend, keine Migration, keine neuen Env-Vars, keine RLS-Änderung**. Additive, abwärtskompatible Erweiterungen an den geteilten PROJ-95-Bausteinen; Rentabilitätsauswertung unberührt.
+- **Nach-Deploy-Verifikation (durch Nutzer):** Live-URL öffnen → Planversion → Auswertungen → „Deckungsbeitragsauswertung": Kaskade endet bei DB III, Produktfilter reduziert Kaskade/Diagramm/Absatztabelle, Zeitbasis/Ansicht funktionieren, keine Konsolenfehler.
