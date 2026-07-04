@@ -159,39 +159,18 @@ describe('runLangfristigerBestelllauf', () => {
     expect(r.neue_bestellungen[1].konsolidiert_mit_temp_ids).toEqual([])
   })
 
-  it('ignores existing algorithm orders entirely (no change recommendations)', () => {
+  it('treats an existing ALGORITHM order as fixed stock (no change recommendation)', () => {
+    // FIX-Modell: Bereits gespeicherte Algorithmus-Bestellungen gelten als fix und
+    // werden als künftige Zugänge berücksichtigt — nie als Änderungsempfehlung.
     const existing: BestehendeBestellungInput = {
       bestellung_id: 'b1',
       produkt_id: 'p1',
       herkunft: 'algorithmus',
       manuell_geaendert: false,
       bestelldatum: '2026-06-01',
-      ankunftsdatum: '2026-07-01',
-      verfuegbarkeitsdatum: '2026-07-01',
-      menge_praktisch: 100,
-    }
-    const r = runLangfristigerBestelllauf(
-      input({
-        produkte: [produkt({ aktueller_bestand: 1_000_000, monatsabsatz: 10 })],
-        bestehendeBestellungen: [existing],
-      }),
-    )
-    // Keine Änderungsempfehlungen — bestehende Algorithmus-Bestellung wird ignoriert.
-    expect(r.aenderungen_bestehende).toHaveLength(0)
-    // Hoher Bestand → keine neue Bestellung.
-    expect(r.neue_bestellungen).toHaveLength(0)
-  })
-
-  it('ignores an existing algorithm order and recalculates fresh (no change, just new)', () => {
-    const existing: BestehendeBestellungInput = {
-      bestellung_id: 'b1',
-      produkt_id: 'p1',
-      herkunft: 'algorithmus',
-      manuell_geaendert: false,
-      bestelldatum: '2026-06-01',
-      ankunftsdatum: '2026-07-01',
-      verfuegbarkeitsdatum: '2026-07-01',
-      menge_praktisch: 60,
+      ankunftsdatum: '2026-06-15',
+      verfuegbarkeitsdatum: '2026-06-15',
+      menge_praktisch: 100_000,
     }
     const r = runLangfristigerBestelllauf(
       input({
@@ -200,9 +179,41 @@ describe('runLangfristigerBestelllauf', () => {
         bestehendeBestellungen: [existing],
       }),
     )
-    // Keine Änderungen; das Produkt wird komplett neu kalkuliert.
+    // Nie eine Änderungsempfehlung; die fixe Lieferung deckt den Bedarf → keine neue Bestellung.
     expect(r.aenderungen_bestehende).toHaveLength(0)
-    expect(r.neue_bestellungen.length).toBeGreaterThanOrEqual(1)
+    expect(r.neue_bestellungen).toHaveLength(0)
+  })
+
+  it('only proposes orders BEYOND the fixed existing arrivals (incremental, no duplicate)', () => {
+    // Ohne bestehende Bestellung würde das Produkt (Bestand 0) mindestens einmal
+    // bestellen. Eine fixe Algorithmus-Lieferung, die den Horizont-Bedarf deckt,
+    // unterdrückt die neue Bestellung — keine Doppelbestellung, keine Änderung.
+    const existing: BestehendeBestellungInput = {
+      bestellung_id: 'b1',
+      produkt_id: 'p1',
+      herkunft: 'algorithmus',
+      manuell_geaendert: false,
+      bestelldatum: '2026-06-01',
+      ankunftsdatum: '2026-06-08',
+      verfuegbarkeitsdatum: '2026-06-08',
+      menge_praktisch: 100_000,
+    }
+    const ohne = runLangfristigerBestelllauf(
+      input({
+        horizontMonate: 2,
+        produkte: [produkt({ aktueller_bestand: 0, zielreichweite_monate: 12 })],
+      }),
+    )
+    const mit = runLangfristigerBestelllauf(
+      input({
+        horizontMonate: 2,
+        produkte: [produkt({ aktueller_bestand: 0, zielreichweite_monate: 12 })],
+        bestehendeBestellungen: [existing],
+      }),
+    )
+    expect(ohne.neue_bestellungen.length).toBeGreaterThanOrEqual(1)
+    expect(mit.neue_bestellungen).toHaveLength(0)
+    expect(mit.aenderungen_bestehende).toHaveLength(0)
   })
 
   it('respects manually added (laufende) orders as fixed stock', () => {

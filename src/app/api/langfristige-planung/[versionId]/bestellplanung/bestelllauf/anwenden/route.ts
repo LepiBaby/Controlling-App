@@ -124,19 +124,13 @@ export async function POST(request: Request, { params }: RouteContext) {
   const neue = parsed.data.neue_planbestellungen ?? parsed.data.neue_bestellungen ?? []
   const now = new Date().toISOString()
 
-  // Bestehende ALGORITHMUS-Bestellungen werden komplett ersetzt (neu kalkuliert):
-  // erst alle löschen, dann die ausgewählten neu kalkulierten anlegen. Manuell
-  // angelegte (laufende) Bestellungen bleiben unangetastet.
-  const { error: clearErr } = await supabase
-    .from('langfristige_bestellungen')
-    .delete()
-    .eq('user_id', user!.id)
-    .eq('plan_version_id', versionId)
-    .eq('herkunft', 'algorithmus')
-  if (clearErr) return NextResponse.json({ error: clearErr.message }, { status: 500 })
+  // FIX-Modell: Bereits gespeicherte Bestellungen (algorithmisch wie manuell)
+  // gelten als FIX und werden NICHT gelöscht. Der Lauf ermittelt nur zusätzlich
+  // benötigte neue Bestellungen; diese werden hier angelegt. (Kein pauschales
+  // Löschen der Algorithmus-Bestellungen mehr — bewusst inkrementell.)
 
   // 1. Akzeptierte Änderungen anwenden (in der LP idR leer — bestehende Bestellungen
-  //    werden ignoriert/ersetzt; der Block bleibt für Rückwärtskompatibilität).
+  //    sind fix; der Block bleibt für Rückwärtskompatibilität).
   for (const aend of akzeptierte_aenderungen) {
     const istLoeschen = aend.loeschen === true || aend.aenderungsart === 'kein_bedarf' || !aend.neue_daten
 

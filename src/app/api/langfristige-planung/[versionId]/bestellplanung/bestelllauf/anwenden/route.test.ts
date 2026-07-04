@@ -76,7 +76,6 @@ beforeEach(() => {
 describe('POST bestelllauf/anwenden', () => {
   it('applies empty payload (200)', async () => {
     mockFrom.mockReturnValueOnce(chain({ data: { id: VERSION_ID }, error: null })) // version
-    mockFrom.mockReturnValueOnce(chain({ error: null })) // clear bestehende Algorithmus-Bestellungen
     const res = await post({ akzeptierte_aenderungen: [], neue_bestellungen: [] })
     expect(res.status).toBe(200)
     expect((await res.json()).ok).toBe(true)
@@ -84,7 +83,6 @@ describe('POST bestelllauf/anwenden', () => {
 
   it('inserts a new order and returns tempToReal (200)', async () => {
     mockFrom.mockReturnValueOnce(chain({ data: { id: VERSION_ID }, error: null })) // version
-    mockFrom.mockReturnValueOnce(chain({ error: null })) // clear bestehende Algorithmus-Bestellungen
     mockFrom.mockReturnValueOnce(chain({ data: { id: 'new-1' }, error: null })) // insert
     const res = await post({ akzeptierte_aenderungen: [], neue_planbestellungen: [NEUE] })
     expect(res.status).toBe(200)
@@ -95,7 +93,6 @@ describe('POST bestelllauf/anwenden', () => {
 
   it('still accepts legacy key neue_bestellungen (200)', async () => {
     mockFrom.mockReturnValueOnce(chain({ data: { id: VERSION_ID }, error: null })) // version
-    mockFrom.mockReturnValueOnce(chain({ error: null })) // clear bestehende Algorithmus-Bestellungen
     mockFrom.mockReturnValueOnce(chain({ data: { id: 'new-1' }, error: null })) // insert
     const res = await post({ akzeptierte_aenderungen: [], neue_bestellungen: [NEUE] })
     expect(res.status).toBe(200)
@@ -104,8 +101,7 @@ describe('POST bestelllauf/anwenden', () => {
 
   it('deletes an order via accepted "kein_bedarf" change without neue_daten (200)', async () => {
     mockFrom.mockReturnValueOnce(chain({ data: { id: VERSION_ID }, error: null })) // version
-    mockFrom.mockReturnValueOnce(chain({ error: null })) // clear bestehende Algorithmus-Bestellungen
-    mockFrom.mockReturnValueOnce(chain({ error: null })) // delete
+    mockFrom.mockReturnValueOnce(chain({ error: null })) // delete (kein_bedarf)
     const res = await post({
       akzeptierte_aenderungen: [
         { bestellung_id: '44444444-4444-4444-8444-444444444444', aenderungsart: 'kein_bedarf' },
@@ -117,8 +113,7 @@ describe('POST bestelllauf/anwenden', () => {
 
   it('deletes an order via accepted "kein_bedarf" change (200)', async () => {
     mockFrom.mockReturnValueOnce(chain({ data: { id: VERSION_ID }, error: null })) // version
-    mockFrom.mockReturnValueOnce(chain({ error: null })) // clear bestehende Algorithmus-Bestellungen
-    mockFrom.mockReturnValueOnce(chain({ error: null })) // delete
+    mockFrom.mockReturnValueOnce(chain({ error: null })) // delete (loeschen)
     const res = await post({
       akzeptierte_aenderungen: [{ bestellung_id: '44444444-4444-4444-8444-444444444444', loeschen: true }],
       neue_bestellungen: [],

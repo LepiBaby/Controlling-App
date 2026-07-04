@@ -553,18 +553,17 @@ function computeOrdersForProdukt(
   return orders
 }
 
-// Fixe Zugänge je Produkt aus bestehenden Bestellungen (Ankunftsmenge zum
-// Verfügbarkeitsdatum). `nurManuell` schließt Algorithmus-Bestellungen aus, damit
-// diese im Re-Run neu bewertet werden.
+// Fixe Zugänge je Produkt aus ALLEN bestehenden Bestellungen (Ankunftsmenge zum
+// Verfügbarkeitsdatum). Sowohl manuell angelegte als auch bereits per Algorithmus
+// erzeugte Bestellungen gelten als FIX und werden im (Re-)Lauf als künftige
+// Zugänge berücksichtigt — sie werden nie neu kalkuliert.
 function zugaengeFuerProdukt(
   produktId: string,
   bestehende: BestehendeBestellungInput[],
-  nurManuell: boolean,
 ): Zugang[] {
   const result: Zugang[] = []
   for (const b of bestehende) {
     if (b.produkt_id !== produktId) continue
-    if (nurManuell && b.herkunft !== 'manuell') continue
     const datum = parseDate(b.verfuegbarkeitsdatum ?? b.ankunftsdatum)
     if (!datum) continue
     result.push({ zeit: datum.getTime(), menge: b.menge_praktisch })
@@ -638,11 +637,12 @@ export function runLangfristigerBestelllauf(input: AlgorithmusInput): Bestelllau
   let tempCounter = 0
 
   for (const p of produkte) {
-    // Bestehende Algorithmus-Bestellungen werden IGNORIERT und komplett neu
-    // kalkuliert; NUR manuell angelegte (laufende) Bestellungen zählen als fixe
-    // Zugänge. Es gibt daher keine Änderungsempfehlungen — alle berechneten
-    // Bestellungen sind neue Bestellungen.
-    const fixeZugaenge = zugaengeFuerProdukt(p.produkt_id, bestehendeBestellungen, true)
+    // ALLE bereits gespeicherten Bestellungen (algorithmisch wie manuell) gelten
+    // als FIX und zählen als künftige Zugänge. Sie werden nie neu kalkuliert und
+    // erscheinen nicht erneut als neue Bestellungen — der Lauf ermittelt nur die
+    // darüber hinaus noch nötigen (neuen) Bestellungen. Es gibt daher keine
+    // Änderungsempfehlungen; `aenderungen_bestehende` bleibt leer.
+    const fixeZugaenge = zugaengeFuerProdukt(p.produkt_id, bestehendeBestellungen)
     const optimalOrders = computeOrdersForProdukt(p, fixeZugaenge, startMonat, horizonEnd, heute)
 
     for (const optimal of optimalOrders) {

@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Loader2, Merge, Undo2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import type { Bestellung, KonsolidierungsPartner } from '@/hooks/use-bestellungen'
+import type { Bestellung } from '@/hooks/use-bestellungen'
 import type { NeuePlanbestellung, ProduktStammdaten } from '@/hooks/use-langfristiger-bestelllauf'
 import { KonsolidierungsKarte, type KarteData } from '@/components/konsolidierungs-karte'
 import {
@@ -38,145 +38,10 @@ import {
 // das Wizard-Gruppen-Shape, damit der Dialog identisch importieren kann.
 export type { WizardKonsolidierungsGruppe } from '@/components/konsolidierungs-schritt'
 
-// ─── Long-term Bestellung shape (from the version-bound endpoint) ─────────────
-
-interface LangfristigKonsolidiertMit {
-  bestellung_id: string
-  produkt_name: string
-  containerart: string | null
-}
-
-interface LangfristigeBestellung {
-  id: string
-  produkt_id: string
-  produkt_name: string
-  bestelldatum: string | null
-  produktionsstart_datum: string | null
-  produktionsende_datum: string | null
-  shippingdatum: string | null
-  ankunftsdatum: string | null
-  verfuegbarkeitsdatum: string | null
-  menge_theoretisch: number | null
-  menge_praktisch: number
-  begruendung: string | null
-  herkunft: 'algorithmus' | 'manuell' | null
-  manuell_geaendert: boolean
-  anzahl_20dc: number | null
-  anzahl_40hq: number | null
-  notizen: string | null
-  konsolidiert_mit: LangfristigKonsolidiertMit[]
-  created_at: string
-  updated_at: string
-}
-
 interface HerstellerGruppe {
   hersteller_id: string | null
   hersteller_name: string
   karten: KarteData[]
-}
-
-// ─── Mapping: LP-Bestellung → kurzfristiges `Bestellung`-Shape ────────────────
-//
-// Auf Produktebene: ein synthetisches `Bestellung` mit genau einem produkt- und
-// einem sku-Eintrag, damit Karte/Detail-Ansicht unverändert rendern.
-
-function toBestellungShape(b: LangfristigeBestellung): Bestellung {
-  const konsolidierungspartner: KonsolidierungsPartner[] = (b.konsolidiert_mit ?? []).map(p => ({
-    bestellung_id: p.bestellung_id,
-    produkt_namen: p.produkt_name ? [p.produkt_name] : [],
-    bestelldatum: null,
-    anzahl_40hq: 0,
-    anzahl_20dc: 0,
-    container_anteil: null,
-  }))
-
-  return {
-    id: b.id,
-    status: 'plan',
-    herkunft: b.herkunft ?? null,
-    containerart: null,
-    anzahl_40hq: b.anzahl_40hq ?? 0,
-    anzahl_20dc: b.anzahl_20dc ?? 0,
-    bestelldatum: b.bestelldatum,
-    produktionsstart_datum: b.produktionsstart_datum,
-    produktionsende_datum: b.produktionsende_datum,
-    shippingdatum: b.shippingdatum,
-    ankunftsdatum: b.ankunftsdatum,
-    verfuegbarkeitsdatum: b.verfuegbarkeitsdatum,
-    produktionsstart_datum_ist: null,
-    produktionsende_datum_ist: null,
-    shippingdatum_ist: null,
-    ankunftsdatum_ist: null,
-    verfuegbarkeitsdatum_ist: null,
-    abgeschlossen_am: null,
-    notizen: b.notizen,
-    created_at: b.created_at,
-    updated_at: b.updated_at,
-    produkte: [{ id: b.produkt_id, produkt_id: b.produkt_id, produkt_name: b.produkt_name }],
-    sku_mengen: [
-      {
-        id: b.produkt_id,
-        sku_id: b.produkt_id,
-        sku_name: b.produkt_name,
-        menge_theoretisch: b.menge_theoretisch,
-        menge_nach_moq: null,
-        menge_praktisch: b.menge_praktisch,
-        begruendung_anpassung: b.begruendung,
-        is_trigger: false,
-      },
-    ],
-    konsolidierungsgruppe_id: null,
-    konsolidierungspartner,
-    container_anteil: null,
-    snapshot_vor_konsolidierung: null,
-  }
-}
-
-// Connected components over the pairwise `konsolidiert_mit` links → representative
-// group id per component (smallest member id, stable & usable for DELETE).
-function ableiteGruppenRepraesentanten(bestellungen: LangfristigeBestellung[]): string[] {
-  const parent = new Map<string, string>()
-  const find = (x: string): string => {
-    let r = x
-    while (parent.get(r) !== r) r = parent.get(r)!
-    // path compression
-    let c = x
-    while (parent.get(c) !== r) {
-      const next = parent.get(c)!
-      parent.set(c, r)
-      c = next
-    }
-    return r
-  }
-  const union = (a: string, b: string) => {
-    const ra = find(a)
-    const rb = find(b)
-    if (ra === rb) return
-    // keep the lexicographically smaller id as root for a stable representative
-    if (ra < rb) parent.set(rb, ra)
-    else parent.set(ra, rb)
-  }
-
-  for (const b of bestellungen) parent.set(b.id, b.id)
-  for (const b of bestellungen) {
-    for (const p of b.konsolidiert_mit ?? []) {
-      if (!parent.has(p.bestellung_id)) parent.set(p.bestellung_id, p.bestellung_id)
-      union(b.id, p.bestellung_id)
-    }
-  }
-
-  // Only components with ≥ 2 members count as a consolidation group.
-  const membersByRoot = new Map<string, string[]>()
-  for (const b of bestellungen) {
-    const r = find(b.id)
-    if (!membersByRoot.has(r)) membersByRoot.set(r, [])
-    membersByRoot.get(r)!.push(b.id)
-  }
-  const repraesentanten: string[] = []
-  for (const [root, members] of membersByRoot) {
-    if (members.length >= 2) repraesentanten.push(root)
-  }
-  return repraesentanten
 }
 
 // ─── Helpers (mirrors KonsolidierungsSchritt, produkt-level) ──────────────────
@@ -308,33 +173,20 @@ export function LangfristigerKonsolidierungsSchritt({
   onBestehendeGruppenIds,
 }: LangfristigerKonsolidierungsSchrittProps) {
   const [existierendeBestellungen, setExistierendeBestellungen] = useState<Bestellung[]>([])
-  const [ladeFehler, setLadeFehler] = useState<string | null>(null)
   const [ladeBestellungen, setLadeBestellungen] = useState(true)
 
   const [ausgewaehlt, setAusgewaehlt] = useState<Set<string>>(new Set())
   const [gruppen, setGruppen] = useState<WizardKonsolidierungsGruppe[]>([])
 
-  // Fetch existing plan orders from the VERSION-BOUND endpoint
+  // FIX-Modell (PROJ-86): Bereits gespeicherte Bestellungen gelten als FIX und
+  // erscheinen NICHT im Konsolidierungs-Schritt. Nur die im Lauf neu ermittelten
+  // Bestellungen können (untereinander) konsolidiert werden. Es werden daher keine
+  // bestehenden Bestellungen geladen und keine bestehenden Konsolidierungsgruppen
+  // aufgelöst.
   useEffect(() => {
-    setLadeBestellungen(true)
-    fetch(`/api/langfristige-planung/${versionId}/bestellplanung/bestellungen`)
-      .then(r => {
-        if (!r.ok) throw new Error(`API-Fehler (${r.status})`)
-        return r.json()
-      })
-      .then((data: LangfristigeBestellung[]) => {
-        // Nur MANUELL angelegte (laufende) Bestellungen kommen als bestehende
-        // Konsolidierungskandidaten infrage — Algorithmus-Bestellungen werden beim
-        // Anwenden neu kalkuliert/ersetzt und dürfen hier nicht erscheinen.
-        const roh = (data ?? []).filter((b) => b.herkunft === 'manuell')
-        setExistierendeBestellungen(roh.map(toBestellungShape))
-        onBestehendeGruppenIds?.(ableiteGruppenRepraesentanten(roh))
-        setLadeBestellungen(false)
-      })
-      .catch(() => {
-        setLadeFehler('Planbestellungen konnten nicht geladen werden.')
-        setLadeBestellungen(false)
-      })
+    setExistierendeBestellungen([])
+    onBestehendeGruppenIds?.([])
+    setLadeBestellungen(false)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [versionId])
 
@@ -572,14 +424,6 @@ export function LangfristigerKonsolidierungsSchritt({
       <div className="flex items-center justify-center py-12 gap-3">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         <p className="text-sm text-muted-foreground">Planbestellungen werden geladen…</p>
-      </div>
-    )
-  }
-
-  if (ladeFehler) {
-    return (
-      <div className="rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
-        {ladeFehler}
       </div>
     )
   }
