@@ -33,7 +33,7 @@ export interface RaModel {
 
 type RaDefKind = 'leaf' | 'group' | 'subtotal'
 
-interface RaRowDef {
+export interface RaRowDef {
   id: string
   label: string
   kind: RaDefKind
@@ -80,6 +80,14 @@ export const RA_CASCADE: RaRowDef[] = [
 // Standardmäßig im Diagramm ausgewählte Linien.
 export const RA_DEFAULT_CHART_IDS = ['brutto_umsatz', 'netto_umsatz', 'db3', 'ebit', 'ebt', 'ergebnis']
 
+// PROJ-106: Deckungsbeitragsauswertung — dieselbe Kaskade, aber nach DB III abgeschnitten.
+// Alle Zeilen unterhalb DB III (Operativ/EBIT/…/Ergebnis) entfallen ersatzlos.
+const DB3_END_INDEX = RA_CASCADE.findIndex(r => r.id === 'db3')
+export const DB3_CASCADE: RaRowDef[] = RA_CASCADE.slice(0, DB3_END_INDEX + 1)
+
+// Standardlinien für das Diagramm der Deckungsbeitragsauswertung (nur existierende Zeilen).
+export const DB3_DEFAULT_CHART_IDS = ['brutto_umsatz', 'netto_umsatz', 'db1', 'db2', 'db3']
+
 // ─── Kaskaden-Berechnung (clientseitig) ───────────────────────────────────────
 
 export type RaNodeKind = 'leaf' | 'group' | 'subtotal' | 'child' | 'produkt'
@@ -116,13 +124,14 @@ function breakdownToNodes(items: RaBreakdown[], sign: number, keys: string[], id
 export function computeCascade(
   lines: Record<RaLineId, RaLine>,
   columns: RaColumn[],
+  cascade: RaRowDef[] = RA_CASCADE,
 ): RaNode[] {
   const keys = columns.map(c => c.key)
   const nodes: RaNode[] = []
   const cum: Record<string, number> = {}
   for (const k of keys) cum[k] = 0
 
-  for (const def of RA_CASCADE) {
+  for (const def of cascade) {
     if (def.kind === 'subtotal') {
       nodes.push({ id: def.id, label: def.label, kind: 'subtotal', values: { ...cum } })
       continue
@@ -236,6 +245,57 @@ export function bruttoByMonth(nodes: RaNode[], columns: RaColumn[]): Record<stri
   const out: Record<string, number> = {}
   for (const c of columns) out[c.key] = brutto?.values[c.key] ?? 0
   return out
+}
+
+// ─── Produktfilter (clientseitig, nur ausgewählte Produkte) — PROJ-106 ─────────
+
+// Prunt eine (ggf. geschachtelte) Aufschlüsselung auf die ausgewählten Produkte.
+// Blätter sind Produkte (bei Marketing: Kanal → Produkt) → Blatt behalten, wenn
+// ausgewählt; Elternknoten behalten, wenn er behaltene Kinder hat (Werte = Summe).
+function filterBreakdowns(items: RaBreakdown[], selected: Set<string>): RaBreakdown[] {
+  const out: RaBreakdown[] = []
+  for (const b of items) {
+    if (b.children && b.children.length > 0) {
+      const kids = filterBreakdowns(b.children, selected)
+      if (kids.length === 0) continue
+      const werte: Record<string, number> = {}
+      for (const k of kids) for (const [mk, v] of Object.entries(k.werte)) werte[mk] = Math.round(((werte[mk] ?? 0) + v) * 100) / 100
+      out.push({ id: b.id, label: b.label, werte, children: kids })
+    } else if (selected.has(b.id)) {
+      out.push(b)
+    }
+  }
+  return out
+}
+
+/**
+ * Reduziert ein Modell auf die ausgewählten Produkte. Jede produktgranulare Zeile
+ * wird aus ihrer (gefilterten) Aufschlüsselung neu summiert; die Absatztabelle ebenso.
+ * Leere Auswahl → Modell unverändert (identisch zur ungefilterten Auswertung).
+ * Nicht-produktgranulare Zeilen (Operativ/Finanzierung/Steuern) werden auf der
+ * Deckungsbeitragsauswertung nicht dargestellt und sind daher irrelevant.
+ */
+export function applyProduktFilter(model: RaModel, selectedIds: string[]): RaModel {
+  if (selectedIds.length === 0) return model
+  const selected = new Set(selectedIds)
+  const lines = {} as Record<RaLineId, RaLine>
+  for (const id of RA_LINE_IDS) {
+    const l = model.lines[id]
+    if (!l) { lines[id] = { werte: {}, produkte: [] }; continue }
+    const produkte = filterBreakdowns(l.produkte, selected)
+    const werte: Record<string, number> = {}
+    for (const p of produkte) for (const [mk, v] of Object.entries(p.werte)) werte[mk] = Math.round(((werte[mk] ?? 0) + v) * 100) / 100
+    lines[id] = { werte, produkte }
+  }
+  const absatzProdukte = model.absatz.produkte.filter(p => selected.has(p.id))
+  const absatzGesamt: Record<string, number> = {}
+  for (const p of absatzProdukte) for (const [mk, v] of Object.entries(p.werte)) absatzGesamt[mk] = (absatzGesamt[mk] ?? 0) + v
+  return { ...model, lines, absatz: { gesamt: absatzGesamt, produkte: absatzProdukte } }
+}
+
+/** Produkte für den Filter (aus der Absatztabelle des Modells, in Produkt-Reihenfolge). */
+export function collectProdukte(model: RaModel): { id: string; label: string }[] {
+  return model.absatz.produkte.map(p => ({ id: p.id, label: p.label }))
 }
 
 // ─── Fetch-Hook ───────────────────────────────────────────────────────────────

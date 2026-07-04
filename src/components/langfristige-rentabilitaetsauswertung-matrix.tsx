@@ -11,6 +11,7 @@ import {
   type RaModel,
   type RaNode,
   type RaAnzeigemodus,
+  type RaRowDef,
 } from '@/hooks/use-langfristige-rentabilitaetsauswertung'
 
 // ─── Formatierung (analog reporting-rentabilitaet-matrix) ─────────────────────
@@ -81,15 +82,17 @@ function flatten(nodes: RaNode[], expandedIds: Set<string>, indent: number, out:
 interface Props {
   model: RaModel
   anzeigemodus: RaAnzeigemodus
+  // PROJ-106: optionale verkürzte Kaskade (z. B. bis DB III). Standard = volle Kaskade.
+  cascade?: RaRowDef[]
 }
 
-export function LangfristigeRentabilitaetsauswertungMatrix({ model, anzeigemodus }: Props) {
+export function LangfristigeRentabilitaetsauswertungMatrix({ model, anzeigemodus, cascade }: Props) {
   const { columns, lines, loading, error, isEmpty } = model
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
 
   const nodes = useMemo(
-    () => computeCascade(lines, columns),
-    [lines, columns],
+    () => computeCascade(lines, columns, cascade),
+    [lines, columns, cascade],
   )
   const allExpandableIds = useMemo(() => collectExpandableIds(nodes), [nodes])
   const allExpanded = allExpandableIds.length > 0 && allExpandableIds.every(id => expandedIds.has(id))

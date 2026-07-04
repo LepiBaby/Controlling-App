@@ -157,6 +157,11 @@ export const VERSIONS_NAV_GRUPPEN: VersionsNavGruppe[] = [
         description: 'Plan-GuV von Brutto-Umsatz bis Ergebnis je Monat — Deckungsbeiträge, EBIT, EBT aus den Planungsmodulen dieser Version',
       },
       {
+        slug: 'deckungsbeitragsauswertung',
+        label: 'Deckungsbeitragsauswertung',
+        description: 'Wie die Rentabilitätsauswertung, aber nur bis DB III — mit Produktfilter je Monat oder Jahr (gleiche Werte wie die Rentabilitätsauswertung bis DB III)',
+      },
+      {
         slug: 'liquiditaetsauswertung',
         label: 'Liquiditätsauswertung',
         description: 'Einnahmen & Ausgaben aller Module je Monat zusammengeführt; Cashflow und kumulierter Kontostand ab dem Startkontostand (nur Soll)',

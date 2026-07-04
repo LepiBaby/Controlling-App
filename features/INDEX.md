@@ -127,7 +127,8 @@
 | PROJ-103 | Planversionen-Ordner — Langfristige Planung | Deployed | [PROJ-103-langfristige-planversionen-ordner.md](PROJ-103-langfristige-planversionen-ordner.md) | 2026-07-03 |
 | PROJ-104 | Planversion duplizieren — Langfristige Planung | Deployed | [PROJ-104-langfristige-planversion-duplizieren.md](PROJ-104-langfristige-planversion-duplizieren.md) | 2026-07-03 |
 | PROJ-105 | Produkte als Investition markieren — Langfristige Planung | Deployed | [PROJ-105-langfristige-produkte-investition-markierung.md](PROJ-105-langfristige-produkte-investition-markierung.md) | 2026-07-03 |
+| PROJ-106 | Deckungsbeitragsauswertung — Langfristige Planung | Approved | [PROJ-106-langfristige-deckungsbeitragsauswertung.md](PROJ-106-langfristige-deckungsbeitragsauswertung.md) | 2026-07-04 |
 
 <!-- Add features above this line -->
 
-## Next Available ID: PROJ-106
+## Next Available ID: PROJ-107

@@ -2,8 +2,11 @@ import { describe, it, expect } from 'vitest'
 import {
   computeCascade,
   applyZeitbasis,
+  applyProduktFilter,
+  collectProdukte,
   collectExpandableIds,
   bruttoByMonth,
+  DB3_CASCADE,
   type RaModel,
   type RaColumn,
   type RaNode,
@@ -87,6 +90,98 @@ describe('computeCascade — geschachtelte Drill-Downs', () => {
     const ids = collectExpandableIds(nodes)
     expect(ids).toContain('marketing')
     expect(ids.some(i => i.includes('kanalA'))).toBe(true)
+  })
+})
+
+// PROJ-106: Deckungsbeitragsauswertung ─────────────────────────────────────────
+
+describe('DB3_CASCADE — Kaskade endet bei DB III', () => {
+  it('enthält alle Zeilen bis DB III und keine darunter', () => {
+    const ids = DB3_CASCADE.map(r => r.id)
+    expect(ids).toContain('db3')
+    expect(ids[ids.length - 1]).toBe('db3')          // DB III ist die letzte Zeile
+    for (const below of ['operativ', 'ebit', 'finanzierung_zinsen', 'ebt', 'steuern_ertrag', 'ergebnis']) {
+      expect(ids).not.toContain(below)
+    }
+    // Umsatzblock, Produktkosten, Vertriebskosten, Marketing bleiben erhalten
+    for (const kept of ['brutto_umsatz', 'netto_umsatz', 'produktkosten', 'db1', 'vertriebskosten', 'db2', 'marketing']) {
+      expect(ids).toContain(kept)
+    }
+  })
+
+  it('computeCascade mit DB3_CASCADE bricht nach DB III ab', () => {
+    const lines = mkLines({
+      brutto_umsatz: line({ '2026-1': 1000 }),
+      marketing: line({ '2026-1': 100 }),
+      operativ: line({ '2026-1': 999 }),   // darf das Ergebnis NICHT beeinflussen
+    })
+    const nodes = computeCascade(lines, COLS, DB3_CASCADE)
+    expect(nodeById(nodes, 'db3')!.values['2026-1']).toBe(900)  // 1000 − 100
+    expect(nodeById(nodes, 'ebit')).toBeUndefined()
+    expect(nodeById(nodes, 'operativ')).toBeUndefined()
+    expect(nodes[nodes.length - 1].id).toBe('db3')
+  })
+})
+
+describe('applyProduktFilter — Neuberechnung auf ausgewählte Produkte', () => {
+  const model: RaModel = {
+    columns: COLS,
+    lines: mkLines({
+      brutto_umsatz: line({ '2026-1': 300 }, [
+        { id: 'p1', label: 'Produkt 1', werte: { '2026-1': 200 } },
+        { id: 'p2', label: 'Produkt 2', werte: { '2026-1': 100 } },
+      ]),
+      // Marketing: Kanal → Produkt (verschachtelt)
+      marketing: line({ '2026-1': 30 }, [
+        { id: 'kanalA', label: 'Kanal A', werte: { '2026-1': 30 }, children: [
+          { id: 'p1', label: 'Produkt 1', werte: { '2026-1': 20 } },
+          { id: 'p2', label: 'Produkt 2', werte: { '2026-1': 10 } },
+        ] },
+      ]),
+    }),
+    absatz: {
+      gesamt: { '2026-1': 15 },
+      produkte: [
+        { id: 'p1', label: 'Produkt 1', werte: { '2026-1': 10 } },
+        { id: 'p2', label: 'Produkt 2', werte: { '2026-1': 5 } },
+      ],
+    },
+    loading: false, error: null, isEmpty: false,
+  }
+
+  it('gibt bei leerer Auswahl dasselbe Modell unverändert zurück', () => {
+    expect(applyProduktFilter(model, [])).toBe(model)
+  })
+
+  it('reduziert einstufige Zeilen + Absatz auf das gewählte Produkt', () => {
+    const f = applyProduktFilter(model, ['p1'])
+    expect(f.lines.brutto_umsatz.werte['2026-1']).toBe(200)
+    expect(f.lines.brutto_umsatz.produkte).toHaveLength(1)
+    expect(f.lines.brutto_umsatz.produkte[0].id).toBe('p1')
+    expect(f.absatz.gesamt['2026-1']).toBe(10)
+    expect(f.absatz.produkte.map(p => p.id)).toEqual(['p1'])
+  })
+
+  it('reduziert verschachtelte Marketing-Zeile (Kanal→Produkt) auf das gewählte Produkt', () => {
+    const f = applyProduktFilter(model, ['p2'])
+    expect(f.lines.marketing.werte['2026-1']).toBe(10)
+    expect(f.lines.marketing.produkte).toHaveLength(1)          // Kanal A bleibt (hat p2)
+    expect(f.lines.marketing.produkte[0].werte['2026-1']).toBe(10)
+    expect(f.lines.marketing.produkte[0].children).toHaveLength(1)
+    expect(f.lines.marketing.produkte[0].children![0].id).toBe('p2')
+  })
+
+  it('summiert mehrere gewählte Produkte = Gesamtwert', () => {
+    const f = applyProduktFilter(model, ['p1', 'p2'])
+    expect(f.lines.brutto_umsatz.werte['2026-1']).toBe(300)
+    expect(f.lines.marketing.werte['2026-1']).toBe(30)
+  })
+
+  it('collectProdukte listet die Produkte aus der Absatztabelle', () => {
+    expect(collectProdukte(model)).toEqual([
+      { id: 'p1', label: 'Produkt 1' },
+      { id: 'p2', label: 'Produkt 2' },
+    ])
   })
 })
 

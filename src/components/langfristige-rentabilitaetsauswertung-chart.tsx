@@ -13,6 +13,7 @@ import {
   type RaModel,
   type RaNode,
   type RaAnzeigemodus,
+  type RaRowDef,
 } from '@/hooks/use-langfristige-rentabilitaetsauswertung'
 
 function rainbowColor(index: number, total: number): string {
@@ -49,14 +50,17 @@ interface Props {
   anzeigemodus: RaAnzeigemodus
   selectedIds: string[]
   onSelectionChange: (ids: string[]) => void
+  // PROJ-106: optionale verkürzte Kaskade (z. B. bis DB III) + Diagrammtitel.
+  cascade?: RaRowDef[]
+  title?: string
 }
 
 export function LangfristigeRentabilitaetsauswertungChart({
-  model, anzeigemodus, selectedIds, onSelectionChange,
+  model, anzeigemodus, selectedIds, onSelectionChange, cascade, title = 'Rentabilitäts-Trend',
 }: Props) {
   const { columns, lines, loading } = model
 
-  const nodes = useMemo(() => computeCascade(lines, columns), [lines, columns])
+  const nodes = useMemo(() => computeCascade(lines, columns, cascade), [lines, columns, cascade])
 
   // Wählbar: Zwischensummen + Brutto-Umsatz (analog Rentabilitätsreport).
   const eligible = useMemo(() => {
@@ -142,7 +146,7 @@ export function LangfristigeRentabilitaetsauswertungChart({
   return (
     <div className="rounded-lg border p-4 space-y-3">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <span className="text-sm font-medium">Rentabilitäts-Trend</span>
+        <span className="text-sm font-medium">{title}</span>
         <MultiSelect
           options={options}
           selected={selectedIds.filter(id => eligibleIds.has(id))}
