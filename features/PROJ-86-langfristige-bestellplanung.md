@@ -2,7 +2,7 @@
 
 ## Status: Deployed
 **Created:** 2026-06-21
-**Last Updated:** 2026-07-04 (Deploy: bestehende Bestellungen fix/inkrementell)
+**Last Updated:** 2026-07-04 (Fix: Menge/Container-Anpassungen erreichen die Konsolidierung)
 
 ## Deployment
 - **Deployed:** 2026-07-04 via Push auf `main` → Vercel Auto-Deploy (Commit `feat(PROJ-86)` — inkrementeller Bestelllauf, bestehende Bestellungen fix)
@@ -761,5 +761,16 @@ Die Verifikation erfolgte über die etablierte Repo-Praxis: **Vitest Integration
 - `src/app/api/langfristige-planung/[versionId]/bestellplanung/bestellungen/[id]/kosten/_kosten-utils.ts` und `src/app/api/bestellplanung/_utils.ts` — laden `auto_herkunft` der manuellen Einträge, speichern es bei Auto-Inserts, unterdrücken per Herkunft (plus Slot-Fallback).
 - Einmaliger Daten-Backfill: die 2 bestehenden manuellen Ware-Positionen (kurzfristig, Bestellung `e435bb62…`) erhielten ihre Herkunft, wodurch die dort stehende Auto-Dublette verschwindet.
 
+## Bug Fix (2026-07-04) — Manuelle Mengen-/Container-Anpassungen erreichen die Konsolidierung nicht
+
+**Symptom:** Im Bestelllauf-Dialog konnte der Nutzer in Schritt 2 („Bestellungen") die praktische Menge und die Container einer neuen Bestellung anpassen. Beim Wechsel zu Schritt 3 („Konsolidierung") wurden diese Anpassungen jedoch nicht angezeigt/berücksichtigt — die Konsolidierung rechnete mit den ursprünglichen Algorithmus-Werten.
+
+**Ursache:** `langfristiger-bestelllauf-dialog.tsx` reichte die rohen `ergebnis.neue_planbestellungen` an den `LangfristigerKonsolidierungsSchritt` weiter. Die Nutzer-Edits liegen aber in der `bearbeitet`-Map (Schritt-2-State) und wurden nicht eingemischt.
+
+**Fix:** Analog zur bereits korrekten kurzfristigen Planung (`planbestelllauf-wizard.tsx`) wird eine `effektiveNeueBestellungen`-Ableitung (`neueBestellungen.map(b => bearbeitet.get(b.temp_id) ?? b)`) gebildet und an den Konsolidierungs-Schritt übergeben.
+
+**Geänderte Datei:** `src/components/langfristiger-bestelllauf-dialog.tsx` (Commit `8c7a31d`).
+
 ## Deployment
-_To be added by /deploy_
+- **Deployed:** 2026-07-04 via Push auf `main` → Vercel Auto-Deploy (Commit `8c7a31d` — Fix Menge/Container → Konsolidierung)
+- **Pre-Deploy-Gates:** `next build` erfolgreich; `tsc` für die geänderte Datei sauber (übrige tsc-Fehler ausschließlich in vorbestehenden Test-Dateien). Nur die Dialog-Datei committet, unabhängige PROJ-101-WIP-Dateien ausgeklammert.
