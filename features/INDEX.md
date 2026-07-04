@@ -107,7 +107,7 @@
 | PROJ-83 | Steuereinstellungen — Langfristige Planung | Approved | [PROJ-83-langfristige-steuereinstellungen.md](PROJ-83-langfristige-steuereinstellungen.md) | 2026-06-20 |
 | PROJ-84 | Absatzplanung — Langfristige Planung | Approved | [PROJ-84-langfristige-absatzplanung.md](PROJ-84-langfristige-absatzplanung.md) | 2026-06-21 |
 | PROJ-85 | Marketing-Planung — Langfristige Planung | Approved | [PROJ-85-langfristige-marketingplanung.md](PROJ-85-langfristige-marketingplanung.md) | 2026-06-21 |
-| PROJ-86 | Bestellplanung — Langfristige Planung | Approved | [PROJ-86-langfristige-bestellplanung.md](PROJ-86-langfristige-bestellplanung.md) | 2026-06-21 |
+| PROJ-86 | Bestellplanung — Langfristige Planung | Deployed | [PROJ-86-langfristige-bestellplanung.md](PROJ-86-langfristige-bestellplanung.md) | 2026-06-21 |
 | PROJ-87 | Sales-Plattform-Planung — Langfristige Planung | Approved | [PROJ-87-langfristige-sales-plattform-planung.md](PROJ-87-langfristige-sales-plattform-planung.md) | 2026-06-22 |
 | PROJ-88 | Operativekosten Planung — Langfristige Planung | Approved | [PROJ-88-langfristige-operativekosten-planung.md](PROJ-88-langfristige-operativekosten-planung.md) | 2026-06-22 |
 | PROJ-89 | Einnahmenplanung — Langfristige Planung | Approved | [PROJ-89-langfristige-einnahmenplanung.md](PROJ-89-langfristige-einnahmenplanung.md) | 2026-06-22 |

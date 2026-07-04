@@ -1,8 +1,13 @@
 # PROJ-86: Bestellplanung — Langfristige Planung
 
-## Status: Approved
+## Status: Deployed
 **Created:** 2026-06-21
-**Last Updated:** 2026-06-22 (QA bestanden — 468/468 Tests grün, keine Critical/High-Bugs)
+**Last Updated:** 2026-07-04 (Deploy: bestehende Bestellungen fix/inkrementell)
+
+## Deployment
+- **Deployed:** 2026-07-04 via Push auf `main` → Vercel Auto-Deploy (Commit `feat(PROJ-86)` — inkrementeller Bestelllauf, bestehende Bestellungen fix)
+- **Pre-Deploy-Gates:** `next build` erfolgreich (nur PROJ-86-Änderungen im Tree, PROJ-101-WIP ausgeklammert); `tsc` sauber; Algorithmus-Tests 19/19, anwenden-Route 8/8 grün
+- Kurzfristiger Bestellplanungs-Code (`planbestelllauf-algorithmus.ts`, `api/bestellplanung/**`) unverändert
 
 ## Dependencies
 - Requires: PROJ-1 (Authentifizierung) — nur eingeloggte Nutzer; alle Daten an den Nutzer gebunden
