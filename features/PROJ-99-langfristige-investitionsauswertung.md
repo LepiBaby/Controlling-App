@@ -479,10 +479,9 @@ Da die Auswertung jetzt nur **markierte** Produkte summiert, kann die Gesamt-Sum
 
 **Konsistenz:** Je (Untergruppe × Produkt) bleiben die Zellwerte in beiden Ansichten und gegenüber PROJ-92 identisch (gleiche `effektiv`-Logik). `tsc --noEmit` ohne neue Fehler in den geänderten Dateien.
 
-**Status:** implementiert & getestet, **noch nicht deployed**.
-
 ## Deployment
 
+- **Deployed:** 2026-07-06 (Umschalter Produkt-/Kategorie-Aufschlüsselung) — Commit `09147cd` auf `main` → Vercel Auto-Deploy (Projekt `controlling-app`). Pre-Deploy-Gate: `npm run build` erfolgreich (Route `/dashboard/langfristige-planung/[versionId]/investitionsauswertung` gebaut, „Compiled successfully"), 19/19 + 13/13 Unit-Tests grün. Reine Frontend-Änderung — keine Migration, keine neuen Env-Vars. Enthält zugleich das PROJ-101-Enhancement (Investitionen-Drill-Down nach KPI-Kategorien).
 - **Deployed:** 2026-07-03 (Redesign Produkt-orientierte Aufschlüsselung)
 - **Weg:** Push auf `main` → Vercel Auto-Deploy (Projekt `controlling-app`). Der Redesign-Code ist in Commit `7e00d1d` (zusammen mit PROJ-105) auf `main` und damit live.
 - **Pre-Deploy-Gate:** `npm run build` erfolgreich (Route `/dashboard/langfristige-planung/[versionId]/investitionsauswertung` gebaut); 15/15 Unit-Tests grün; `tsc --noEmit` ohne neue Fehler in den geänderten Dateien. `next lint` unter Next 16 in diesem Repo nicht lauffähig (bekannt).
