@@ -88,7 +88,9 @@ export interface KbfModel {
 }
 
 export function useLangfristigeKapitalbedarfFinanzierung(versionId: string): KbfModel {
-  const invest = useLangfristigeInvestitionsauswertung(versionId)
+  // 'kategorie': die aufklappbaren "Investitionen"-Unterzeilen sind die KPI-
+  // Investitionskategorien (Obergruppen), NICHT die einzelnen Produkte.
+  const invest = useLangfristigeInvestitionsauswertung(versionId, 'kategorie')
   const liqui = useLangfristigeLiquiditaetsauswertung(versionId)
 
   const [rows, setRows] = useState<KbfRow[]>([])

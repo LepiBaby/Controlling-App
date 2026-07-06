@@ -13,15 +13,20 @@ import {
 // die bestehende PROJ-92-Datenbeschaffung (use-langfristige-investitionsausgaben) und
 // zeigt deren EFFEKTIVEN SOLL (manueller Wert sonst berechneter Wert sonst 0).
 //
-// Aufschlüsselung (Nutzervorgabe): OBERSTE Ebene = die als Investition markierten
-// PRODUKTE (PROJ-105, ist_investition). Darunter je Produkt der VOLLSTÄNDIGE
-// Investitions-Kategoriebaum: Obergruppe → Untergruppe (Leaf). Der Zellwert einer
-// Untergruppe = effektiver Soll dieses Produkts in dieser Untergruppe. Ganz unten die
-// Zeile "Investitionen (Gesamt)". Das Diagramm stapelt je Produkt (Summe = Gesamt).
+// Zwei Aufschlüsselungen (umschaltbar auf der Seite):
+//   • 'produkt'   (Standard) — OBERSTE Ebene = die als Investition markierten PRODUKTE
+//     (PROJ-105, ist_investition). Darunter je Produkt der VOLLSTÄNDIGE Investitions-
+//     Kategoriebaum: Obergruppe → Untergruppe (Leaf). Diagramm stapelt je Produkt.
+//   • 'kategorie' — OBERSTE Ebene = die Investitions-Kategorien: Obergruppe →
+//     Untergruppe → Produkt (Leaf; nur Produkte, für die Daten vorliegen). Diagramm
+//     stapelt je Obergruppe. So war die Auswertung ursprünglich aufgebaut.
 //
-// Dadurch sind die Zahlen je (Untergruppe × Produkt) identisch zur Eingabeseite.
+// In beiden Fällen ist der Zellwert der effektive Soll (manuell → berechnet → 0) und
+// damit je (Untergruppe × Produkt) identisch zur Eingabeseite. Ganz unten steht die
+// Zeile "Investitionen (Gesamt)".
 
 export type IaZeitansicht = 'monatlich' | 'gesamt'
+export type IaAufschluesselung = 'produkt' | 'kategorie'
 
 export interface IaColumn {
   key: string
@@ -47,14 +52,15 @@ export interface IaSerie {
 }
 
 export interface IaModel {
+  aufschluesselung: IaAufschluesselung
   columns: IaColumn[]
-  tree: IaNode[] // Produkte (mit Obergruppen → Untergruppen)
+  tree: IaNode[] // je nach Aufschlüsselung: Produkt- oder Obergruppen-Wurzel
   gesamt: IaNode // "Investitionen (Gesamt)"
-  serien: IaSerie[] // je Produkt (Diagramm)
+  serien: IaSerie[] // je Diagramm-Serie (Produkt bzw. Obergruppe)
   loading: boolean
   error: string | null
   hasKategorien: boolean
-  hasProdukte: boolean // mind. ein als Investition markiertes Produkt
+  hasProdukte: boolean // 'produkt': mind. ein markiertes Produkt; 'kategorie': mind. ein Produkt
   isEmpty: boolean
 }
 
@@ -123,7 +129,10 @@ export function applyIaZeitansicht(model: IaModel, zeitansicht: IaZeitansicht): 
 
 // ─── Hook ──────────────────────────────────────────────────────────────────────
 
-export function useLangfristigeInvestitionsauswertung(versionId: string): IaModel {
+export function useLangfristigeInvestitionsauswertung(
+  versionId: string,
+  aufschluesselung: IaAufschluesselung = 'produkt',
+): IaModel {
   const {
     monate,
     kategorien,
@@ -132,6 +141,7 @@ export function useLangfristigeInvestitionsauswertung(versionId: string): IaMode
     error,
     getManuellerWert,
     getBerechneterWert,
+    isManuelleOverride,
   } = useLangfristigeInvestitionsausgaben(versionId)
 
   return useMemo<IaModel>(() => {
@@ -148,43 +158,89 @@ export function useLangfristigeInvestitionsauswertung(versionId: string): IaMode
 
     const obergruppen = kategorien.filter(k => k.level === 1)
     const untergruppen = kategorien.filter(k => k.level === 2)
-    // Oberste Ebene: nur die als Investition markierten Produkte (PROJ-105).
+    // Oberste Ebene der Produkt-Aufschlüsselung: nur markierte Produkte (PROJ-105).
     const investProdukte = produkte.filter(p => p.ist_investition)
 
-    // Je markiertem Produkt der VOLLSTÄNDIGE Investitions-Kategoriebaum:
-    //   Produkt → Obergruppe → Untergruppe (Leaf, Wert = effektiver Soll dieses Produkts).
-    const tree: IaNode[] = investProdukte.map(prod => {
-      const ogNodes: IaNode[] = obergruppen.map(og => {
-        const ugList = untergruppen.filter(ug => ug.parent_id === og.id)
+    const untergruppeWerte = (ugId: string, prodId: string): Record<string, number> => {
+      const values: Record<string, number> = {}
+      for (const m of monate) values[colKey(m)] = round2(effektiv(ugId, prodId, m))
+      return values
+    }
 
-        const ugNodes: IaNode[] = ugList.map(ug => {
-          const values: Record<string, number> = {}
-          for (const m of monate) values[colKey(m)] = round2(effektiv(ug.id, prod.id, m))
-          return {
-            id: `${prod.id}:${og.id}:${ug.id}`,
-            label: ug.name,
-            kind: 'untergruppe' as const,
-            values,
-          }
-        })
+    // "Daten vorliegen" für (Untergruppe × Produkt): mind. ein Monat mit manueller
+    // Überschreibung ODER berechnetem Wert (nur relevant in der Kategorie-Ansicht).
+    const hatDaten = (ugId: string, prodId: string): boolean =>
+      monate.some(m => isManuelleOverride(ugId, prodId, m) || getBerechneterWert(ugId, prodId, m) !== null)
 
+    let tree: IaNode[]
+    let serien: IaSerie[]
+    let hasProdukte: boolean
+
+    if (aufschluesselung === 'kategorie') {
+      // Obergruppe → Untergruppe → Produkt (Leaf; nur Produkte mit Daten).
+      tree = obergruppen.map(og => {
+        const ugNodes: IaNode[] = untergruppen
+          .filter(ug => ug.parent_id === og.id)
+          .map(ug => {
+            const prodNodes: IaNode[] = produkte
+              .filter(p => hatDaten(ug.id, p.id))
+              .map(p => ({
+                id: `${og.id}:${ug.id}:${p.id}`,
+                label: p.name,
+                kind: 'produkt' as const,
+                values: untergruppeWerte(ug.id, p.id),
+              }))
+            return {
+              id: `${og.id}:${ug.id}`,
+              label: ug.name,
+              kind: 'untergruppe' as const,
+              values: sumValues(prodNodes, keys),
+              children: prodNodes,
+            }
+          })
         return {
-          id: `${prod.id}:${og.id}`,
+          id: og.id,
           label: og.name,
           kind: 'obergruppe' as const,
           values: sumValues(ugNodes, keys),
           children: ugNodes,
         }
       })
-
-      return {
-        id: prod.id,
-        label: prod.name,
-        kind: 'produkt' as const,
-        values: sumValues(ogNodes, keys),
-        children: ogNodes,
-      }
-    })
+      // Diagramm-Serien: je Obergruppe eine gestapelte Serie (Summe = Gesamt).
+      serien = tree.map(og => ({ id: og.id, label: og.label, values: og.values }))
+      hasProdukte = produkte.length > 0
+    } else {
+      // Produkt → Obergruppe → Untergruppe (Leaf, Wert = effektiver Soll dieses Produkts).
+      tree = investProdukte.map(prod => {
+        const ogNodes: IaNode[] = obergruppen.map(og => {
+          const ugNodes: IaNode[] = untergruppen
+            .filter(ug => ug.parent_id === og.id)
+            .map(ug => ({
+              id: `${prod.id}:${og.id}:${ug.id}`,
+              label: ug.name,
+              kind: 'untergruppe' as const,
+              values: untergruppeWerte(ug.id, prod.id),
+            }))
+          return {
+            id: `${prod.id}:${og.id}`,
+            label: og.name,
+            kind: 'obergruppe' as const,
+            values: sumValues(ugNodes, keys),
+            children: ugNodes,
+          }
+        })
+        return {
+          id: prod.id,
+          label: prod.name,
+          kind: 'produkt' as const,
+          values: sumValues(ogNodes, keys),
+          children: ogNodes,
+        }
+      })
+      // Diagramm-Serien: je markiertem Produkt eine gestapelte Serie (Summe = Gesamt).
+      serien = tree.map(prod => ({ id: prod.id, label: prod.label, values: prod.values }))
+      hasProdukte = investProdukte.length > 0
+    }
 
     const gesamt: IaNode = {
       id: '__gesamt__',
@@ -193,15 +249,14 @@ export function useLangfristigeInvestitionsauswertung(versionId: string): IaMode
       values: sumValues(tree, keys),
     }
 
-    // Diagramm-Serien: je markiertem Produkt eine gestapelte Serie (Summe = Gesamt).
-    const serien: IaSerie[] = tree.map(prod => ({ id: prod.id, label: prod.label, values: prod.values }))
-
     const hasKategorien = obergruppen.length > 0
-    const hasProdukte = investProdukte.length > 0
     const hasAnyValue = keys.some(k => (gesamt.values[k] ?? 0) !== 0)
-    const isEmpty = !loading && !error && hasKategorien && hasProdukte && !hasAnyValue
+    // Produkt-Ansicht braucht ein markiertes Produkt; Kategorie-Ansicht nicht.
+    const emptyBasis = aufschluesselung === 'kategorie' ? hasKategorien : hasKategorien && hasProdukte
+    const isEmpty = !loading && !error && emptyBasis && !hasAnyValue
 
     return {
+      aufschluesselung,
       columns,
       tree,
       gesamt,
@@ -212,5 +267,5 @@ export function useLangfristigeInvestitionsauswertung(versionId: string): IaMode
       hasProdukte,
       isEmpty,
     }
-  }, [monate, kategorien, produkte, loading, error, getManuellerWert, getBerechneterWert])
+  }, [aufschluesselung, monate, kategorien, produkte, loading, error, getManuellerWert, getBerechneterWert, isManuelleOverride])
 }

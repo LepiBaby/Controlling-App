@@ -11,10 +11,12 @@ import {
   useLangfristigeInvestitionsauswertung,
   applyIaZeitansicht,
   type IaZeitansicht,
+  type IaAufschluesselung,
 } from '@/hooks/use-langfristige-investitionsauswertung'
 
 function InvestitionsauswertungInhalt({ versionId }: { versionId: string }) {
-  const model = useLangfristigeInvestitionsauswertung(versionId)
+  const [aufschluesselung, setAufschluesselung] = useState<IaAufschluesselung>('produkt')
+  const model = useLangfristigeInvestitionsauswertung(versionId, aufschluesselung)
   const [zeitansicht, setZeitansicht] = useState<IaZeitansicht>('monatlich')
 
   const displayModel = useMemo(() => applyIaZeitansicht(model, zeitansicht), [model, zeitansicht])
@@ -23,6 +25,15 @@ function InvestitionsauswertungInhalt({ versionId }: { versionId: string }) {
     <div className="space-y-6">
       {/* Filter-Leiste */}
       <div className="flex flex-wrap items-end gap-4">
+        <div className="space-y-1.5">
+          <Label className="text-xs">Aufschlüsselung</Label>
+          <Tabs value={aufschluesselung} onValueChange={v => setAufschluesselung(v as IaAufschluesselung)}>
+            <TabsList className="h-8">
+              <TabsTrigger value="produkt" className="text-xs px-3 h-6">Produkt</TabsTrigger>
+              <TabsTrigger value="kategorie" className="text-xs px-3 h-6">Kategorie</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
         <div className="space-y-1.5">
           <Label className="text-xs">Zeitansicht</Label>
           <Tabs value={zeitansicht} onValueChange={v => setZeitansicht(v as IaZeitansicht)}>
@@ -40,10 +51,10 @@ function InvestitionsauswertungInhalt({ versionId }: { versionId: string }) {
         </div>
       )}
 
-      {/* Diagramm: Produkte gestapelt */}
+      {/* Diagramm: gestapelt je Produkt bzw. Obergruppe (je nach Aufschlüsselung) */}
       <LangfristigeInvestitionsauswertungChart model={displayModel} zeitansicht={zeitansicht} />
 
-      {/* Haupttabelle (Produkt → Obergruppe → Untergruppe + Gesamt) */}
+      {/* Haupttabelle: Produkt→Obergruppe→Untergruppe bzw. Obergruppe→Untergruppe→Produkt + Gesamt */}
       <LangfristigeInvestitionsauswertungMatrix model={displayModel} versionId={versionId} />
     </div>
   )

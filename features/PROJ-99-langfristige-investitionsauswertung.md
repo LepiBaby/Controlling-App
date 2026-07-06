@@ -463,6 +463,24 @@ Da die Auswertung jetzt nur **markierte** Produkte summiert, kann die Gesamt-Sum
 
 **Qualität:** `tsc --noEmit` ohne neue Fehler in den geänderten Dateien; 15/15 Unit-Tests grün. `next lint` im Template unter Next 16 nicht lauffähig.
 
+## Enhancement — Umschalter Produkt-/Kategorie-Aufschlüsselung (2026-07-06)
+
+**Nutzervorgabe:** Oben auf der Seite soll man zwischen **Produktaufschlüsselung** (aktueller Stand: Produkt → Obergruppe → Untergruppe) und **Kategorie** wählen können. Die **Kategorie**-Ansicht schlüsselt — wie ursprünglich (vor dem 2026-07-03-Redesign) — nach den KPI-Investitionskategorien auf: **Obergruppe → Untergruppe → Produkt**.
+
+### Umsetzung
+- `src/hooks/use-langfristige-investitionsauswertung.ts` — Hook bekommt zweiten Parameter `aufschluesselung: 'produkt' | 'kategorie'` (Default `'produkt'`, exportierter Typ `IaAufschluesselung`). Je nach Modus wird der Baum gebaut:
+  - **produkt** (unverändert): oberste Ebene = nur `ist_investition`-Produkte; voller Kategoriebaum je Produkt; Serien je Produkt; `hasProdukte` = mind. ein markiertes Produkt.
+  - **kategorie** (reaktivierte Alt-Logik): oberste Ebene = Obergruppen → Untergruppen → **Produkte mit Daten** (`hatDaten`: mind. ein Monat mit manueller Überschreibung ODER berechnetem Wert); Serien je Obergruppe; `hasProdukte` = mind. ein Produkt existiert. Summiert **alle** Produkte mit Daten (auch nicht markierte) — kann daher vom Marked-only-Gesamt der Produkt-Ansicht abweichen (bewusst, entspricht PROJ-92-Gesamt).
+  - Neues Feld `aufschluesselung` im `IaModel`; `isEmpty`-Basis mode-abhängig.
+- `src/components/langfristige-investitionsauswertung-matrix.tsx` — Zeilen-Styling jetzt **tiefenbasiert** (Ebene 0 = fett, 1 = medium, ≥2 = Leaf/muted) statt kind-basiert, damit beide Baum-Reihenfolgen korrekt aussehen. Leerzustand „keine Produkte" mode-abhängig formuliert.
+- `src/components/langfristige-investitionsauswertung-chart.tsx` — Titel „Investitionen nach Produkt" bzw. „… nach Kategorie" je nach Modus.
+- `src/app/…/investitionsauswertung/page.tsx` — neuer Umschalter **Aufschlüsselung: Produkt | Kategorie** (Tabs) links neben der Zeitansicht; Default **Produkt**.
+- `src/hooks/use-langfristige-investitionsauswertung.test.ts` — 4 neue Tests für die Kategorie-Ansicht (Obergruppen-Wurzel, Produkt-Leafs mit Daten, Summe inkl. nicht markierter Produkte, Serien je Obergruppe, `aufschluesselung`-Feld). **19/19 grün**.
+
+**Konsistenz:** Je (Untergruppe × Produkt) bleiben die Zellwerte in beiden Ansichten und gegenüber PROJ-92 identisch (gleiche `effektiv`-Logik). `tsc --noEmit` ohne neue Fehler in den geänderten Dateien.
+
+**Status:** implementiert & getestet, **noch nicht deployed**.
+
 ## Deployment
 
 - **Deployed:** 2026-07-03 (Redesign Produkt-orientierte Aufschlüsselung)

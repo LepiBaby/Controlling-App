@@ -100,7 +100,9 @@ export function LangfristigeInvestitionsauswertungChart({ model, zeitansicht }: 
 
   return (
     <div className="rounded-lg border p-4 space-y-3">
-      <span className="text-sm font-medium">Investitionen nach Produkt</span>
+      <span className="text-sm font-medium">
+        {model.aufschluesselung === 'kategorie' ? 'Investitionen nach Kategorie' : 'Investitionen nach Produkt'}
+      </span>
 
       {!hasValues ? (
         <div className="flex flex-col items-center justify-center h-[300px] gap-2 text-muted-foreground text-sm">

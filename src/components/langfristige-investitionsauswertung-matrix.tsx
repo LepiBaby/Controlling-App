@@ -46,7 +46,7 @@ interface Props {
 }
 
 export function LangfristigeInvestitionsauswertungMatrix({ model, versionId }: Props) {
-  const { columns, tree, gesamt, loading, error, hasKategorien, hasProdukte, isEmpty } = model
+  const { columns, tree, gesamt, loading, error, hasKategorien, hasProdukte, isEmpty, aufschluesselung } = model
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
 
   const allExpandableIds = useMemo(() => collectIaExpandableIds(tree), [tree])
@@ -154,7 +154,11 @@ export function LangfristigeInvestitionsauswertungMatrix({ model, versionId }: P
     return (
       <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed py-16 text-center text-muted-foreground">
         <BarChart2 className="h-8 w-8" />
-        <p className="text-sm">Keine Produkte als Investition markiert. Markiere Produkte im KPI-Modell (Reiter „Produkte"), damit sie hier erscheinen.</p>
+        <p className="text-sm">
+          {aufschluesselung === 'kategorie'
+            ? 'Diese Planversion hat noch keine Produkte. Lege Produkte im KPI-Modell (Reiter „Produkte") an, damit sie hier erscheinen.'
+            : 'Keine Produkte als Investition markiert. Markiere Produkte im KPI-Modell (Reiter „Produkte"), damit sie hier erscheinen.'}
+        </p>
         <Button asChild variant="outline" size="sm">
           <Link href={`/dashboard/langfristige-planung/${versionId}/kpi-modell-verwaltung`}>
             Zur KPI-Modell-Verwaltung
@@ -200,10 +204,11 @@ export function LangfristigeInvestitionsauswertungMatrix({ model, versionId }: P
             <tbody>
               {rows.map((row, idx) => {
                 const isGesamt = row.kind === 'gesamt'
-                const isProdukt = row.kind === 'produkt' // oberste Ebene = Produkt-Header
-                const isObergruppe = row.kind === 'obergruppe'
-                const isUntergruppe = row.kind === 'untergruppe' // Leaf
-                const isBold = isGesamt || isProdukt
+                // Styling nach Tiefe (mode-unabhängig): Ebene 0 = Header (fett),
+                // Ebene 1 = Zwischengruppe (medium), Ebene 2 = Leaf (klein, muted).
+                const isBold = isGesamt || row.indent === 0
+                const isMedium = !isGesamt && row.indent === 1
+                const isLeaf = !isGesamt && row.indent >= 2
                 const stickyBg = isGesamt ? 'bg-muted' : 'bg-background'
                 return (
                   <tr
@@ -228,8 +233,8 @@ export function LangfristigeInvestitionsauswertungMatrix({ model, versionId }: P
                         )}
                         <span className={[
                           isBold ? 'font-semibold' : '',
-                          isObergruppe ? 'font-medium' : '',
-                          isUntergruppe ? 'text-muted-foreground text-xs' : '',
+                          isMedium ? 'font-medium' : '',
+                          isLeaf ? 'text-muted-foreground text-xs' : '',
                         ].filter(Boolean).join(' ')}>
                           {row.label}
                         </span>
@@ -246,7 +251,7 @@ export function LangfristigeInvestitionsauswertungMatrix({ model, versionId }: P
                       return (
                         <td
                           key={c.key}
-                          className={['px-3 py-2 text-right tabular-nums whitespace-nowrap', isBold ? 'font-semibold' : '', isObergruppe ? 'font-medium' : '', isUntergruppe ? 'text-xs text-muted-foreground' : '', selBg].filter(Boolean).join(' ')}
+                          className={['px-3 py-2 text-right tabular-nums whitespace-nowrap', isBold ? 'font-semibold' : '', isMedium ? 'font-medium' : '', isLeaf ? 'text-xs text-muted-foreground' : '', selBg].filter(Boolean).join(' ')}
                           onMouseDown={e => handleCellMouseDown(e, cellKey, value)}
                           onMouseEnter={() => handleCellMouseEnter(cellKey, value)}
                         >

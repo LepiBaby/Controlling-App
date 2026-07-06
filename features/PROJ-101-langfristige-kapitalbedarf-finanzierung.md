@@ -525,5 +525,17 @@ Auf Nutzerwunsch geändert:
 ### Production-Ready-Empfehlung: ✅ READY
 Keine Critical/High-Bugs. Kernlogik durch 33 Vitest- + 12 E2E-Tests abgesichert, `tsc` sauber, RLS/Version-Isolation verifiziert, keine neue Angriffsfläche. Die drei Low-Findings sind kosmetisch/ohne Nutzerwirkung. Empfehlung vor Deploy: kurze visuelle Live-Bestätigung (Obergruppen-Override → Gesamtkapitalbedarf zieht nach; manuelle Zeile/EK/FK anlegen → Reload → persistiert; Abgleich-Warnung).
 
+## Enhancement — Investitionen-Drill-Down nach KPI-Kategorien (2026-07-06)
+
+**Nutzervorgabe:** Beim Ausklappen der Zeile **„Investitionen"** sollen **nicht** die einzelnen Produkte, sondern die im KPI-Modell hinterlegten **Investitionskategorien (Obergruppen)** aufgeschlüsselt werden.
+
+**Hintergrund:** Nach dem PROJ-99-Redesign (2026-07-03) lieferte `useLangfristigeInvestitionsauswertung` einen **produkt-orientierten** Baum (oberste Ebene = Produkte). Da dieser Hook die Quelle der aufklappbaren `investObergruppen` ist, zeigte der Drill-Down fälschlich Produkte statt Kategorien.
+
+**Umsetzung (1 Zeile):** `src/hooks/use-langfristige-kapitalbedarf-finanzierung.ts` ruft den Auswertungs-Hook jetzt mit `aufschluesselung: 'kategorie'` auf (neuer Parameter aus dem PROJ-99-Enhancement). Dadurch ist `invest.tree` wieder Obergruppen-orientiert und `investObergruppen` listet die KPI-Investitionskategorien.
+
+**Folge (bewusst):** Der Investitionen-Gesamtwert entspricht jetzt der Summe **aller** Produkte mit Daten (Kategorie-Sicht = PROJ-92-Gesamt), nicht nur der `ist_investition`-markierten Produkte. Das ist der vollständigere Kapitalbedarf. Vorhandene Obergruppen-Overrides (`quelle_id`) sind an die Kategorie-IDs gebunden und funktionieren unverändert.
+
+**Verifikation:** `use-langfristige-kapitalbedarf-finanzierung.test.ts` **13/13 grün**; `tsc --noEmit` ohne neue Fehler.
+
 ## Deployment
 _To be added by /deploy_

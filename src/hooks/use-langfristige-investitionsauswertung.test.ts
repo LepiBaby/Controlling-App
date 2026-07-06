@@ -162,6 +162,51 @@ describe('useLangfristigeInvestitionsauswertung — Produkt → Obergruppe → U
   })
 })
 
+// ─── Hook: Kategorie-Aufschlüsselung (Obergruppe → Untergruppe → Produkt) ─────
+
+describe("useLangfristigeInvestitionsauswertung — Aufschlüsselung 'kategorie'", () => {
+  it('oberste Ebene = Obergruppen; Blätter = Produkte mit Daten', () => {
+    // p1 hat einen berechneten Wert in ug1, p2 einen manuellen in ug2.
+    mockState.berechnet.set(cellKey('ug1', 'p1', M1), 70)
+    mockState.manuell.set(cellKey('ug2', 'p2', M2), 30)
+
+    const { result } = renderHook(() => useLangfristigeInvestitionsauswertung('v1', 'kategorie'))
+    // Wurzel = Obergruppe
+    expect(result.current.tree.map(n => n.id)).toEqual(['og1'])
+    const og = result.current.tree[0]
+    expect(og.kind).toBe('obergruppe')
+    // Untergruppen ug1, ug2 unter og1
+    expect(og.children?.map(c => c.id)).toEqual(['og1:ug1', 'og1:ug2'])
+    // ug1 hat nur p1 (Daten), ug2 nur p2 (Daten)
+    const ug1 = og.children!.find(c => c.id === 'og1:ug1')!
+    const ug2 = og.children!.find(c => c.id === 'og1:ug2')!
+    expect(ug1.children?.map(c => c.id)).toEqual(['og1:ug1:p1'])
+    expect(ug2.children?.map(c => c.id)).toEqual(['og1:ug2:p2'])
+    expect(ug1.children![0].kind).toBe('produkt')
+  })
+
+  it('summiert alle Produkte mit Daten (auch nicht als Investition markierte)', () => {
+    // p2 ist NICHT markiert, trägt aber Daten → fließt in der Kategorie-Ansicht ein.
+    mockState.manuell.set(cellKey('ug1', 'p2', M1), 500)
+    const { result } = renderHook(() => useLangfristigeInvestitionsauswertung('v1', 'kategorie'))
+    expect(result.current.gesamt.values['2026-4']).toBe(500)
+    // hasProdukte = "mind. ein Produkt existiert" (nicht: markiert)
+    expect(result.current.hasProdukte).toBe(true)
+  })
+
+  it('liefert je Obergruppe eine Diagramm-Serie', () => {
+    mockState.berechnet.set(cellKey('ug1', 'p1', M1), 70)
+    const { result } = renderHook(() => useLangfristigeInvestitionsauswertung('v1', 'kategorie'))
+    expect(result.current.serien.map(s => s.id)).toEqual(['og1'])
+    expect(result.current.serien[0].values['2026-4']).toBe(70)
+  })
+
+  it('setzt aufschluesselung im Modell', () => {
+    const { result } = renderHook(() => useLangfristigeInvestitionsauswertung('v1', 'kategorie'))
+    expect(result.current.aufschluesselung).toBe('kategorie')
+  })
+})
+
 // ─── Hook: Leer-/Sonderzustände ───────────────────────────────────────────────
 
 describe('useLangfristigeInvestitionsauswertung — Zustände', () => {
@@ -241,7 +286,7 @@ function buildModel(): IaModel {
     ],
     gesamt: { id: '__gesamt__', label: 'Investitionen (Gesamt)', kind: 'gesamt', values: { '2026-4': 150, '2026-5': 50 } },
     serien: [{ id: 'p1', label: 'Produkt A', values: { '2026-4': 150, '2026-5': 50 } }],
-    loading: false, error: null, hasKategorien: true, hasProdukte: true, isEmpty: false,
+    aufschluesselung: 'produkt', loading: false, error: null, hasKategorien: true, hasProdukte: true, isEmpty: false,
   }
 }
 
