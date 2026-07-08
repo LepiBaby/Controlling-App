@@ -33,7 +33,7 @@ interface RouteContext {
   params: Promise<{ versionId: string }>
 }
 
-interface InvestKatRow { id: string; name: string; parent_id: string | null; level: number }
+interface InvestKatRow { id: string; name: string; parent_id: string | null; level: number; system_key: string | null }
 interface GlobalKatRow { id: string; name: string; parent_id: string | null }
 interface BestellungRow {
   id: string
@@ -94,7 +94,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
     fetchAllRows((from, to) =>
       supabase
         .from('langfristige_kpi_kategorien')
-        .select('id, name, parent_id, level')
+        .select('id, name, parent_id, level, system_key')
         .eq('user_id', user!.id)
         .eq('plan_version_id', versionId)
         .eq('art', 'lp_investition')
@@ -116,8 +116,13 @@ export async function GET(_request: Request, { params }: RouteContext) {
   const monatSet = new Set(monate.map(m => `${m.jahr}:${m.monat}`))
 
   // Einkauf-Untergruppen der Version: Name (normalisiert) → Untergruppen-ID.
+  // Die Einkauf-Übergruppe ist über den stabilen system_key identifiziert (PROJ-107),
+  // damit ein Umbenennen sie nicht mehr aus der Auto-Berechnung fallen lässt. Fallback
+  // auf den Namensabgleich nur für (theoretisch) noch nicht migrierte Zeilen.
   const investKats = (investResult.data ?? []) as InvestKatRow[]
-  const einkaufUebergruppe = investKats.find(k => k.level === 1 && norm(k.name) === norm(EINKAUF_UEBERGRUPPE))
+  const einkaufUebergruppe =
+    investKats.find(k => k.level === 1 && k.system_key === 'einkauf')
+    ?? investKats.find(k => k.level === 1 && k.system_key == null && norm(k.name) === norm(EINKAUF_UEBERGRUPPE))
   const einkaufUntergruppeByName = new Map<string, string>()
   if (einkaufUebergruppe) {
     for (const k of investKats) {

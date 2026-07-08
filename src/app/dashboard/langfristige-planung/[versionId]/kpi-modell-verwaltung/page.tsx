@@ -79,6 +79,9 @@ function KategorieTab({
         // PROJ-105: Investitions-Markierung nur im Produkte-Reiter; steuert, welche
         // Produkte in der Investitionsausgaben-Planung standardmäßig als Zeile erscheinen.
         onToggleInvestition={art === 'lp_produkt' ? toggleInvestition : undefined}
+        // PROJ-107: die 3 festen Produktinvestitions-Übergruppen dürfen nur im
+        // Investitionen-Reiter umbenannt werden (Struktur bleibt fix).
+        allowSystemRename={art === 'lp_investition'}
         // Bewusst NICHT verdrahtet: SKU, USt, Dimensionen, Anzeigebezeichnungen,
         // Rentabilitäts-Ausschluss — diese Funktionen entfallen in der Langfristigen Planung.
       />

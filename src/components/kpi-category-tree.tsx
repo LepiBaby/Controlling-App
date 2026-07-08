@@ -44,6 +44,8 @@ interface KpiCategoryTreeProps {
   onUpdateUstSatz?: (id: string, ust_satz: number | null) => Promise<void>
   onUpdateExcludeFromRentabilitaet?: (id: string, exclude: boolean) => Promise<void>
   onToggleInvestition?: (id: string, ist_investition: boolean) => Promise<void>
+  // PROJ-107: Umbenennen der festen Produktinvestitions-Übergruppen erlauben.
+  allowSystemRename?: boolean
 }
 
 function DragPreview({ name }: { name: string }) {
@@ -102,6 +104,7 @@ export function KpiCategoryTree({
   onUpdateUstSatz,
   onUpdateExcludeFromRentabilitaet,
   onToggleInvestition,
+  allowSystemRename,
 }: KpiCategoryTreeProps) {
   const [activeId, setActiveId] = useState<string | null>(null)
   const [dropIntent, setDropIntent] = useState<DropIntent | null>(null)
@@ -242,6 +245,7 @@ export function KpiCategoryTree({
                   onUpdateUstSatz={onUpdateUstSatz}
                   onUpdateExcludeFromRentabilitaet={onUpdateExcludeFromRentabilitaet}
                   onToggleInvestition={onToggleInvestition}
+                  allowSystemRename={allowSystemRename}
                 />
               ))}
             </div>

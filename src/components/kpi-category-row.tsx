@@ -57,6 +57,9 @@ interface KpiCategoryRowProps {
   onUpdateExcludeFromRentabilitaet?: (id: string, exclude: boolean) => Promise<void>
   // PROJ-105: Langfristig-Produkt als Investition markieren (nur im Produkte-Reiter verdrahtet).
   onToggleInvestition?: (id: string, ist_investition: boolean) => Promise<void>
+  // PROJ-107: erlaubt das Umbenennen der festen Produktinvestitions-Übergruppen (Ebene 1,
+  // is_system). Sonst bleiben Systemgruppen vollständig read-only.
+  allowSystemRename?: boolean
 }
 
 const INDENT: Record<number, string> = { 1: 'pl-0', 2: 'pl-6', 3: 'pl-12' }
@@ -78,11 +81,15 @@ export function KpiCategoryRow({
   onUpdateUstSatz,
   onUpdateExcludeFromRentabilitaet,
   onToggleInvestition,
+  allowSystemRename = false,
 }: KpiCategoryRowProps) {
   const isSkuRow = category.type === 'produkte' && category.level === 2
   const isSkuParent = category.type === 'produkte' && category.level === 1
   // PROJ-74 (Erweiterung): feste, gespiegelte Investitionsgruppen sind schreibgeschützt.
   const isReadOnly = !!category.is_system
+  // PROJ-107: feste Übergruppen (Ebene 1) dürfen umbenannt werden — Struktur bleibt fix.
+  const canRenameSystem = isReadOnly && allowSystemRename && category.level === 1
+  const nameEditable = !isReadOnly || canRenameSystem
 
   const [expanded, setExpanded] = useState(true)
   const [editing, setEditing] = useState(false)
@@ -244,7 +251,7 @@ export function KpiCategoryRow({
               <X className="h-3.5 w-3.5" />
             </Button>
           </div>
-        ) : isReadOnly ? (
+        ) : !nameEditable ? (
           <span
             className="flex-1 text-sm min-w-0 truncate text-foreground/80"
             title={`${category.name} (feste Gruppe – nicht bearbeitbar)`}
@@ -495,6 +502,15 @@ export function KpiCategoryRow({
             </Button>
           </div>
         )}
+
+        {/* PROJ-107: feste Übergruppen — nur Umbenennen, keine weiteren Aktionen */}
+        {!editing && canRenameSystem && (
+          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={startEdit} title="Umbenennen">
+              <Pencil className="h-3 w-3" />
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Insert-after indicator */}
@@ -539,6 +555,7 @@ export function KpiCategoryRow({
               onUpdateUstSatz={onUpdateUstSatz}
               onUpdateExcludeFromRentabilitaet={onUpdateExcludeFromRentabilitaet}
               onToggleInvestition={onToggleInvestition}
+              allowSystemRename={allowSystemRename}
             />
           ))}
         </div>

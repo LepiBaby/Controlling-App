@@ -6,7 +6,7 @@ import { requireAuth } from '@/lib/supabase-server'
 // Überspringt den in Next 16 instabilen Static-Path-Pass (Worker-Crash).
 export const dynamic = 'force-dynamic'
 
-const SELECT_COLS = 'id, plan_version_id, art, parent_id, name, level, sort_order, is_system, ist_investition'
+const SELECT_COLS = 'id, plan_version_id, art, parent_id, name, level, sort_order, is_system, ist_investition, system_key'
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 const patchSchema = z.object({
@@ -73,12 +73,24 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   if (findErr) return NextResponse.json({ error: findErr.message }, { status: 500 })
   if (!existing) return NextResponse.json({ error: 'Eintrag nicht gefunden' }, { status: 404 })
 
-  // Feste Produktinvestitions-Übergruppen und ihre gespiegelten Gruppen sind read-only.
+  // Feste Produktinvestitions-Gruppen sind strukturell fix. PROJ-107: die drei festen
+  // Übergruppen (Ebene 1) dürfen jedoch UMBENANNT werden (reine Namensänderung); ihre
+  // Identität hängt am stabilen system_key, nicht am Namen. Die gespiegelten
+  // Untergruppen (Ebene 2) bleiben vollständig read-only — ihre Namen steuern das
+  // Bestellkosten-Matching der Auto-Berechnung.
   if (existing.is_system) {
-    return NextResponse.json(
-      { error: 'Feste Produktinvestitions-Gruppen können nicht bearbeitet werden.' },
-      { status: 403 },
-    )
+    const nurUmbenennen =
+      patch.name !== undefined &&
+      patch.sort_order === undefined &&
+      patch.parent_id === undefined &&
+      patch.level === undefined &&
+      patch.ist_investition === undefined
+    if (!(existing.level === 1 && nurUmbenennen)) {
+      return NextResponse.json(
+        { error: 'Feste Produktinvestitions-Gruppen können nicht bearbeitet werden.' },
+        { status: 403 },
+      )
+    }
   }
 
   // Beim Umhängen: Ebene/Eltern müssen konsistent sein

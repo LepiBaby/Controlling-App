@@ -7,7 +7,7 @@ import { ensureInvestitionenSnapshot } from '@/lib/langfristige-investitionen-sn
 // Überspringt den in Next 16 instabilen Static-Path-Pass (Worker-Crash).
 export const dynamic = 'force-dynamic'
 
-const SELECT_COLS = 'id, plan_version_id, art, parent_id, name, level, sort_order, is_system, ist_investition'
+const SELECT_COLS = 'id, plan_version_id, art, parent_id, name, level, sort_order, is_system, ist_investition, system_key'
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 const VALID_ARTEN = ['lp_sales_plattform', 'lp_produkt', 'lp_marketingkanal', 'lp_investition'] as const

@@ -98,9 +98,28 @@ describe('PATCH /api/langfristige-planung/[versionId]/kpi-kategorien/[id]', () =
     expect(res.status).toBe(401)
   })
 
-  it('returns 403 when editing a fixed system group', async () => {
+  // PROJ-107: die 3 festen Produktinvestitions-Übergruppen (Ebene 1) dürfen umbenannt
+  // werden; Struktur-Edits bleiben gesperrt und gespiegelte Untergruppen (Ebene 2) auch.
+  it('allows renaming a fixed system group (Ebene 1) — PROJ-107', async () => {
     mockFrom.mockReturnValueOnce(chain({ data: { id: VERSION_ID }, error: null })) // ensureVersion
-    mockFrom.mockReturnValueOnce(chain({ data: { id: ID, art: 'lp_investition', level: 1, is_system: true }, error: null })) // existing → system
+    mockFrom.mockReturnValueOnce(chain({ data: { id: ID, art: 'lp_investition', level: 1, is_system: true }, error: null })) // existing → system L1
+    mockFrom.mockReturnValueOnce(chain({ data: { id: ID, name: 'Umbenannt' }, error: null })) // update
+    const res = await PATCH(patchReq({ name: 'Umbenannt' }), ctx(VERSION_ID, ID))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.name).toBe('Umbenannt')
+  })
+
+  it('returns 403 when structurally editing a fixed system group (Ebene 1)', async () => {
+    mockFrom.mockReturnValueOnce(chain({ data: { id: VERSION_ID }, error: null })) // ensureVersion
+    mockFrom.mockReturnValueOnce(chain({ data: { id: ID, art: 'lp_investition', level: 1, is_system: true }, error: null })) // existing → system L1
+    const res = await PATCH(patchReq({ sort_order: 5 }), ctx(VERSION_ID, ID))
+    expect(res.status).toBe(403)
+  })
+
+  it('returns 403 when renaming a mirrored system subgroup (Ebene 2)', async () => {
+    mockFrom.mockReturnValueOnce(chain({ data: { id: VERSION_ID }, error: null })) // ensureVersion
+    mockFrom.mockReturnValueOnce(chain({ data: { id: ID, art: 'lp_investition', level: 2, is_system: true }, error: null })) // existing → system L2
     const res = await PATCH(patchReq({ name: 'Umbenannt' }), ctx(VERSION_ID, ID))
     expect(res.status).toBe(403)
   })

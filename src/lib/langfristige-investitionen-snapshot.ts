@@ -14,10 +14,17 @@ import { fetchAllRows } from '@/lib/supabase-paginate'
 
 type AuthedSupabase = Awaited<ReturnType<typeof requireAuth>>['supabase']
 
-// Reihenfolge der festen Übergruppen (sort_order 0,1,2).
+// Reihenfolge der festen Übergruppen (sort_order 0,1,2). Der stabile system_key
+// (PROJ-107) entkoppelt Logik/Auto-Berechnung vom künftig umbenennbaren Namen.
 const OPERATIONS = 'Produktinvestitionen Operations'
 const EINKAUF = 'Produktinvestitionen Einkauf'
 const SALES_MARKETING = 'Produktinvestitionen Sales & Marketing'
+
+const SYSTEM_KEY_BY_NAME: Record<string, string> = {
+  [OPERATIONS]: 'operations',
+  [EINKAUF]: 'einkauf',
+  [SALES_MARKETING]: 'sales_marketing',
+}
 
 interface GlobalKat {
   id: string
@@ -96,6 +103,7 @@ export async function ensureInvestitionenSnapshot(
     level: 1,
     sort_order: i,
     is_system: true,
+    system_key: SYSTEM_KEY_BY_NAME[name],
   }))
 
   const { data: insertedL1, error: l1Err } = await supabase

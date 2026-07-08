@@ -7,7 +7,7 @@ function makeSupabase(seq: unknown[], inserts: unknown[][]) {
   let i = 0
   function chain(result: unknown) {
     const c: Record<string, unknown> = { then: (resolve: (v: unknown) => unknown) => resolve(result) }
-    for (const m of ['select', 'eq', 'is', 'order', 'limit', 'single', 'maybeSingle']) c[m] = () => c
+    for (const m of ['select', 'eq', 'is', 'order', 'limit', 'range', 'single', 'maybeSingle']) c[m] = () => c
     c.insert = (rows: unknown[]) => { inserts.push(rows); return c }
     return c
   }
@@ -58,6 +58,8 @@ describe('ensureInvestitionenSnapshot', () => {
       'Produktinvestitionen Sales & Marketing',
     ])
     expect(l1.every(r => r.is_system === true && r.level === 1)).toBe(true)
+    // PROJ-107: stabiler system_key je Übergruppe (entkoppelt Logik vom Namen).
+    expect(l1.map(r => r.system_key)).toEqual(['operations', 'einkauf', 'sales_marketing'])
 
     // L2: gespiegelte Gruppen je Übergruppe mit korrektem Eltern-Bezug
     const l2 = inserts[1] as Array<Record<string, unknown>>
