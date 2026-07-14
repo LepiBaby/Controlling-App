@@ -701,4 +701,8 @@ Alle Bausteine bereits vorhanden:
 - Hinweis: „Externer Traffic" bleibt weiterhin leer, weil dort alle Marketing-Einstellungen auf `berechnungsart = 'keine'` stehen — das ist korrektes, separates Verhalten, kein Bug.
 
 ## Deployment
-_To be added by /deploy_
+
+- **Deployed:** 2026-07-14 (Marketing-L2-Bugfix) — Commit `00eae62` auf `main` → Vercel Auto-Deploy (Projekt `controlling-app`).
+- **Pre-Deploy-Gate:** `npm run build` erfolgreich (clean build nach `.next`-Reset — Route `/dashboard/kurzfristige-planung/umsatzausgaben` + API `umsatzausgaben-planung/berechnet` gebaut, „Compiled successfully"); `berechnet/route.test.ts` 6/6 grün; `tsc --noEmit` ohne neue Fehler in den geänderten Dateien. Hinweis: Lokaler Build zeigte zunächst einen stale `.next/dev/types`-Typfehler (DELETE-Handler in `umsatzausgaben-planung/route.ts`, `req?: Request`) — Artefakt des Dev-Servers, verschwindet beim Clean-Build und ist auf Vercel irrelevant. `next lint` unter Next 16 in diesem Repo nicht lauffähig (bekannt).
+- **Weg:** Reine Backend-Logik-Änderung an der Marketing-L2-Erkennung — keine Migration, keine neuen Env-Vars, kein neues Backend-Schema.
+- **Verifikation gegen Live-Daten:** Marketing-L1 „Marketing" (`afe6…`) hat 2 L2-Kinder (Amazon Ads `ad13…`, Externer Traffic `09ec…`), beide UUIDs sortieren vor der L1 → vorher übersprungen. Amazon Ads hat 4 aktive Einstellungen + 105 Planungszeilen mit % > 0; keine Marketing-Kategorie ist einer Sales-Plattform zugeordnet → nach dem Fix erscheinen Amazon-Ads-Werte. „Externer Traffic" bleibt korrekt leer (alle Einstellungen `berechnungsart = 'keine'`).

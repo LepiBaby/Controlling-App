@@ -88,7 +88,7 @@
 | PROJ-64 | Bestellkosten — Kurzfristige Planung | Approved | [PROJ-64-bestellkosten.md](PROJ-64-bestellkosten.md) | 2026-06-12 |
 | PROJ-65 | Steuereinstellungen — Kurzfristige Planung | Approved | [PROJ-65-steuereinstellungen.md](PROJ-65-steuereinstellungen.md) | 2026-06-13 |
 | PROJ-66 | Sales Plattform Planung — Kurzfristige Planung | Approved | [PROJ-66-sales-plattform-planung.md](PROJ-66-sales-plattform-planung.md) | 2026-06-13 |
-| PROJ-67 | Umsatzausgaben — Kurzfristige Planung | Approved | [PROJ-67-umsatzausgaben.md](PROJ-67-umsatzausgaben.md) | 2026-06-15 |
+| PROJ-67 | Umsatzausgaben — Kurzfristige Planung | Deployed | [PROJ-67-umsatzausgaben.md](PROJ-67-umsatzausgaben.md) | 2026-06-15 |
 | PROJ-68 | Operative Ausgaben — Kurzfristige Planung (Redesign PROJ-56) | Approved | [PROJ-68-operative-ausgaben.md](PROJ-68-operative-ausgaben.md) | 2026-06-17 |
 | PROJ-69 | Produktinvestitionsausgaben — Kurzfristige Planung (Redesign PROJ-57) | Approved | [PROJ-69-produktinvestitionsausgaben.md](PROJ-69-produktinvestitionsausgaben.md) | 2026-06-17 |
 | PROJ-70 | Finanzierungsausgaben — Kurzfristige Planung | Approved | [PROJ-70-finanzierungsausgaben.md](PROJ-70-finanzierungsausgaben.md) | 2026-06-18 |
