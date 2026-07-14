@@ -2,7 +2,7 @@
 
 ## Status: Approved
 **Created:** 2026-06-15
-**Last Updated:** 2026-06-17
+**Last Updated:** 2026-07-14
 
 ## Dependencies
 - Requires: PROJ-1 (Authentifizierung) — nur eingeloggte Nutzer
@@ -691,6 +691,14 @@ Alle Bausteine bereits vorhanden:
 - Ursache: `ist-tatsaechlich/route.ts` filterte nach Rentabilitätslogik (`leistungsdatum` + `relevanz IN ('rentabilitaet','beides')`). Die Produktausgaben-Transaktionen (Ware, Einlagerung, Shipping, Inspektion) sind jedoch fast ausschließlich mit `relevanz = 'liquiditaet'` erfasst → wurden komplett herausgefiltert.
 - Fix: Route auf **Liquiditätslogik** umgestellt (identisch zu PROJ-29 / den übrigen Ausgaben-Ist-Tatsächlich-Routen): `zahlungsdatum` + `relevanz IN ('liquiditaet','beides')` + `betrag_brutto`. `gruppe_id` (L2) bleibt Matching-Ebene, `produkt_id` für die Produkt-Leaf-Zeilen.
 - Trennung bestätigt: Die **Umsatzsteuerermittlung** (`steuerausgaben-planung/berechnet`, `reporting/umsatzsteuer`, `vorsteuer`) verwendet weiterhin getrennt die **Rentabilitätslogik** (`leistungsdatum` + `relevanz rentabilitaet/beides`). Ist-Tatsächlich (Liquidität) und USt-Ermittlung (Rentabilität) sind sauber entkoppelt.
+
+## Post-Deploy Fix (2026-07-14)
+
+**[BUG] Marketing-Ausgaben werden nie angezeigt (Reihenfolge-abhängige L2-Erkennung)**
+- Symptom: Unter „Marketing" erschienen in der Umsatzausgaben-Tabelle keinerlei Werte — obwohl Marketing-Einstellungen (z. B. Amazon Ads: 4 aktive Kombis) und Marketing-Planung (105 Zeilen mit % > 0) vollständig gepflegt waren und keine Marketing-Kategorie einer Sales-Plattform zugeordnet ist.
+- Ursache: In `umsatzausgaben-planung/berechnet/route.ts` wurden die Marketing-L2-Unterkategorien innerhalb der nach `id` sortierten Einmal-Schleife über `k.parent_id === marketingL1Id` erkannt. `marketingL1Id` wird aber erst gesetzt, sobald die L1-Zeile durchlaufen ist. Bei den vorliegenden UUIDs sortieren beide L2-Kinder (`09ec…` Externer Traffic, `ad13…` Amazon Ads) **vor** der L1-Zeile (`afe6…` Marketing) → sie wurden übersprungen → `marketingL2Ids` / `unassigned_marketing_kat_ids` leer → keine Berechnung und keine Anzeige.
+- Fix: `marketingL2Ids` wird jetzt **nach** der Schleife aus `marketingL1Id` über `childrenMap` abgeleitet (reihenfolge-unabhängig). Vertrieb war nicht betroffen (dessen L2-Erkennung läuft über Namens-Matching, nicht `parent_id`).
+- Hinweis: „Externer Traffic" bleibt weiterhin leer, weil dort alle Marketing-Einstellungen auf `berechnungsart = 'keine'` stehen — das ist korrektes, separates Verhalten, kein Bug.
 
 ## Deployment
 _To be added by /deploy_

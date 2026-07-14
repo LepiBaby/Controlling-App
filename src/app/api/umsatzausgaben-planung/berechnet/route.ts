@@ -208,7 +208,12 @@ export async function GET(request: Request) {
     if (k.level === 2 && n.includes('lager')) lagerL2Id.push(k.id)
     if (k.level === 2 && n.includes('retouren')) retourenL2Id.push(k.id)
     if (k.level === 2 && (n.includes('ersatz') || n.includes('kulanz'))) kulanzL2Id.push(k.id)
-    if (k.level === 2 && k.parent_id === marketingL1Id) marketingL2Ids.push(k.id)
+  }
+
+  // Marketing-L2 nach der Schleife ableiten: die Zuordnung darf nicht von der
+  // id-Sortierreihenfolge abhängen (marketingL1Id ist erst nach der L1-Zeile gesetzt).
+  if (marketingL1Id) {
+    for (const c of childrenMap.get(marketingL1Id) ?? []) marketingL2Ids.push(c)
   }
 
   const produkte = kats.filter(k => k.type === 'produkte' && k.level === 1)
