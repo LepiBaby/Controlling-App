@@ -2,7 +2,9 @@
 
 ## Status: Approved
 **Created:** 2026-06-23
-**Last Updated:** 2026-07-03 (Investitionen jetzt Brutto-Aufschlag — PROJ-92 Netto-Umstellung)
+**Last Updated:** 2026-07-15 (Bugfix: im KPI-Modell gelöschte Produkte aus Summen ausschließen)
+
+> **2026-07-15 — Bugfix gelöschte Produkte:** Kostenzeilen (Umsatzausgaben + Investitionen) für Produkte, die im KPI-Modell dieser Version **gelöscht** wurden, blieben in der Liquiditätsauswertung erhalten und flossen weiter in Gesamt-Ausgaben/Cashflow/Kontostand ein — obwohl sie in der Investitionsauswertung korrekt verschwinden. Ursache: `loadProduktModul` aggregierte über die **gespeicherten/berechneten Kostenzeilen** und filterte nur nach Kategorie, nie nach Produkt-Existenz (die aktuelle Produktliste wurde nur zur Beschriftung/Sortierung genutzt). Fix: Produkt-Existenz-Filter (`if (e.produkt_id && !produktNames.has(e.produkt_id)) continue`) in beiden Ingest-Schleifen — Zeilen ohne `produkt_id` (Kategorie-Ebene) bleiben erhalten. Gilt konsistent für Umsatzausgaben **und** Investitionen. Regressionstest ergänzt.
 
 > **2026-07-03 — Investitionen Netto→Brutto (PROJ-92 Netto-Umstellung):** Die Investitionskostenplanung (PROJ-92) liefert jetzt **Netto**. Der Cash-Out-Block `aus-investitionen` schlägt den USt-Satz je Untergruppe auf (`Brutto = Netto × (1 + Satz/100)`) — clientseitiger `getUstSatzInvest`-Resolver + `grossUp` in `loadProduktModul`, analog zum bestehenden Operativkosten-Aufschlag.
 

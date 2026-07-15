@@ -26,6 +26,14 @@ const MONTH_LABELS = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', '
 // Level-1 ausgaben_kosten Wurzeln, die ein EIGENES Modul haben → gehören NICHT zu Umsatzausgaben.
 const EIGENE_AUSGABEN_ROOTS = ['operativ', 'finanzierung', 'steuern', 'produktinvestitionen']
 
+// Synthetischer Wurzelknoten, unter den ALLE Investitionen gehängt werden, und
+// die daraus abgeleitete Zeilen-ID der Investitionen-Summenzeile im View-Model.
+// Exportiert, damit Verbraucher (z.B. PROJ-101 Kapitalbedarf) die Investitions-
+// Auszahlungen je Monat gezielt aus den Zeilen herausgreifen können.
+export const LP_INVESTITIONEN_ROOT_ID = '__lp_investitionen_root__'
+export const LP_INVESTITIONEN_SECTION_KEY = 'aus-investitionen'
+export const LP_INVESTITIONEN_ROW_ID = `node-${LP_INVESTITIONEN_SECTION_KEY}-${LP_INVESTITIONEN_ROOT_ID}`
+
 function subId(leafId: string, childId: string): string {
   return `${leafId}>${childId}`
 }
@@ -306,6 +314,11 @@ async function loadProduktModul(
 
   for (const e of asArray<BerEintrag>(berRaw)) {
     if (!leafIds.has(e.kategorie_id)) continue
+    // Im KPI-Modell gelöschte Produkte überspringen: ihre Kostenzeilen bleiben in den
+    // Planungs-/Bestelldaten erhalten, dürfen aber – wie in der Investitionsauswertung –
+    // nicht mehr in die Summen (Cashflow/Kontostand) einfließen. Zeilen ohne produkt_id
+    // (Kategorie-Ebene, PROD_NONE) bleiben erhalten.
+    if (e.produkt_id && !produktNames.has(e.produkt_id)) continue
     const prod = e.produkt_id ?? PROD_NONE
     berProd.set(`${e.kategorie_id}:${prod}:${e.jahr}:${e.monat}`, Number(e.wert))
     addProd(e.kategorie_id, prod, e.jahr, e.monat)
@@ -317,6 +330,7 @@ async function loadProduktModul(
   for (const e of asArray<ManuellerEintrag>(valRaw)) {
     if (e.betrag_manuell === null || e.betrag_manuell === undefined) continue
     if (!leafIds.has(e.kategorie_id)) continue
+    if (e.produkt_id && !produktNames.has(e.produkt_id)) continue
     const prod = e.produkt_id ?? PROD_NONE
     manProd.set(`${e.kategorie_id}:${prod}:${e.jahr}:${e.monat}`, e.betrag_manuell)
     manKatMonth.add(leafMonthKey(e.kategorie_id, e.jahr, e.monat))
@@ -551,7 +565,7 @@ export function useLangfristigeLiquiditaetsauswertung(versionId: string) {
         }
         // Alle Investitionen unter EINE Gruppe „Investitionen" hängen; die im KPI-Modell
         // hinterlegten Übergruppen werden dadurch zu Untergruppen darunter.
-        const INV_ROOT_ID = '__lp_investitionen_root__'
+        const INV_ROOT_ID = LP_INVESTITIONEN_ROOT_ID
         const invRootNode = {
           id: INV_ROOT_ID, type: 'ausgaben_kosten', parent_id: null, name: 'Investitionen',
           level: 1, sort_order: 0, sku_code: null, ust_satz: null, ist_abzugsposten: null,
@@ -678,7 +692,7 @@ export function useLangfristigeLiquiditaetsauswertung(versionId: string) {
         const blocks: Block[] = [
           { sectionKey: 'aus-umsatz', kats: umsatzKatsFinal, store: { sign: -1, ...umsatz } },
           { sectionKey: 'aus-operativ', kats: operativKats, store: { sign: -1, ...operativ } },
-          { sectionKey: 'aus-investitionen', kats: invKats, store: { sign: -1, ...investitionen } },
+          { sectionKey: LP_INVESTITIONEN_SECTION_KEY, kats: invKats, store: { sign: -1, ...investitionen } },
           { sectionKey: 'aus-finanzierung', kats: finanzierungKats, store: { sign: -1, ...finanzierung } },
           { sectionKey: 'aus-steuern', kats: steuernKats, store: { sign: -1, ...steuer } },
         ]

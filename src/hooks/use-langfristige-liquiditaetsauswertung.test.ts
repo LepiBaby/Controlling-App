@@ -167,4 +167,35 @@ describe('useLangfristigeLiquiditaetsauswertung', () => {
     const amazon = findRow(r.current.rows, 'Amazon')!           // Produktverkäufe-Auto → grau
     expect(amazon.cells['2026-1'].indicator).toBe('gray')
   })
+
+  it('ignoriert Kostenzeilen im KPI-Modell gelöschter Produkte (Umsatzausgaben + Investitionen)', async () => {
+    // 'pX' existiert NICHT in `produkte` → seine Kostenzeilen dürfen weder als
+    // Unterzeile erscheinen noch in Summen/Cashflow/Kontostand einfließen.
+    vi.stubGlobal('fetch', vi.fn((input: string) => {
+      const url = String(input)
+      if (url.includes('/umsatzausgaben/berechnet')) return jsonRes({
+        data: [
+          { kategorie_id: 'vtr-l2', produkt_id: 'p1', jahr: 2026, monat: 1, wert: 100 },
+          { kategorie_id: 'vtr-l2', produkt_id: 'p2', jahr: 2026, monat: 1, wert: 50 },
+          { kategorie_id: 'vtr-l2', produkt_id: 'pX', jahr: 2026, monat: 1, wert: 999 }, // gelöscht
+          { kategorie_id: 'mk1', produkt_id: null, jahr: 2026, monat: 1, wert: 80 },
+        ],
+        unassigned_marketing_kat_ids: ['mk1'],
+      })
+      if (url.includes('/investitionsausgaben-planung/berechnet')) return jsonRes({ data: [] })
+      if (url.includes('/investitionsausgaben-planung')) return jsonRes([
+        { kategorie_id: 'iv1a', produkt_id: 'p1', jahr: 2026, monat: 1, betrag_manuell: 300 },
+        { kategorie_id: 'iv1a', produkt_id: 'pX', jahr: 2026, monat: 1, betrag_manuell: 999 }, // gelöscht
+      ])
+      return mockFetch(url)
+    }))
+    const r = await load()
+    // Keine Unterzeile für das gelöschte Produkt.
+    expect(findRow(r.current.rows, 'pX')).toBeUndefined()
+    // Versand bleibt 150 (p1+p2), Investition bleibt 300 — gelöschtes Produkt (999) fällt weg.
+    expect(findRow(r.current.rows, 'Versand')!.cells['2026-1'].value).toBeCloseTo(-150, 2)
+    expect(findRow(r.current.rows, 'Untergruppe A1')!.cells['2026-1'].value).toBeCloseTo(-300, 2)
+    // Gesamt Ausgaben unverändert bei -729 (die beiden 999er sind nicht enthalten).
+    expect(findRow(r.current.rows, 'Gesamt Ausgaben')!.cells['2026-1'].value).toBeCloseTo(-729, 2)
+  })
 })
