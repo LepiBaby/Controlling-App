@@ -2,7 +2,9 @@
 
 ## Status: Approved
 **Created:** 2026-06-23
-**Last Updated:** 2026-06-24
+**Last Updated:** 2026-07-15 (Bugfix: im KPI-Modell gelöschte Produkte aus Summen ausschließen)
+
+> **2026-07-15 — Bugfix gelöschte Produkte (geteilte Route):** Die von dieser Auswertung, PROJ-96 (Umsatz), PROJ-97 (Umsatzkosten) und PROJ-106 (Deckungsbeitrag) gemeinsam genutzte Route `rentabilitaetsauswertung/route.ts` summierte Produkt-Kosten/-Umsätze über gespeicherte/berechnete Datenzeilen (nach `produkt_id`), ohne zu prüfen, ob das Produkt im KPI-Modell noch existiert. Beim harten Löschen eines Produkts bleiben seine Planungs-/Bestelldaten erhalten → seine Beträge flossen weiter in DB I/II/III, EBIT, Netto-Umsatz usw. ein. Fix: Produkt-Existenz-Guard (`if (!labelMap.has(r.produkt_id)) continue`) an allen produkt-basierten Einlese-Stellen (absatzRows ×2, Rabatte, Marketing-Plan, Lagerung); abgeleitete Zeilen (Ware/Versand/Kulanz/Bestellkosten/Umsatzsteuer) hängen an den bereits gefilterten Maps und sind mitabgedeckt. Kategorie-Zeilen (Operativ/Finanzierung/Steuern) unberührt. Analog zum Fix in der Liquiditätsauswertung (PROJ-94). Hinweis: Route-Test ist vorbestehend rot (Mock-Desync), Verifikation via `tsc`.
 
 ## Dependencies
 - Requires: PROJ-1 (Authentifizierung) — nur eingeloggte Nutzer; alle Daten an den Nutzer gebunden

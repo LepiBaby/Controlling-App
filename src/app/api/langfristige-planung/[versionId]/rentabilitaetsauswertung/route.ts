@@ -294,6 +294,10 @@ export async function GET(request: Request, { params }: RouteContext) {
   for (const r of absatzRows) {
     const key = `${r.jahr}-${r.monat}`
     if (!monatKeySet.has(key)) continue
+    // Im KPI-Modell gelöschte Produkte überspringen: ihre Absatz-/Planungs-/Bestelldaten
+    // bleiben in der DB erhalten, dürfen aber nicht mehr in die Auswertung einfließen
+    // (analog Liquiditätsauswertung). labelMap enthält hier exakt die aktuellen Produkte.
+    if (!labelMap.has(r.produkt_id)) continue
     const absatz = r.absatz != null ? Number(r.absatz) : 0
     if (absatz !== 0) addAbsatz(r.produkt_id, key, absatz)
 
@@ -335,6 +339,7 @@ export async function GET(request: Request, { params }: RouteContext) {
   // Rabatte (rein manuell aus der Sales-Plattform-Planung)
   for (const r of (rabatteResult.data ?? []) as Array<{ produkt_id: string; jahr: number; monat: number; wert_manuell: number | null }>) {
     if (r.wert_manuell == null) continue
+    if (!labelMap.has(r.produkt_id)) continue // gelöschte Produkte ausschließen
     const key = `${r.jahr}-${r.monat}`
     addLine('rabatte', r.produkt_id, key, Number(r.wert_manuell))
     rabatteByProdMonat.set(`${r.produkt_id}:${key}`, (rabatteByProdMonat.get(`${r.produkt_id}:${key}`) ?? 0) + Number(r.wert_manuell))
@@ -454,6 +459,7 @@ export async function GET(request: Request, { params }: RouteContext) {
     const { startMonat: lagerStart, horizontMonate: lagerHorizont, produkte: lagerProdukte, bestehende } =
       await ladeVersionsDaten(supabase, uid, versionId)
     for (const lp of lagerProdukte) {
+      if (!labelMap.has(lp.produkt_id)) continue // gelöschte Produkte ausschließen
       const lagerKosten = lagerByProd.get(lp.produkt_id) ?? 0
       const m3 = m3ByProd.get(lp.produkt_id) ?? 0
       if (lagerKosten <= 0 || m3 <= 0) continue
@@ -482,6 +488,7 @@ export async function GET(request: Request, { params }: RouteContext) {
   for (const r of absatzRows) {
     const key = `${r.jahr}-${r.monat}`
     if (!monatKeySet.has(key)) continue
+    if (!labelMap.has(r.produkt_id)) continue // gelöschte Produkte ausschließen
     const vk = r.effektiver_vk != null ? Number(r.effektiver_vk) : null
     const absatz = r.absatz != null ? Number(r.absatz) : 0
     if (vk == null || vk === 0 || absatz === 0) continue
@@ -489,6 +496,7 @@ export async function GET(request: Request, { params }: RouteContext) {
   }
   for (const r of (mktPlanResult.data ?? []) as Array<{ marketingkanal_id: string; produkt_id: string; jahr: number; monat: number; marketingkosten_pct: number | null }>) {
     if (r.marketingkosten_pct == null || r.marketingkosten_pct <= 0) continue
+    if (!labelMap.has(r.produkt_id)) continue // gelöschte Produkte ausschließen
     const key = `${r.jahr}-${r.monat}`
     if (!monatKeySet.has(key)) continue
     const plattformId = kanalPlattform.get(r.marketingkanal_id) ?? null
