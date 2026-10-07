@@ -449,9 +449,22 @@ export async function GET(request: Request) {
     }
   }
 
-  const positionen = rpRows.map(pos => ({
+  // Ab der ersten Summe (Nettoumsatz) werden weitere Summen (DB1–DB3) ausgeblendet;
+  // die nachfolgenden Positionen werden direkt vom Nettoumsatz abgezogen und
+  // im Break-Even-Report als „…ausgaben“ statt „…kosten“ bezeichnet.
+  const firstSummeIdx = rpRows.findIndex(r => r.type === 'summe')
+  const firstSumme = firstSummeIdx >= 0 ? rpRows[firstSummeIdx] : null
+  const rowsAfterFirstSumme = firstSummeIdx >= 0 ? rpRows.slice(firstSummeIdx + 1) : []
+  const visibleRows = rpRows.filter((r, i) => r.type !== 'summe' || i === firstSummeIdx)
+
+  function displayName(name: string, idx: number) {
+    if (firstSummeIdx < 0 || idx <= firstSummeIdx) return name
+    return name.replace(/kosten$/i, (m: string) => (m[0] === 'K' ? 'Ausgaben' : 'ausgaben'))
+  }
+
+  const positionen = visibleRows.map(pos => ({
     id: pos.id,
-    name: pos.name,
+    name: displayName(pos.name, rpRows.indexOf(pos)),
     type: pos.type,
     sort_order: pos.sort_order,
     investitionsbezogen: pos.investitionsbezogen ?? false,
@@ -463,20 +476,18 @@ export async function GET(request: Request) {
   }))
 
   // ── 9. Periodenergebnis + Kumuliertes Ergebnis ───────────────────────────────
-  // Periodenergebnis: letzte Summe + alle nachgelagerten Positionen (z.B. Produktinvestitionskosten)
+  // Periodenergebnis: erste Summe (Nettoumsatz) + alle nachgelagerten Positionen
+  // (Produkt-, Vertriebs-, Marketing- und Produktinvestitionsausgaben).
   // Kumuliertes Ergebnis: laufende Summe des Periodenergebnisses über alle Perioden.
 
-  const lastSummeIdx = rpRows.reduce((best, row, i) => row.type === 'summe' ? i : best, -1)
-  const lastSumme = lastSummeIdx >= 0 ? rpRows[lastSummeIdx] : null
-
-  if (lastSumme) {
+  if (firstSumme) {
     const bottomLine = zeroValues(perioden)
-    const summeVals = positionValues.get(lastSumme.id) ?? zeroValues(perioden)
+    const summeVals = positionValues.get(firstSumme.id) ?? zeroValues(perioden)
     for (const p of perioden) bottomLine[p] = roundTo2(bottomLine[p] + (summeVals[p] ?? 0))
 
-    for (let i = lastSummeIdx + 1; i < rpRows.length; i++) {
-      if (rpRows[i].type !== 'position') continue
-      const pv = positionValues.get(rpRows[i].id) ?? zeroValues(perioden)
+    for (const row of rowsAfterFirstSumme) {
+      if (row.type !== 'position') continue
+      const pv = positionValues.get(row.id) ?? zeroValues(perioden)
       for (const p of perioden) bottomLine[p] = roundTo2(bottomLine[p] + (pv[p] ?? 0))
     }
 

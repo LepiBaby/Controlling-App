@@ -388,6 +388,51 @@ describe('GET /api/reporting/break-even', () => {
     expect(kum.values['2026-02']).toBe(-1200)
   })
 
+  it('hides DB summen after Nettoumsatz, renames Kosten to Ausgaben and subtracts them directly', async () => {
+    const NETTO_ID = 'aaaaaaaa-0000-0000-0000-000000000010'
+    const PK_ID    = 'aaaaaaaa-0000-0000-0000-000000000011'
+    const DB1_ID   = 'aaaaaaaa-0000-0000-0000-000000000012'
+    const PIK_ID   = 'aaaaaaaa-0000-0000-0000-000000000013'
+    setupMocks({
+      positions: [
+        { id: POS_ID,   name: 'Bruttoumsatz',            type: 'position', sort_order: 0, investitionsbezogen: false },
+        { id: NETTO_ID, name: 'Nettoumsatz',             type: 'summe',    sort_order: 1, investitionsbezogen: false },
+        { id: PK_ID,    name: 'Produktkosten',           type: 'position', sort_order: 2, investitionsbezogen: false },
+        { id: DB1_ID,   name: 'DB1',                     type: 'summe',    sort_order: 3, investitionsbezogen: false },
+        { id: PIK_ID,   name: 'Produktinvestitionskosten', type: 'position', sort_order: 4, investitionsbezogen: false },
+      ],
+      rpKategorien: [
+        { report_position_id: POS_ID, kpi_category_id: KAT_UMSATZ_ID },
+        { report_position_id: PK_ID,  kpi_category_id: KAT_KOSTEN_ID },
+      ],
+      rpSummen: [
+        { report_position_id: NETTO_ID, referenced_position_id: POS_ID },
+        { report_position_id: DB1_ID,   referenced_position_id: NETTO_ID },
+        { report_position_id: DB1_ID,   referenced_position_id: PK_ID },
+      ],
+      kpiCats: [
+        { id: KAT_UMSATZ_ID, name: 'Erlöse', type: 'umsatz',          level: 1, parent_id: null, sort_order: 0, sales_plattform_enabled: false, ist_abzugsposten: false },
+        { id: KAT_KOSTEN_ID, name: 'Kosten', type: 'ausgaben_kosten', level: 1, parent_id: null, sort_order: 1, sales_plattform_enabled: false, ist_abzugsposten: false },
+      ],
+      umsatz: [
+        { leistungsdatum: '2026-01-01', betrag: '1000', kategorie_id: KAT_UMSATZ_ID, gruppe_id: null, untergruppe_id: null, sales_plattform_id: null, produkt_id: PRODUKT_ID },
+      ],
+      ausgaben: [
+        { leistungsdatum: '2026-01-01', betrag_netto: '300', kategorie_id: KAT_KOSTEN_ID, gruppe_id: null, untergruppe_id: null, sales_plattform_id: null, produkt_id: PRODUKT_ID },
+      ],
+    })
+    const res = await GET(req({ produkt_ids: PRODUKT_ID, granularitaet: 'monat' }))
+    const body = await res.json()
+    const names = body.positionen.map((p: { name: string }) => p.name)
+
+    expect(names).toEqual([
+      'Bruttoumsatz', 'Nettoumsatz', 'Produktausgaben', 'Produktinvestitionsausgaben',
+      'Periodenergebnis', 'Kumuliertes Ergebnis',
+    ])
+    const periode = body.positionen.find((p: { id: string }) => p.id === 'break-even-periodenergebnis')
+    expect(periode.values['2026-01']).toBe(700)  // 1000 - 300
+  })
+
   // ── Produktinvestitionen ─────────────────────────────────────────────────────
 
   it('books PI investment cost in full in the booking month (no amortization spread)', async () => {

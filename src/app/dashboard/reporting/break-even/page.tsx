@@ -19,7 +19,7 @@ export default function ReportingBreakEvenPage() {
     setGranularitaet, setSelectedProduktIds, removeProdukt,
   } = useReportingBreakEven()
 
-  // Immer nur die letzte Summen-Position (DB3) im Diagramm — fixiert, nicht änderbar
+  // Immer nur die letzte Summen-Position (Kumuliertes Ergebnis) im Diagramm — fixiert, nicht änderbar
   const lastSummeId = useMemo(() => {
     if (!data) return null
     const summen = data.positionen.filter(p => p.type === 'summe')

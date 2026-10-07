@@ -562,6 +562,7 @@ Die Kumulierung erfolgt auf EntityMap-Ebene (catVals, grpVals, ugrVals, pltVals,
 1. **„Kumuliert"-Badge entfernt** — explizit vom Nutzer entfernt; Seite heißt „Break-Even-Report", Kontext ist klar
 2. **Periodenergebnis-Zeile hinzugefügt** — nicht in der ursprünglichen Spec, aber explizit vom Nutzer angefordert (DB3 + nachfolgende Positionen → Summe pro Periode, davon Kumuliertes Ergebnis)
 3. **Chart fixiert auf „Kumuliertes Ergebnis"** — Spec sah auswählbare Linien vor; Entscheidung: Break-Even-Verlauf (kumuliertes Ergebnis) ist die einzig relevante Darstellung
+4. **Keine DB1–DB3 mehr (2026-10-07)** — Nur die erste Summe (Nettoumsatz) wird angezeigt; alle weiteren Summen werden ausgeblendet. Periodenergebnis = Nettoumsatz + alle nachfolgenden Positionen (Produkt-, Vertriebs-, Marketing- und Produktinvestitionsausgaben). Positionsnamen nach dem Nettoumsatz werden im Break-Even-Report von „…kosten" zu „…ausgaben" umbenannt (nur Anzeige, Reporting-Modell bleibt unverändert)
 
 ### Produktionsreif-Entscheidung
 **JA — APPROVED**
@@ -569,4 +570,4 @@ Die Kumulierung erfolgt auf EntityMap-Ebene (catVals, grpVals, ugrVals, pltVals,
 Keine Critical- oder High-Bugs gefunden. Der einzige Medium-Bug (irreführender Leerzustand) ist UX-seitig und hat einen klaren Workaround. Alle E2E- und Unit-Tests bestehen. Sicherheits-Audit ohne Befunde.
 
 ## Deployment
-_To be added by /deploy_
+- **2026-10-07:** Änderung „DB1–DB3 entfernt, Kosten → Ausgaben“ via Push auf `main` (Vercel Auto-Deploy) ausgerollt
