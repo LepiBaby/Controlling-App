@@ -120,5 +120,12 @@ _To be added by /architecture_
 ### Gefundene Bugs
 Keine kritischen oder hohen Bugs gefunden.
 
+## Änderungen
+
+### 2026-10-07 — Bereiche umbenannt
+- „Reporting" → **Strategisches Reporting**, „Kurzfristige Planung" → **Operative Planung**, „Langfristige Planung" → **Strategische Planung**
+- Nur Anzeigenamen geändert (Bereichswechsler, Bereichskarten, Seitentitel, Planversions-Breadcrumb, Hinweistexte); URLs (`/dashboard/kurzfristige-planung`, `/dashboard/langfristige-planung`) und interne Werte bleiben unverändert
+- Die Gruppe „Reporting" in der Navigation und die Abschnittsüberschrift „Reporting" auf dem Dashboard bleiben unverändert (dort heißt eine Untergruppe so, nicht der Bereich)
+
 ## Deployment
-_To be added by /deploy_
+- **2026-10-07:** Umbenennung der Bereiche via Push auf `main` (Vercel Auto-Deploy) ausgerollt

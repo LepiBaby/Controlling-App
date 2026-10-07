@@ -75,7 +75,7 @@ export default function PlanIstVergleichPage() {
               <p className="mt-1">
                 Lege zuerst eine Planversion in der{' '}
                 <a href="/dashboard/langfristige-planung" className="underline underline-offset-2 hover:text-foreground">
-                  Langfristigen Planung
+                  Strategischen Planung
                 </a>{' '}
                 an, um sie hier als Soll zu vergleichen.
               </p>

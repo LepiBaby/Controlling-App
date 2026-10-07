@@ -10,9 +10,9 @@ import {
 } from '@/components/ui/select'
 
 export const BEREICHE = [
-  { value: 'reporting', label: 'Reporting', href: '/dashboard' },
-  { value: 'kurzfristige-planung', label: 'Kurzfristige Planung', href: '/dashboard/kurzfristige-planung' },
-  { value: 'langfristige-planung', label: 'Langfristige Planung', href: '/dashboard/langfristige-planung' },
+  { value: 'reporting', label: 'Strategisches Reporting', href: '/dashboard' },
+  { value: 'kurzfristige-planung', label: 'Operative Planung', href: '/dashboard/kurzfristige-planung' },
+  { value: 'langfristige-planung', label: 'Strategische Planung', href: '/dashboard/langfristige-planung' },
 ] as const
 
 export function getAktivesBereich(pathname: string): string {

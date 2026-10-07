@@ -8,21 +8,21 @@ import { getAktivesBereich } from '@/components/bereichs-switcher'
 const BEREICHE = [
   {
     value: 'reporting',
-    label: 'Reporting',
+    label: 'Strategisches Reporting',
     description: 'Auswertungen, Reports & Datenpflege',
     icon: BarChart3,
     href: '/dashboard',
   },
   {
     value: 'kurzfristige-planung',
-    label: 'Kurzfristige Planung',
+    label: 'Operative Planung',
     description: 'Absatz-, Einnahmen-, Ausgaben- & Bestellplanung',
     icon: CalendarClock,
     href: '/dashboard/kurzfristige-planung',
   },
   {
     value: 'langfristige-planung',
-    label: 'Langfristige Planung',
+    label: 'Strategische Planung',
     description: 'Strategische Mehrjahresplanung & Szenarien',
     icon: Target,
     href: '/dashboard/langfristige-planung',

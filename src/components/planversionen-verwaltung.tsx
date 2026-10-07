@@ -321,7 +321,7 @@ export function PlanversionenVerwaltung() {
           <Layers className="h-10 w-10 text-muted-foreground/60" />
           <p className="mt-4 font-medium">Noch keine Planversion vorhanden</p>
           <p className="mt-1 max-w-md text-sm text-muted-foreground">
-            Lege deine erste Planversion an, um mit der langfristigen Planung zu starten.
+            Lege deine erste Planversion an, um mit der strategischen Planung zu starten.
           </p>
           <Button className="mt-4" onClick={() => neueVersionInOrdner(null)}>
             <Plus className="mr-2 h-4 w-4" />

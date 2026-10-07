@@ -9,7 +9,7 @@ export default function KurzfristigePlanungPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <NavSheet />
-            <h1 className="text-lg font-semibold">Kurzfristige Planung</h1>
+            <h1 className="text-lg font-semibold">Operative Planung</h1>
           </div>
           <div className="flex items-center gap-4">
             <LogoutButton />
@@ -32,7 +32,7 @@ export default function KurzfristigePlanungPage() {
               >
                 <p className="font-medium">Grundeinstellungen</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Planungshorizont und weitere allgemeine Parameter der kurzfristigen Planung konfigurieren
+                  Planungshorizont und weitere allgemeine Parameter der operativen Planung konfigurieren
                 </p>
               </a>
               <a

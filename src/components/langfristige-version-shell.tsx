@@ -74,7 +74,7 @@ export function LangfristigeVersionShell({ seitenTitel, fullWidth = false, child
           <div className="flex min-w-0 items-center gap-2">
             <NavSheet />
             <h1 className="flex min-w-0 items-center gap-1.5 text-lg font-semibold">
-              <span className="shrink-0 text-muted-foreground">Langfristige Planung</span>
+              <span className="shrink-0 text-muted-foreground">Strategische Planung</span>
               {version && (
                 <>
                   <span className="shrink-0 text-muted-foreground">/</span>

@@ -11,7 +11,7 @@ export default function LangfristigePlanungPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <NavSheet />
-            <h1 className="text-lg font-semibold">Langfristige Planung</h1>
+            <h1 className="text-lg font-semibold">Strategische Planung</h1>
           </div>
           <div className="flex items-center gap-4">
             <LogoutButton />
