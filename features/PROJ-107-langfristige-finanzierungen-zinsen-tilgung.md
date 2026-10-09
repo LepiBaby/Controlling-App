@@ -1,6 +1,6 @@
 # PROJ-107: Finanzierungen in der Finanzierungsausgaben Planung (Zinsen & Tilgung) — Langfristige Planung
 
-## Status: In Review
+## Status: Deployed
 **Created:** 2026-10-09
 **Last Updated:** 2026-10-09
 
@@ -62,4 +62,6 @@ Aus jeder Finanzierung wird monatlich berechnet:
 - Browser-Test durch den Nutzer ausstehend.
 
 ## Deployment
-_To be added by /deploy_
+- **Deployed:** 2026-10-09 via Push auf `main` (Commit `f876e55`) → Vercel-Build erfolgreich
+- DB-Migrationen bereits live: `proj102_finanzierungsausgaben_darlehen`, `proj107_darlehen_drop_kbf_fk`
+- Hinweis: ohne formalen `/qa`-Durchlauf auf Nutzerwunsch deployt; Browser-Test in Produktion durch den Nutzer

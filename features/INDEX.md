@@ -128,7 +128,7 @@
 | PROJ-104 | Planversion duplizieren — Langfristige Planung | Deployed | [PROJ-104-langfristige-planversion-duplizieren.md](PROJ-104-langfristige-planversion-duplizieren.md) | 2026-07-03 |
 | PROJ-105 | Produkte als Investition markieren — Langfristige Planung | Deployed | [PROJ-105-langfristige-produkte-investition-markierung.md](PROJ-105-langfristige-produkte-investition-markierung.md) | 2026-07-03 |
 | PROJ-106 | Deckungsbeitragsauswertung — Langfristige Planung | Deployed | [PROJ-106-langfristige-deckungsbeitragsauswertung.md](PROJ-106-langfristige-deckungsbeitragsauswertung.md) | 2026-07-04 |
-| PROJ-107 | Finanzierungen (Zinsen & Tilgung) in der Finanzierungsausgaben Planung — Langfristige Planung | In Review | [PROJ-107-langfristige-finanzierungen-zinsen-tilgung.md](PROJ-107-langfristige-finanzierungen-zinsen-tilgung.md) | 2026-10-09 |
+| PROJ-107 | Finanzierungen (Zinsen & Tilgung) in der Finanzierungsausgaben Planung — Langfristige Planung | Deployed | [PROJ-107-langfristige-finanzierungen-zinsen-tilgung.md](PROJ-107-langfristige-finanzierungen-zinsen-tilgung.md) | 2026-10-09 |
 
 <!-- Add features above this line -->
 
