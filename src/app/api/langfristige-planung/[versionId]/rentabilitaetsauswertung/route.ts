@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/supabase-server'
 import { fetchAllRows } from '@/lib/supabase-paginate'
+import { ladeFinanzierungsausgabenEffektiv } from '@/lib/langfristige-finanzierungsausgaben-effektiv'
 import { ensureLangfristigeVersion } from '@/lib/langfristige-version'
 import { generiereUndSpeichereLangfristigeBestellkosten } from '../bestellplanung/bestellungen/[id]/kosten/_kosten-utils'
 import { ladeVersionsDaten } from '../bestellplanung/_utils'
@@ -203,7 +204,7 @@ export async function GET(request: Request, { params }: RouteContext) {
     fetchAllRows((from, to) => supabase.from('langfristige_ust_kategorie_saetze').select('kategorie_id, ebene, ust_satz').eq('user_id', uid).eq('plan_version_id', versionId).order('id', { ascending: true }).range(from, to)),
     supabase.from('langfristige_ust_ebene_auswahl').select('kategorie_id, ebene').eq('user_id', uid).eq('plan_version_id', versionId).limit(1000),
     fetchAllRows((from, to) => supabase.from('langfristige_operativekosten_planung').select('kategorie_id, jahr, monat, betrag').eq('user_id', uid).eq('plan_version_id', versionId).order('id', { ascending: true }).range(from, to)),
-    fetchAllRows((from, to) => supabase.from('langfristige_finanzierungsausgaben_planung').select('kategorie_id, jahr, monat, betrag').eq('user_id', uid).eq('plan_version_id', versionId).order('id', { ascending: true }).range(from, to)),
+    ladeFinanzierungsausgabenEffektiv(supabase, uid, versionId),
     fetchAllRows((from, to) => supabase.from('langfristige_steuerausgaben_planung').select('kategorie_id, jahr, monat, betrag_manuell').eq('user_id', uid).eq('plan_version_id', versionId).order('id', { ascending: true }).range(from, to)),
     fetchAllRows((from, to) => supabase.from('langfristige_bestellungen').select('id, produkt_id, menge_praktisch, bestelldatum, produktionsende_datum, shippingdatum, ankunftsdatum, verfuegbarkeitsdatum, anzahl_20dc, anzahl_40hq, container_anteil, ist_erstbestellung').eq('user_id', uid).eq('plan_version_id', versionId).order('id', { ascending: true }).range(from, to)),
   ])

@@ -17,7 +17,7 @@ const KATEGORIE_ID = '22222222-2222-4222-8222-222222222222'
 // Thenable-Chain: jede Methode gibt die Chain zurück; await löst zum Ergebnis auf.
 function chain(result: unknown) {
   const c: Record<string, unknown> = { then: (resolve: (v: unknown) => unknown) => resolve(result) }
-  for (const m of ['select', 'eq', 'upsert', 'single', 'maybeSingle', 'limit', 'delete']) c[m] = () => c
+  for (const m of ['select', 'eq', 'upsert', 'single', 'maybeSingle', 'limit', 'delete', 'order', 'range']) c[m] = () => c
   return c
 }
 
@@ -61,7 +61,8 @@ beforeEach(() => {
 describe('GET /api/langfristige-planung/[versionId]/finanzierungsausgaben-planung', () => {
   it('returns 200 with stored rows', async () => {
     mockFrom.mockReturnValueOnce(chain({ data: { id: VERSION_ID }, error: null })) // version check
-    mockFrom.mockReturnValueOnce(chain({ data: [CELL], error: null })) // values
+    mockFrom.mockReturnValueOnce(chain({ data: [CELL], error: null })) // manuelle Werte
+    mockFrom.mockReturnValueOnce(chain({ data: [], error: null })) // Finanzierungen
     const res = await GET(new Request(URL_BASE), ctx())
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -72,9 +73,40 @@ describe('GET /api/langfristige-planung/[versionId]/finanzierungsausgaben-planun
   it('returns [] when no rows', async () => {
     mockFrom.mockReturnValueOnce(chain({ data: { id: VERSION_ID }, error: null }))
     mockFrom.mockReturnValueOnce(chain({ data: [], error: null }))
+    mockFrom.mockReturnValueOnce(chain({ data: [], error: null }))
     const res = await GET(new Request(URL_BASE), ctx())
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual([])
+  })
+
+  it('adds interest/repayment from financings onto manual values (PROJ-107)', async () => {
+    const ZINS = '33333333-3333-4333-8333-333333333333'
+    const TILG = '44444444-4444-4444-8444-444444444444'
+    mockFrom.mockReturnValueOnce(chain({ data: { id: VERSION_ID }, error: null }))
+    mockFrom.mockReturnValueOnce(chain({ data: [{ kategorie_id: ZINS, jahr: 2026, monat: 1, betrag: 10 }], error: null }))
+    mockFrom.mockReturnValueOnce(chain({
+      data: [{
+        id: 'd1', quelle_kbf_id: null, zinsen_kategorie_id: ZINS, tilgung_kategorie_id: TILG, name: 'KfW',
+        betrag: 1200, zinssatz: 12, laufzeit_monate: 2, tilgungsfrei_monate: 0, start_jahr: 2026, start_monat: 1, sort_order: 0,
+      }],
+      error: null,
+    }))
+    const res = await GET(new Request(URL_BASE), ctx())
+    const body = (await res.json()) as Array<{ kategorie_id: string; jahr: number; monat: number; betrag: number }>
+    const find = (k: string, m: number) => body.find(r => r.kategorie_id === k && r.monat === m)?.betrag
+    expect(find(ZINS, 1)).toBe(22) // 10 manuell + 1200 × 1 %
+    expect(find(ZINS, 2)).toBe(6)
+    expect(find(TILG, 1)).toBe(600)
+    expect(find(TILG, 2)).toBe(600)
+  })
+
+  it('returns only manual values with ?nur_manuell=1', async () => {
+    mockFrom.mockReturnValueOnce(chain({ data: { id: VERSION_ID }, error: null }))
+    mockFrom.mockReturnValueOnce(chain({ data: [CELL], error: null }))
+    const res = await GET(new Request(`${URL_BASE}?nur_manuell=1`), ctx())
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual([CELL])
+    expect(mockFrom).toHaveBeenCalledTimes(2)
   })
 
   it('returns 404 for foreign/unknown version', async () => {
@@ -97,6 +129,7 @@ describe('GET /api/langfristige-planung/[versionId]/finanzierungsausgaben-planun
   it('returns 500 on db error', async () => {
     mockFrom.mockReturnValueOnce(chain({ data: { id: VERSION_ID }, error: null }))
     mockFrom.mockReturnValueOnce(chain({ data: null, error: { message: 'boom' } }))
+    mockFrom.mockReturnValueOnce(chain({ data: [], error: null }))
     const res = await GET(new Request(URL_BASE), ctx())
     expect(res.status).toBe(500)
   })

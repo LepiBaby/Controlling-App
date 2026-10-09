@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { requireAuth } from '@/lib/supabase-server'
 import { ensureLangfristigeVersion } from '@/lib/langfristige-version'
 import { fetchAllRows } from '@/lib/supabase-paginate'
+import { ladeFinanzierungsausgabenEffektiv } from '@/lib/langfristige-finanzierungsausgaben-effektiv'
 
 // Auth-geschützte, pro-Planversion dynamische Route — nie statisch generieren.
 // Überspringt den in Next 16 instabilen Static-Path-Pass (Worker-Crash).
@@ -34,13 +35,22 @@ interface RouteContext {
   params: Promise<{ versionId: string }>
 }
 
-export async function GET(_request: Request, { params }: RouteContext) {
+// GET liefert standardmäßig die EFFEKTIVEN Werte (manuell + aus Finanzierungen
+// berechnete Zinsen/Tilgung, PROJ-107) — so sehen alle Auswertungen dieselben Zahlen.
+// `?nur_manuell=1` liefert nur die manuell gepflegten Zellen (für die Planungsseite).
+export async function GET(request: Request, { params }: RouteContext) {
   const { user, supabase, error } = await requireAuth()
   if (error) return error
 
   const { versionId } = await params
   const versionError = await ensureLangfristigeVersion(supabase, user!.id, versionId)
   if (versionError) return versionError
+
+  if (new URL(request.url).searchParams.get('nur_manuell') !== '1') {
+    const { data, error: effErr } = await ladeFinanzierungsausgabenEffektiv(supabase, user!.id, versionId)
+    if (effErr) return NextResponse.json({ error: effErr.message }, { status: 500 })
+    return NextResponse.json(data)
+  }
 
   const { data, error: dbErr } = await fetchAllRows((from, to) =>
     supabase

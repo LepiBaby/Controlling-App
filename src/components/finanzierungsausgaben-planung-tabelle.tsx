@@ -1,9 +1,19 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Pencil, StickyNote } from 'lucide-react'
+import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Landmark, Pencil, Plus, StickyNote, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import {
   Tooltip,
   TooltipContent,
@@ -16,7 +26,9 @@ import {
   betragCellKey,
   type PlanungsMonat,
   type FinanzierungGruppe,
+  type FinanzierungDarlehen,
 } from '@/hooks/use-finanzierungsausgaben-planung'
+import { FinanzierungHinzufuegenDialog } from '@/components/finanzierung-hinzufuegen-dialog'
 import {
   FinanzierungsausgabenPlanungBulkEditDialog,
   type FinanzierungsausgabenBulkEditCell,
@@ -42,7 +54,8 @@ function formatNum(v: number | null, decimals = 2): string {
 type RowKind =
   | 'group-header' // L1-Gruppe mit Untergruppen (Summe, nicht editierbar, einklappbar)
   | 'group-leaf' // L1-Gruppe ohne Untergruppen (editierbar)
-  | 'subgroup' // L2-Untergruppe (editierbar, eingerückt)
+  | 'subgroup' // L2-Untergruppe bzw. „Manuelle Eingabe" unter Zinsen/Tilgung (editierbar, eingerückt)
+  | 'darlehen' // PROJ-107: berechnete Finanzierungs-Zeile unter Zinsen/Tilgung (nicht editierbar)
   | 'total' // Finanzierungsausgaben (Gesamt) — ganz unten
 
 interface FlatRow {
@@ -51,7 +64,8 @@ interface FlatRow {
   label: string
   indent: number
   kategorieId?: string // editierbare Kategorie (group-leaf, subgroup)
-  groupId?: string // für group-header: zugehörige Gruppe
+  groupId?: string // für group-header/darlehen: zugehörige Gruppe
+  darlehen?: FinanzierungDarlehen // für darlehen-Zeilen
   expandable?: boolean
   expanded?: boolean
 }
@@ -68,6 +82,13 @@ export function FinanzierungsausgabenPlanungTabelle({ versionId }: { versionId: 
     getBetrag,
     upsertCell,
     upsertBatch,
+    zinsenKategorieId,
+    tilgungKategorieId,
+    getDarlehenBetrag,
+    darlehenFuerKategorie,
+    addDarlehen,
+    updateDarlehen,
+    removeDarlehen,
   } = useFinanzierungsausgabenPlanung(versionId)
 
   const { toast } = useToast()
@@ -87,6 +108,11 @@ export function FinanzierungsausgabenPlanungTabelle({ versionId }: { versionId: 
   const notizCellKeyRef = useRef<string>('')
   const notizCellLabelRef = useRef<string>('')
 
+  // Finanzierungen (PROJ-107)
+  const [darlehenDialogOpen, setDarlehenDialogOpen] = useState(false)
+  const [darlehenBearbeiten, setDarlehenBearbeiten] = useState<FinanzierungDarlehen | null>(null)
+  const [darlehenLoeschen, setDarlehenLoeschen] = useState<FinanzierungDarlehen | null>(null)
+
   // Inline-Editing
   const [editingCell, setEditingCellState] = useState<string | null>(null)
   const editingCellRef = useRef<string | null>(null)
@@ -98,10 +124,11 @@ export function FinanzierungsausgabenPlanungTabelle({ versionId }: { versionId: 
     setEditingCellState(key)
   }
 
-  // Nur Gruppen mit Untergruppen sind einklappbar
+  // Gruppen mit Untergruppen sowie Gruppen mit Finanzierungs-Zeilen (Zinsen/Tilgung)
+  // sind einklappbar. Ohne Finanzierungen bleiben Zinsen/Tilgung direkt editierbar.
   const expandableGroupIds = useMemo(
-    () => gruppen.filter(g => !g.istLeaf).map(g => g.id),
-    [gruppen],
+    () => gruppen.filter(g => !g.istLeaf || darlehenFuerKategorie(g.id).length > 0).map(g => g.id),
+    [gruppen, darlehenFuerKategorie],
   )
 
   // Beim ersten Laden alle Gruppen ausklappen
@@ -157,15 +184,19 @@ export function FinanzierungsausgabenPlanungTabelle({ versionId }: { versionId: 
     (groupId: string, monat: PlanungsMonat): number => {
       const g = gruppenById.get(groupId)
       if (!g) return 0
-      return g.untergruppen.reduce((sum, u) => sum + (getBetrag(u.id, monat) ?? 0), 0)
+      // Manuelle Werte (Untergruppen bzw. die Gruppe selbst) + Finanzierungs-Zeilen.
+      const manuell = g.istLeaf
+        ? (getBetrag(g.id, monat) ?? 0)
+        : g.untergruppen.reduce((sum, u) => sum + (getBetrag(u.id, monat) ?? 0), 0)
+      return darlehenFuerKategorie(g.id).reduce((sum, d) => sum + getDarlehenBetrag(d, g.id, monat), manuell)
     },
-    [gruppenById, getBetrag],
+    [gruppenById, getBetrag, darlehenFuerKategorie, getDarlehenBetrag],
   )
 
   const aggregateTotal = useCallback(
     (monat: PlanungsMonat): number =>
-      leafKategorieIds.reduce((sum, id) => sum + (getBetrag(id, monat) ?? 0), 0),
-    [leafKategorieIds, getBetrag],
+      gruppen.reduce((sum, g) => sum + aggregateGroup(g.id, monat), 0),
+    [gruppen, aggregateGroup],
   )
 
   // ─── Flache Zeilenliste ──────────────────────────────────────────────────────
@@ -174,7 +205,39 @@ export function FinanzierungsausgabenPlanungTabelle({ versionId }: { versionId: 
     const rows: FlatRow[] = []
 
     for (const g of gruppen) {
-      if (g.istLeaf) {
+      const gDarlehen = darlehenFuerKategorie(g.id)
+      if (g.istLeaf && gDarlehen.length > 0) {
+        // Zinsen/Tilgung mit Finanzierungen: Summenzeile + „Manuelle Eingabe" + je Finanzierung eine Zeile
+        const expanded = expandedGroups.has(g.id)
+        rows.push({
+          id: `group-header-${g.id}`,
+          kind: 'group-header',
+          label: g.name,
+          indent: 0,
+          groupId: g.id,
+          expandable: true,
+          expanded,
+        })
+        if (expanded) {
+          rows.push({
+            id: `manuell-${g.id}`,
+            kind: 'subgroup',
+            label: 'Manuelle Eingabe',
+            indent: 1,
+            kategorieId: g.id,
+          })
+          for (const d of gDarlehen) {
+            rows.push({
+              id: `darlehen-${g.id}-${d.id}`,
+              kind: 'darlehen',
+              label: d.name,
+              indent: 1,
+              groupId: g.id,
+              darlehen: d,
+            })
+          }
+        }
+      } else if (g.istLeaf) {
         // Gruppe ohne Untergruppen → selbst editierbar
         rows.push({
           id: `group-leaf-${g.id}`,
@@ -204,6 +267,16 @@ export function FinanzierungsausgabenPlanungTabelle({ versionId }: { versionId: 
               kategorieId: u.id,
             })
           }
+          for (const d of gDarlehen) {
+            rows.push({
+              id: `darlehen-${g.id}-${d.id}`,
+              kind: 'darlehen',
+              label: d.name,
+              indent: 1,
+              groupId: g.id,
+              darlehen: d,
+            })
+          }
         }
       }
     }
@@ -211,7 +284,7 @@ export function FinanzierungsausgabenPlanungTabelle({ versionId }: { versionId: 
     rows.push({ id: 'total', kind: 'total', label: 'Finanzierungsausgaben (Gesamt)', indent: 0 })
 
     return rows
-  }, [gruppen, expandedGroups])
+  }, [gruppen, expandedGroups, darlehenFuerKategorie])
 
   // ─── Zellwert je Zeile × Monat ───────────────────────────────────────────────
 
@@ -224,6 +297,10 @@ export function FinanzierungsausgabenPlanungTabelle({ versionId }: { versionId: 
       case 'subgroup': {
         const val = getBetrag(row.kategorieId!, monat)
         return { display: val !== null ? formatNum(val) : '', rawNum: val, isEditable: true }
+      }
+      case 'darlehen': {
+        const val = getDarlehenBetrag(row.darlehen!, row.groupId!, monat)
+        return { display: formatNum(val), rawNum: val, isEditable: false }
       }
       case 'group-header': {
         const val = aggregateGroup(row.groupId!, monat)
@@ -445,20 +522,39 @@ export function FinanzierungsausgabenPlanungTabelle({ versionId }: { versionId: 
               {monate[0].label} – {monate[monate.length - 1].label}
             </div>
           )}
-          {expandableGroupIds.length > 0 && (
+          <div className="ml-auto flex items-center gap-2">
+            {expandableGroupIds.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1.5 text-xs text-muted-foreground"
+                onClick={toggleAll}
+              >
+                {allExpanded
+                  ? <ChevronsDownUp className="h-3.5 w-3.5" />
+                  : <ChevronsUpDown className="h-3.5 w-3.5" />
+                }
+                {allExpanded ? 'Alle einklappen' : 'Alle ausklappen'}
+              </Button>
+            )}
             <Button
-              variant="ghost"
               size="sm"
-              className="gap-1.5 text-xs text-muted-foreground"
-              onClick={toggleAll}
-            >
-              {allExpanded
-                ? <ChevronsDownUp className="h-3.5 w-3.5" />
-                : <ChevronsUpDown className="h-3.5 w-3.5" />
+              className="gap-1.5"
+              disabled={!zinsenKategorieId || !tilgungKategorieId}
+              title={
+                !zinsenKategorieId || !tilgungKategorieId
+                  ? 'Im KPI-Modell fehlen unter „Finanzierung" die Gruppen „Zinsen" und/oder „Tilgung".'
+                  : undefined
               }
-              {allExpanded ? 'Alle einklappen' : 'Alle ausklappen'}
+              onClick={() => {
+                setDarlehenBearbeiten(null)
+                setDarlehenDialogOpen(true)
+              }}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Finanzierung hinzufügen
             </Button>
-          )}
+          </div>
         </div>
 
         {/* Tabelle */}
@@ -541,6 +637,39 @@ export function FinanzierungsausgabenPlanungTabelle({ versionId }: { versionId: 
                           {row.expanded ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
                           {row.label}
                         </button>
+                      ) : row.kind === 'darlehen' ? (
+                        <div className="group/darlehen flex items-center gap-1.5 text-sm text-foreground">
+                          <Landmark className="h-3 w-3 shrink-0 text-muted-foreground" />
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="truncate">{row.label}</span>
+                            </TooltipTrigger>
+                            <TooltipContent side="right" className="text-xs">
+                              {darlehenInfo(row.darlehen!)}
+                            </TooltipContent>
+                          </Tooltip>
+                          <span className="ml-auto flex shrink-0 items-center gap-0.5 opacity-0 group-hover/darlehen:opacity-100 focus-within:opacity-100">
+                            <button
+                              type="button"
+                              className="rounded p-0.5 text-muted-foreground hover:text-foreground"
+                              aria-label={`Finanzierung ${row.label} bearbeiten`}
+                              onClick={() => {
+                                setDarlehenBearbeiten(row.darlehen!)
+                                setDarlehenDialogOpen(true)
+                              }}
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </button>
+                            <button
+                              type="button"
+                              className="rounded p-0.5 text-muted-foreground hover:text-destructive"
+                              aria-label={`Finanzierung ${row.label} löschen`}
+                              onClick={() => setDarlehenLoeschen(row.darlehen!)}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </span>
+                        </div>
                       ) : (
                         <span
                           className={
@@ -715,6 +844,54 @@ export function FinanzierungsausgabenPlanungTabelle({ versionId }: { versionId: 
           onApply={handleBulkApply}
         />
 
+        {/* Finanzierung hinzufügen / bearbeiten (PROJ-107) */}
+        {zinsenKategorieId && tilgungKategorieId && (
+          <FinanzierungHinzufuegenDialog
+            open={darlehenDialogOpen}
+            onOpenChange={setDarlehenDialogOpen}
+            versionId={versionId}
+            monate={monate}
+            zinsenKategorieId={zinsenKategorieId}
+            tilgungKategorieId={tilgungKategorieId}
+            bearbeiten={darlehenBearbeiten}
+            onSave={async input => {
+              if (darlehenBearbeiten) await updateDarlehen(darlehenBearbeiten.id, input)
+              else await addDarlehen(input)
+              toast({ title: darlehenBearbeiten ? 'Finanzierung aktualisiert' : 'Finanzierung hinzugefügt' })
+            }}
+          />
+        )}
+
+        <AlertDialog open={darlehenLoeschen !== null} onOpenChange={o => !o && setDarlehenLoeschen(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Finanzierung löschen?</AlertDialogTitle>
+              <AlertDialogDescription>
+                „{darlehenLoeschen?.name}“ und die daraus berechneten Zinsen und Tilgungen werden aus dieser
+                Planversion entfernt. Manuell eingegebene Werte bleiben erhalten.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={async () => {
+                  const d = darlehenLoeschen
+                  setDarlehenLoeschen(null)
+                  if (!d) return
+                  try {
+                    await removeDarlehen(d.id)
+                  } catch {
+                    toast({ title: 'Fehler', description: 'Finanzierung konnte nicht gelöscht werden.', variant: 'destructive' })
+                  }
+                }}
+              >
+                Löschen
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
         {/* Notiz-Formular */}
         <PlanungNotizFormular
           open={notizFormularOpen}
@@ -727,4 +904,11 @@ export function FinanzierungsausgabenPlanungTabelle({ versionId }: { versionId: 
       </div>
     </TooltipProvider>
   )
+}
+
+function darlehenInfo(d: FinanzierungDarlehen): string {
+  const start = new Date(d.start_jahr, d.start_monat - 1, 1).toLocaleDateString('de-DE', { month: 'short', year: 'numeric' })
+  const betrag = d.betrag.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })
+  const zins = d.zinssatz.toLocaleString('de-DE', { maximumFractionDigits: 4 })
+  return `${betrag} · ${zins} % p. a. · ${d.laufzeit_monate} Monate Laufzeit · ${d.tilgungsfrei_monate} Monate tilgungsfrei · ab ${start}`
 }

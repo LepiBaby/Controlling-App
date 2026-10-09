@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/supabase-server'
 import { fetchAllRows } from '@/lib/supabase-paginate'
+import { ladeFinanzierungsausgabenEffektiv } from '@/lib/langfristige-finanzierungsausgaben-effektiv'
 import { ensureLangfristigeVersion } from '@/lib/langfristige-version'
 import { GET as salesBerechnetGET } from '../../sales-plattform-planung/berechnet/route'
 import { GET as umsatzausgabenBerechnetGET } from '../../umsatzausgaben/berechnet/route'
@@ -460,7 +461,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
       fetchAllRows((from, to) => supabase.from('langfristige_investitionsausgaben_planung').select('kategorie_id, produkt_id, jahr, monat, betrag_manuell').eq('user_id', user!.id).eq('plan_version_id', versionId).order('id', { ascending: true }).range(from, to)),
       fetchAllRows((from, to) => supabase.from('langfristige_einnahmen_planung').select('kategorie_id, jahr, monat, betrag_manuell').eq('user_id', user!.id).eq('plan_version_id', versionId).order('id', { ascending: true }).range(from, to)),
       fetchAllRows((from, to) => supabase.from('langfristige_operativekosten_planung').select('kategorie_id, jahr, monat, betrag').eq('user_id', user!.id).eq('plan_version_id', versionId).order('id', { ascending: true }).range(from, to)),
-      fetchAllRows((from, to) => supabase.from('langfristige_finanzierungsausgaben_planung').select('kategorie_id, jahr, monat, betrag').eq('user_id', user!.id).eq('plan_version_id', versionId).order('id', { ascending: true }).range(from, to)),
+      ladeFinanzierungsausgabenEffektiv(supabase, user!.id, versionId),
       // Zahlungsziele für die B2-Rückrechnung (Vertrieb + Marketing).
       supabase.from('langfristige_versand_plattform_einstellungen').select('zahlungsziel_monate').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(100),
       supabase.from('langfristige_lager_plattform_einstellungen').select('zahlungsziel_monate').eq('user_id', user!.id).eq('plan_version_id', versionId).limit(100),
